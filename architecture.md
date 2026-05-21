@@ -11,16 +11,16 @@
                               ▼
                  ┌──────────────────────────────┐
                  │  你的内网服务器（Docker Compose）│
-                 │  ┌──────────┐  ┌──────────┐  │
-                 │  │ Ktor App │  │ Postgres │  │
-                 │  └──────────┘  └──────────┘  │
-                 │  ┌──────────┐  ┌──────────┐  │
-                 │  │  MinIO   │  │  Redis   │  │
-                 │  └──────────┘  └──────────┘  │
+                  │  ┌──────────┐  ┌──────────┐  │
+                  │  │ Ktor App │  │ Postgres │  │
+                  │  └──────────┘  └──────────┘  │
+                  │  ┌──────────┐                │
+                  │  │  MinIO   │                │
+                  │  └──────────┘                │
                  └──────────────────────────────┘
 ```
 
-**为什么这样**：业务数据（数据库 + 图片 + 你自己 LLM API key）放你自己服务器，朋友的机器只做 TLS 终结与转发，等于 0 信任暴露。Caddy 一行 `reverse_proxy 100.x.x.x:8080` 即可。如果将来朋友撤掉服务，把 Caddy 搬过来就行，应用层零改动。
+**为什么这样**：业务数据（数据库 + 图片）放你自己服务器，朋友的机器只做 TLS 终结与转发，等于 0 信任暴露。Caddy 一行 `reverse_proxy 100.x.x.x:8080` 即可。如果将来朋友撤掉服务，把 Caddy 搬过来就行，应用层零改动。
 
 ---
 
@@ -32,9 +32,10 @@
 | ORM | **Exposed**（Kotlin DSL） | jOOQ / Hibernate |
 | 数据库 | **PostgreSQL 16** + `pg_trgm`，可选 `zhparser` | 加 Meilisearch / Elasticsearch |
 | 对象存储 | **MinIO**（S3 兼容，自托管） | 直接平迁到 AWS S3 / 阿里 OSS |
-| 缓存/会话 | **Redis**（可选，初期可不上） | Redis Cluster |
 | 实时推送 | Ktor WebSocket + 轮询兜底 | FCM / UnifiedPush |
 | 鉴权 | JWT (access + refresh) | OAuth2 |
+| 限流 | **内存令牌桶**（单实例足够） | Redis 令牌桶（多实例时） |
+| 日志/可观测 | **Logback + Structured JSON** + Ktor CallLogging | ELK / Grafana Loki |
 | 数据库迁移 | **Flyway** | Liquibase |
 | 反向代理 | Caddy（自动 HTTPS） | Nginx |
 | 容器化 | Docker Compose | Kubernetes |
@@ -72,8 +73,8 @@ CREATE TABLE users (
 -- 出售单
 CREATE TABLE listings (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  seller_user_id    UUID REFERENCES users(id) ON DELETE SET NULL, -- NULL = NapCat 来源
-  seller_qq         VARCHAR(16),                  -- NapCat 来源时使用
+  seller_user_id    UUID REFERENCES users(id) ON DELETE SET NULL, -- 注销时应用层先下架，再删用户；NULL = 已注销 或 NapCat 来源
+  seller_qq         VARCHAR(16),                  -- NapCat 来源 或 备用联系方式
   source            VARCHAR(16)  NOT NULL,        -- USER | NAPCAT
   category          VARCHAR(32)  NOT NULL,        -- BOOK | ELECTRONICS | OTHER
   title             VARCHAR(255) NOT NULL,
@@ -192,7 +193,7 @@ BitMartServer/
 └── src/main/kotlin/cn/edu/bit/bitmart/
     ├── Application.kt              # Ktor 入口、模块装配
     ├── config/                     # 配置加载（HOCON / 环境变量）
-    ├── plugins/                    # ContentNeg、StatusPages、CORS、CallLogging
+    ├── plugins/                    # ContentNeg、StatusPages、CORS、CallLogging、RateLimit
     ├── auth/
     │   ├── BitAuthClient.kt        # 调用 BIT101 验证接口
     │   ├── JwtService.kt
@@ -209,9 +210,6 @@ BitMartServer/
     │   └── UploadRoutes.kt         # 直传 + 预签名两种
     ├── books/
     │   └── IsbnLookupService.kt    # Open Library / Google Books / 本地缓存
-    ├── ai/
-    │   ├── OpenAiCompatibleClient.kt
-    │   └── AiExtractRoutes.kt      # 服务端代理调用
     ├── wishes/
     ├── notifications/
     │   ├── NotificationService.kt  # 命中检测、入库
@@ -234,19 +232,26 @@ BitMartServer/
 | `POST /auth/refresh` | |
 | `POST /auth/logout` | 撤销 refresh token |
 | `GET /users/me`, `PATCH /users/me` | |
+| `DELETE /users/me` | 注销账号：下架全部 ACTIVE 商品、删除求购/通知/refresh token、删除用户行 |
 | `GET /listings?q=&category=&tags=&minPrice=&maxPrice=&sort=&cursor=` | 游标分页 |
 | `POST /listings` | 创建出售单（含子项目数量） |
-| `GET /listings/{id}` | 详情；返回联系方式时记一次"查看联系方式"埋点 |
+| `GET /listings/{id}` | 详情；seller 为 null 时显示"卖家已注销"；NapCat 来源显示 QQ + 风险提示 |
 | `PATCH /listings/{id}` | |
 | `POST /listings/{id}/items/{idx}/sold` | 标记已售一件 |
 | `DELETE /listings/{id}` | 软下架 |
 | `POST /uploads/images` | multipart 直传，返回 `{objectKey, url}`；或 `POST /uploads/presign` 返回 PUT URL |
 | `GET /books/lookup?isbn=` | 服务端缓存 ISBN 元数据 |
-| `POST /ai/extract` | body: 图片 keys + 提示词模式（书脊批量 / 单张商品）；返回结构化字段。仅当用户选"用平台 LLM"时调用 |
 | `GET /tags?prefix=` | 标签自动补全 |
 | `POST /wishes`, `GET /wishes`, `DELETE /wishes/{id}` | |
 | `GET /notifications?unread=true` | |
 | `WS /ws` | 鉴权后推送通知，心跳 30s |
+
+**WebSocket 生命周期**：
+- 连接时通过 query param `?token=<accessToken>` 鉴权，token 无效立即关闭（4001）。
+- 服务端每 30s 发 ping，客户端 10s 内未 pong 则断开。
+- Access token 过期时服务端发 `{"type":"TOKEN_EXPIRED"}` 后关闭连接（4002），客户端自动 refresh 后重连。
+- 客户端重连时携带 `?lastEventId=<timestamp>`，服务端补发该时间点之后的未读通知（最多 50 条）。
+- 客户端从后台恢复时，先调 `GET /notifications?unread=true` 补全，再重建 WS。
 
 ### 4.3 BIT 身份验证流程
 
@@ -269,33 +274,38 @@ App ──{studentId, bitPwd, platformPwd, ...}──→ /auth/register
 
 **关键安全点**：BIT 密码绝对不入库不入日志。`BitAuthClient` 内部把密码字段标记为不可序列化，日志中间件加字段脱敏白名单。
 
-### 4.4 LLM 调用的两种模式
+### 4.4 账号注销流程
+
+应用层按顺序执行（单事务）：
+1. `UPDATE listings SET status = 'DELISTED', updated_at = NOW() WHERE seller_user_id = :id AND status = 'ACTIVE'`
+2. `DELETE FROM users WHERE id = :id` — 触发 CASCADE 删除 wishes、notifications、refresh_tokens；listings 的 seller_user_id 被 SET NULL
+
+商品保留（已下架状态）供历史参考，但不再出现在搜索结果中。求购和通知无保留价值，直接级联删除。
+
+### 4.5 LLM 调用（纯客户端）
 
 ```
-模式 A：客户端直连（用户填自己的 key）
-  App ──图片 base64 + key──→ 用户的 OpenAI 兼容端点
-  Android 侧用 OkHttp 直接发，key 存 EncryptedDataStore
-
-模式 B：服务端代理（平台默认 key）
-  App ──图片 key 列表 + mode──→ /ai/extract
-                                    │
-                                    ▼
-                  服务端从 MinIO 取图（或 presigned URL 给 LLM）
-                                    │
-                                    ▼
-                  调用平台配置的 OpenAI 兼容端点
-                                    │
-                                    ▼
-                  Schema 校验 → 返回结构化字段给 App
+App ──图片 base64 + 用户自己的 key──→ 用户配置的 OpenAI 兼容端点
+                                          │
+                                          ▼
+                                    返回结构化 JSON
+                                          │
+                                          ▼
+                              App 解析 → 生成草稿 → 用户审核编辑
 ```
 
-两种模式的客户端表现完全一致：都返回相同 JSON shape，使得 ViewModel 不用关心来源。提示词使用 JSON Schema 强约束输出（OpenAI `response_format: json_schema`），落到 App 后再让用户编辑确认。
+- Android 侧用 OkHttp 直接调用，API Key 存 EncryptedDataStore。
+- 提示词使用 JSON Schema 强约束输出（OpenAI `response_format: json_schema`）。
+- 返回结果落到 App 后让用户编辑确认再提交。
+- 无需服务端参与，避免了服务端 LLM 限流、账单等复杂度。
 
-服务端代理要做：每用户每日额度限制（Redis 计数器），日志审计。
+**升级路径**：后续如需服务端代理模式（平台提供默认 key），新增 `/ai/extract` 接口 + Redis 限流即可，客户端已有统一的 LLM 响应解析层，切换数据源无需改 ViewModel。
 
-### 4.5 NapCat 进阶接入（可选）
+### 4.6 NapCat 进阶接入（可选）
 
-独立 worker 进程订阅 NapCat 的 OneBot WebSocket → 收到群消息 → 拉取附图 → 走 `/ai/extract` → 写库时 `source='NAPCAT'`、`seller_user_id=NULL`、`seller_qq=<发送者 QQ>`。详情页上对此类商品加红色风险提示。
+独立 worker 进程订阅 NapCat 的 OneBot WebSocket → 收到群消息 → 拉取附图 → 调用 LLM 提取结构化信息 → 写库时 `source='NAPCAT'`、`seller_user_id=NULL`、`seller_qq=<发送者 QQ>`。详情页上对此类商品加红色风险提示。
+
+**注意**：NapCat worker 需要自己的 LLM key 配置（环境变量），独立于用户侧 LLM 调用。
 
 ## 五、Android 客户端
 
@@ -367,14 +377,12 @@ BitMartApp/src/main/java/cn/edu/bit/bitmart/
     │                                                          │
     │                                       ┌──────────────────┤
     │                                       ▼                  ▼
-    │                              用户选 LLM 模式         不用 LLM
+    │                              用户配置了 LLM          不用 LLM
     │                                       │                  │
-    │                       ┌───────────────┤                  │
-    │                       ▼               ▼                  ▼
-    │                  本地 key          平台代理         OCR 文本直接放进描述
-    │                       │               │
-    │                       └──────┬────────┘
-    │                              ▼
+    │                                       ▼                  ▼
+    │                         OkHttp 直连用户的 LLM      OCR 文本直接放进描述
+    │                                       │
+    │                                       ▼
     │                     返回 [{title, author, ...}]
     │                              ▼
     │                     生成 N 条草稿，用户逐条审核 / 编辑
@@ -393,8 +401,8 @@ BitMartApp/src/main/java/cn/edu/bit/bitmart/
 ```
 Settings → AI 推断
   ☐ 使用本机 OCR（ML Kit）— 默认开
-  推断方式：(o) 仅 OCR  ( ) 平台 LLM  ( ) 自定义 LLM
-  ── 自定义 LLM ──
+  推断方式：(o) 仅 OCR  ( ) LLM 辅助提取
+  ── LLM 配置 ──
   Base URL: https://...
   API Key:  ********  (EncryptedSharedPreferences / DataStore + MasterKey)
   Model:    gpt-4o-mini
@@ -415,8 +423,6 @@ services:
     image: minio/minio
     command: server /data --console-address ":9001"
     volumes: ["./data/minio:/data"]
-  redis:
-    image: redis:7-alpine
   app:
     build: .
     depends_on: [postgres, minio]
@@ -425,8 +431,6 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       JWT_SECRET: ${JWT_SECRET}
       BIT101_BASE: https://bit101.cn/api
-      OPENAI_BASE: ...
-      OPENAI_KEY: ${OPENAI_KEY}
     ports: ["127.0.0.1:8080:8080"]   # 仅监听 Tailscale 接口可改 0.0.0.0 + 防火墙
 ```
 
@@ -440,7 +444,13 @@ bitmart.example.com {
 }
 ```
 
-### 6.3 备份
+### 6.3 图片访问说明
+
+图片通过 MinIO presigned URL 直接下载，经 Tailscale + Caddy 两跳。初期依赖 Coil 客户端缓存降低重复请求。
+
+**升级路径**：当带宽成为瓶颈时，在 Caddy 前加 CDN（Cloudflare 免费层），或将 MinIO 迁移到 S3 + CloudFront。
+
+### 6.4 备份
 
 每日 cron：`pg_dump | zstd | rsync` 到第二个磁盘 + Tailscale 到朋友机器一份。MinIO 可启 versioning。
 
@@ -450,16 +460,86 @@ bitmart.example.com {
 2. **平台密码 Argon2id**（参数 `m=64MB, t=3, p=1`）。
 3. **JWT 短 access（15min）+ refresh（30d）**，refresh 哈希入库以便撤销。
 4. **图片上传校验**：MIME 嗅探 + 大小限制 + EXIF GPS 清除。
-5. **AI 接口 per-user 限流**（Redis token bucket）防滥用账单。
+5. **通用限流**：内存令牌桶（Ktor 插件），对 `/auth/login`、`/auth/register` 等敏感接口按 IP 限流（如 5次/分钟），防暴力破解。
 6. **联系方式仅登录后可见**；NapCat 来源商品在详情页加风险提示横幅，符合"避免交易"的要求。
 7. **管理员后台**初期不做 UI，直接 SQL 操作 + 一个 `is_admin` 接口允许下架违规内容。
 
-## 八、四周排期（建议）
+## 八、日志与可观测性（Day 1 必备）
+
+### 8.1 日志框架
+
+- **Logback** + **logstash-logback-encoder**：输出结构化 JSON 日志到 stdout。
+- Docker Compose 中通过 `logging.driver: json-file` 收集，后续可切换到 Loki/ELK。
+
+### 8.2 Ktor 日志配置
+
+```kotlin
+install(CallLogging) {
+    level = Level.INFO
+    format { call ->
+        val status = call.response.status()
+        val method = call.request.httpMethod.value
+        val uri = call.request.uri
+        val duration = call.processingTimeMillis()
+        "$method $uri → $status (${duration}ms)"
+    }
+    // 敏感字段脱敏
+    filter { !it.request.uri.contains("/health") }
+    mdc("requestId") { it.request.header("X-Request-Id") ?: UUID.randomUUID().toString() }
+    mdc("userId") { it.principal<JWTPrincipal>()?.subject }
+}
+
+install(StatusPages) {
+    exception<Throwable> { call, cause ->
+        logger.error("Unhandled exception on ${call.request.uri}", cause)
+        call.respond(HttpStatusCode.InternalServerError, ErrorResponse(...))
+    }
+}
+```
+
+### 8.3 日志规范
+
+| 级别 | 用途 | 示例 |
+|---|---|---|
+| ERROR | 不可恢复的异常、外部服务不可达 | DB 连接失败、BIT101 接口超时 |
+| WARN | 可恢复但需关注 | 限流触发、JWT 校验失败、上传文件类型不合法 |
+| INFO | 关键业务事件 | 用户注册、listing 创建/下架、ISBN 查询 |
+| DEBUG | 开发调试（生产关闭） | SQL 语句、请求/响应 body |
+
+### 8.4 脱敏白名单
+
+以下字段在日志中**绝不输出**：
+- `password`、`bitPassword`、`platformPassword`
+- `Authorization` header 的 token 值（仅输出 `Bearer ***`）
+- `apiKey`（用户 LLM key）
+
+### 8.5 logback.xml 配置
+
+```xml
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <includeMdcKeyName>requestId</includeMdcKeyName>
+      <includeMdcKeyName>userId</includeMdcKeyName>
+    </encoder>
+  </appender>
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+  <logger name="org.jetbrains.exposed" level="WARN"/>
+  <logger name="io.ktor" level="INFO"/>
+  <logger name="cn.edu.bit.bitmart" level="DEBUG"/>
+</configuration>
+```
+
+升级路径：接入 Grafana Loki（Docker Compose 加一个 Loki + Promtail 容器）或 Sentry（加 SDK 依赖即可）。
+
+## 九、四周排期（建议）
 
 **Week 1 — 地基**
-- 后端：Ktor 骨架 + Postgres/MinIO 容器化 + Flyway + 用户/JWT/BIT 认证 + 上传接口
-- Android：Compose 脚手架 + 主题 + 导航 + 登录注册 + 设置页 + i18n 框架
-- 验收：能注册（真打 BIT101）、登录、上传一张图
+- 后端：Ktor 骨架 + 结构化日志 + Postgres/MinIO 容器化 + Flyway + 用户/JWT/BIT 认证 + 上传接口 + 限流插件
+- Android：Compose 脚手架 + 主题 + 导航 + 登录注册 + 设置页（含 LLM 配置）+ i18n 框架
+- 验收：能注册（真打 BIT101）、登录、上传一张图；日志 JSON 输出正常
 
 **Week 2 — 核心业务**
 - 后端：listings CRUD + 搜索（pg_trgm）+ tags + ISBN 查询
@@ -467,9 +547,9 @@ bitmart.example.com {
 - 验收：完整一次卖书流程跑通
 
 **Week 3 — 智能与体验**
-- 后端：`/ai/extract` 服务端代理 + 限流
-- Android：批量拍照 → OCR → LLM → 草稿审核 → 批量提交；筛选器；联系方式展示
-- 验收：拍三本书一次发布成功
+- Android：批量拍照 → OCR → LLM（客户端直连）→ 草稿审核 → 批量提交；筛选器；联系方式展示
+- 后端：批量提交接口优化
+- 验收：拍三本书一次发布成功（使用用户自己的 LLM key）
 
 **Week 4 — 进阶 + 收尾**
 - 后端：wishes + notifications + WebSocket
@@ -477,13 +557,15 @@ bitmart.example.com {
 - 文档：README、架构图、API 文档（用 Ktor 自带 OpenAPI 插件或手写）
 - 选做：NapCat 接入、推荐位
 
-## 九、刻意延后的事项
+## 十、刻意延后的事项
 
 为压缩工期，下面这些先不做但代码留口子：
 
+- **服务端 LLM 代理**（`/ai/extract` + Redis 限流 + 平台 key）— 当前仅客户端直连
 - 头像裁剪、富文本描述、视频
 - 服务端图片缩略图生成（前期让客户端按需下载原图 + Coil 缓存即可）
 - 反作弊、举报、信用分
 - FCM 离线推送（先 WebSocket + 应用内 + 进程存活时本地通知）
 - 国际化语言切换的 RTL 适配
-- 完整审计日志
+- Redis（当前限流用内存令牌桶，单实例足够；多实例部署时引入）
+- CDN / 图片加速
