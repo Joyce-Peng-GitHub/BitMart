@@ -86,7 +86,7 @@ CREATE TABLE listings (
   available_qty     INTEGER NOT NULL DEFAULT 1,
   status            VARCHAR(16) NOT NULL DEFAULT 'ACTIVE', -- ACTIVE | SOLD_OUT | DELISTED
   isbn              VARCHAR(20),
-  book_meta         JSONB,                        -- {author, publisher, year, ...}
+  book_meta         JSONB,                        -- {author, publisher, pubdate, edition, price, gist, ...}
   search_text       TEXT GENERATED ALWAYS AS
                     (coalesce(title,'') || ' ' || coalesce(description,'') || ' ' ||
                      coalesce(book_meta->>'author','')) STORED,
@@ -138,8 +138,11 @@ CREATE TABLE isbn_cache (
   title       VARCHAR(255),
   author      VARCHAR(255),
   publisher   VARCHAR(255),
-  year        SMALLINT,
-  cover_url   TEXT,
+  pubdate     VARCHAR(16),              -- "2006-05" 格式
+  edition     VARCHAR(8),               -- 版次，教材场景下很重要
+  price       VARCHAR(16),              -- 原价/定价，供买家参考
+  cover_url   TEXT,                     -- 封面图链接
+  gist        TEXT,                     -- 内容简介
   raw_json    JSONB,                    -- 保留完整 API 响应以备扩展
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
