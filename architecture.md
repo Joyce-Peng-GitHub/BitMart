@@ -86,8 +86,7 @@ CREATE TABLE listings (
   price_cents       INTEGER,                  -- NULL = 议价
   currency          CHAR(3) NOT NULL DEFAULT 'CNY',
   condition_rating  SMALLINT,                 -- 1~5，可空
-  total_quantity    INTEGER NOT NULL DEFAULT 1,
-  available_qty     INTEGER NOT NULL DEFAULT 1,
+  quantity          INTEGER NOT NULL DEFAULT 1, -- 总件数，决定创建多少 listing_items
   status            VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
                     -- ACTIVE | SOLD_OUT | DELISTED | EXPIRED
   isbn              VARCHAR(20),
@@ -107,6 +106,8 @@ CREATE TABLE listings (
 CREATE INDEX idx_listings_search_trgm ON listings USING gin (search_text gin_trgm_ops);
 -- 首页/列表：按状态+时间排序，覆盖"最新上架"查询
 CREATE INDEX idx_listings_status_created ON listings (status, created_at DESC);
+-- "我的发布"列表 + 注销时批量下架（partial，排除 NapCat 来源）
+CREATE INDEX idx_listings_seller ON listings (seller_user_id) WHERE seller_user_id IS NOT NULL;
 -- ISBN 精确查找：扫码后快速定位同书商品（partial，仅有 ISBN 的行）
 CREATE INDEX idx_listings_isbn ON listings (isbn) WHERE isbn IS NOT NULL;
 -- 过期任务扫描：定时任务每小时查询已到期但仍 ACTIVE 的记录
@@ -114,6 +115,8 @@ CREATE INDEX idx_listings_expires ON listings (expires_at) WHERE status = 'ACTIV
 
 -- ============================================================
 -- 出售单内的单品（多本/多件分别售卖）
+-- 可售数量通过 COUNT(status='AVAILABLE') 实时计算，不冗余存储
+-- 校园场景下单条 listing 最多十几件，partial index 扫描微秒级
 -- ============================================================
 CREATE TABLE listing_items (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -146,8 +149,12 @@ CREATE INDEX idx_listing_images_listing ON listing_images (listing_id, sort_orde
 CREATE TABLE tags (
   id          SERIAL PRIMARY KEY,
   name        VARCHAR(32) UNIQUE NOT NULL,  -- UNIQUE 自带索引，支撑自动补全查询
-  usage_count INTEGER NOT NULL DEFAULT 0    -- 热门标签排序依据
+  usage_count INTEGER NOT NULL DEFAULT 0    -- 热门标签排序依据，应用层维护
 );
+-- usage_count 维护策略：
+--   1. 应用层：listing 创建/编辑/删除时在同一事务中 ±1
+--   2. 兜底：每日定时任务全量重算 UPDATE tags SET usage_count = (SELECT COUNT(*) FROM listing_tags WHERE tag_id = tags.id)
+--   确保最终一致，避免触发器对 ORM 不透明的问题
 CREATE TABLE listing_tags (
   listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
   tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
@@ -183,7 +190,7 @@ CREATE TABLE wishes (
   user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   keyword      VARCHAR(255) NOT NULL,       -- 求购关键词，用于匹配新上架商品
   max_price    INTEGER,                     -- 期望最高价（分），NULL = 不限
-  tag_filter   TEXT[],                      -- 期望标签，NULL = 不限
+  tag_filter   INTEGER[],                   -- 期望标签 ID 数组，NULL = 不限
   status       VARCHAR(16) NOT NULL DEFAULT 'ACTIVE', -- ACTIVE | FULFILLED | EXPIRED
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   expires_at   TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '6 months')
@@ -287,6 +294,7 @@ BitMartServer/
 
 | Method & Path | 描述 |
 |---|---|
+| `GET /health` | 健康检查（Docker 存活探测 + Caddy 上游检测），返回 DB/MinIO 连通状态 |
 | `POST /auth/register` | body: `studentId, bitPassword, platformPassword, nickname, qq?, wechat?` → 调 BIT101 校验 → 写库 → 返回 `{accessToken, refreshToken}` |
 | `POST /auth/login` | body: `studentId, platformPassword` |
 | `POST /auth/refresh` | |
@@ -294,17 +302,19 @@ BitMartServer/
 | `GET /users/me`, `PATCH /users/me` | |
 | `DELETE /users/me` | 注销账号：下架全部 ACTIVE 商品、删除求购/通知/refresh token、删除用户行 |
 | `GET /listings?q=&tags=&minPrice=&maxPrice=&sort=&cursor=` | 游标分页，tags 支持多选筛选 |
+| `GET /listings/mine?status=&cursor=` | 当前用户的发布列表，可按状态筛选 |
 | `POST /listings` | 创建出售单（含子项目数量、可选 expires_at，默认 6 个月） |
 | `GET /listings/{id}` | 详情；seller 为 null 时显示"卖家已注销"；NapCat 来源显示 QQ + 风险提示 |
 | `PATCH /listings/{id}` | |
-| `POST /listings/{id}/items/{idx}/sold` | 标记已售一件 |
+| `POST /listings/{id}/items/{idx}/sold` | 标记已售一件；全部售出时自动将 listing status 置为 SOLD_OUT |
 | `DELETE /listings/{id}` | 软下架 |
 | `POST /listings/{id}/relist` | 重新上架已过期/已下架的商品，重置 expires_at |
 | `POST /uploads/images` | multipart 直传，返回 `{objectKey, url}`；或 `POST /uploads/presign` 返回 PUT URL |
 | `GET /books/lookup?isbn=` | 先查 DB 缓存，未命中再调外部 ISBN API；结果入库供后续复用 |
 | `GET /tags?prefix=` | 标签自动补全 |
 | `POST /wishes`, `GET /wishes`, `DELETE /wishes/{id}` | |
-| `GET /notifications?unread=true` | |
+| `GET /notifications?unread=&cursor=` | 游标分页，可选仅未读 |
+| `POST /notifications/read` | 批量标记已读，body: `{ids: [...]}` |
 | `WS /ws` | 鉴权后推送通知，心跳 30s |
 
 **WebSocket 生命周期**：
@@ -364,6 +374,8 @@ GET /books/lookup?isbn=978xxx
 ```
 
 缓存永不过期（书籍元数据不会变）。外部 API 有每日调用次数限制，缓存命中后不消耗配额。
+
+**`book_meta` 与 `isbn_cache` 的关系**：通过 ISBN 创建 listing 时，从 `isbn_cache` 复制一份快照到 `listings.book_meta`。这样即使 isbn_cache 被清理或结构变更，已有 listing 的展示数据不受影响。`book_meta` 是 listing 的自有数据，`isbn_cache` 是全局共享的查询加速层。
 
 ### 4.6 自动过期机制
 
@@ -530,6 +542,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       JWT_SECRET: ${JWT_SECRET}
       BIT101_BASE: https://bit101.cn/api
+      ISBN_API_KEY: ${ISBN_API_KEY}
     ports: ["127.0.0.1:8080:8080"]   # 仅监听 Tailscale 接口可改 0.0.0.0 + 防火墙
 ```
 
