@@ -81,7 +81,6 @@ CREATE TABLE listings (
                     -- 注销时应用层先下架再删用户；NULL = 已注销 或 NapCat 来源
   seller_qq         VARCHAR(16),              -- NapCat 来源 或 备用联系方式
   source            VARCHAR(16)  NOT NULL,    -- USER | NAPCAT
-  category          VARCHAR(32)  NOT NULL,    -- BOOK | ELECTRONICS | OTHER
   title             VARCHAR(255) NOT NULL,
   description       TEXT,
   price_cents       INTEGER,                  -- NULL = 议价
@@ -110,10 +109,6 @@ CREATE INDEX idx_listings_search_trgm ON listings USING gin (search_text gin_trg
 CREATE INDEX idx_listings_status_created ON listings (status, created_at DESC);
 -- ISBN 精确查找：扫码后快速定位同书商品（partial，仅有 ISBN 的行）
 CREATE INDEX idx_listings_isbn ON listings (isbn) WHERE isbn IS NOT NULL;
--- "我的发布"列表 + 注销时批量下架（partial，排除 NapCat 来源）
-CREATE INDEX idx_listings_seller ON listings (seller_user_id) WHERE seller_user_id IS NOT NULL;
--- 分类筛选：首页按 category 过滤时走此索引
-CREATE INDEX idx_listings_category ON listings (category, status);
 -- 过期任务扫描：定时任务每小时查询已到期但仍 ACTIVE 的记录
 CREATE INDEX idx_listings_expires ON listings (expires_at) WHERE status = 'ACTIVE';
 
@@ -156,8 +151,10 @@ CREATE TABLE tags (
 CREATE TABLE listing_tags (
   listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
   tag_id     INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-  PRIMARY KEY (listing_id, tag_id)          -- 复合主键自带索引，双向查询均可用
+  PRIMARY KEY (listing_id, tag_id)          -- 复合主键自带索引，listing→tags 方向查询可用
 );
+-- 按标签筛选商品：给定 tag_id 反查所有关联 listing
+CREATE INDEX idx_listing_tags_tag ON listing_tags (tag_id);
 
 -- ============================================================
 -- ISBN 元数据缓存
@@ -296,7 +293,7 @@ BitMartServer/
 | `POST /auth/logout` | 撤销 refresh token |
 | `GET /users/me`, `PATCH /users/me` | |
 | `DELETE /users/me` | 注销账号：下架全部 ACTIVE 商品、删除求购/通知/refresh token、删除用户行 |
-| `GET /listings?q=&category=&tags=&minPrice=&maxPrice=&sort=&cursor=` | 游标分页 |
+| `GET /listings?q=&tags=&minPrice=&maxPrice=&sort=&cursor=` | 游标分页，tags 支持多选筛选 |
 | `POST /listings` | 创建出售单（含子项目数量、可选 expires_at，默认 6 个月） |
 | `GET /listings/{id}` | 详情；seller 为 null 时显示"卖家已注销"；NapCat 来源显示 QQ + 风险提示 |
 | `PATCH /listings/{id}` | |
