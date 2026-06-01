@@ -9,9 +9,15 @@ import cn.edu.bit.bitmart.auth.VerifyTicketStore
 import cn.edu.bit.bitmart.auth.authRoutes
 import cn.edu.bit.bitmart.auth.bitmartBearer
 import cn.edu.bit.bitmart.config.BitmartConfig
+import cn.edu.bit.bitmart.domain.ListingValidator
 import cn.edu.bit.bitmart.domain.PasswordPolicy
 import cn.edu.bit.bitmart.external.Bit101Client
 import cn.edu.bit.bitmart.external.ShowApiClient
+import cn.edu.bit.bitmart.listing.BookMetaRepository
+import cn.edu.bit.bitmart.listing.ListingRepository
+import cn.edu.bit.bitmart.listing.ListingRequestMapper
+import cn.edu.bit.bitmart.listing.ListingService
+import cn.edu.bit.bitmart.listing.TagRepository
 import cn.edu.bit.bitmart.user.UserRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -26,6 +32,7 @@ class AppComponents(
     val config: BitmartConfig,
     val database: Database,
     bit101HttpClient: HttpClient,
+    showApiHttpClient: HttpClient = bit101HttpClient,
 ) {
     val userRepository = UserRepository()
     val sessionRepository = SessionRepository()
@@ -37,6 +44,7 @@ class AppComponents(
     )
     val passwordPolicy = PasswordPolicy(config.password)
     val bit101Client = Bit101Client(bit101HttpClient, config.bit101.baseUrl)
+    val showApiClient = ShowApiClient(showApiHttpClient, config.showapi.baseUrl, config.showapi.appKey)
 
     val authService = AuthService(
         database = database,
@@ -48,6 +56,22 @@ class AppComponents(
         passwordPolicy = passwordPolicy,
         sessionConfig = config.session,
     )
+
+    // 列表（卖品/求购）相关组件。
+    val listingRepository = ListingRepository()
+    val tagRepository = TagRepository()
+    val bookMetaRepository = BookMetaRepository()
+    val listingValidator = ListingValidator(config.expiry, config.tag)
+    val listingService = ListingService(
+        database = database,
+        listingRepository = listingRepository,
+        tagRepository = tagRepository,
+        bookMetaRepository = bookMetaRepository,
+        showApiClient = showApiClient,
+        validator = listingValidator,
+        tagConfig = config.tag,
+    )
+    val listingRequestMapper = ListingRequestMapper(config.expiry)
 
     val tokenAuthenticator = TokenAuthenticator(database, sessionRepository, userRepository)
 

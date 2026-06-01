@@ -22,6 +22,14 @@ import org.jetbrains.exposed.v1.json.jsonb
 
 private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
+/**
+ * JSONB 列，内容是已经是 JSON 文本的字符串（透传，不二次序列化）。
+ * 用于 notification.payload、book_meta.raw 等"原样存取 JSON 文本"的场景；
+ * 关键在于让 JDBC 以 jsonb 类型绑定，避免 "character varying 不能赋给 jsonb" 错误。
+ */
+private fun Table.jsonbRaw(name: String) =
+    jsonb(name, { it }, { it })
+
 /** 用户表（迁移中名为 app_user，因 user 是 PostgreSQL 保留字）。 */
 object Users : LongIdTable("app_user") {
     val studentId = varchar("student_id", 20)
@@ -50,7 +58,7 @@ object Notifications : LongIdTable("notification") {
     val category = integer("category")
     val title = varchar("title", 120)
     val body = text("body")
-    val payload = text("payload").nullable()        // JSONB，按文本读写
+    val payload = jsonbRaw("payload").nullable()    // JSONB，原样存取 JSON 文本
     val readAt = timestampWithTimeZone("read_at").nullable()
     val createdAt = timestampWithTimeZone("created_at")
 }
@@ -108,7 +116,7 @@ object BookMetas : Table("book_meta") {
     val authors = text("authors").nullable()
     val publisher = text("publisher").nullable()
     val edition = text("edition").nullable()
-    val raw = text("raw")                            // JSONB 原始返回，按文本读写
+    val raw = jsonbRaw("raw")                        // JSONB 原始返回，原样存取
     val fetchedAt = timestampWithTimeZone("fetched_at")
     override val primaryKey = PrimaryKey(isbn)
 }

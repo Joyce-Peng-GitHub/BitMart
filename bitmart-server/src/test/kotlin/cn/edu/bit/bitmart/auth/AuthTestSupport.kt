@@ -45,19 +45,24 @@ object AuthTestSupport {
     /**
      * 构建测试组件。
      * @param bit101Succeeds true → BIT101 校验通过；false → 凭据无效。
+     * @param showApiBody 可选 ShowAPI 响应体；提供时 /1626-1 返回它。
      */
-    fun components(bit101Succeeds: Boolean = true): AppComponents {
+    fun components(bit101Succeeds: Boolean = true, showApiBody: String? = null): AppComponents {
         val verifyToken = if (bit101Succeeds) "tok" else ""
         val httpClient = MockHttpSupport.client { request ->
             when {
                 request.url.encodedPath.endsWith("/webvpn_verify_init") ->
                     respond(INIT_BODY, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
-                else ->
+                request.url.encodedPath.endsWith("/webvpn_verify") ->
                     respond(
                         """{"token":"$verifyToken","code":"0","msg":"ok"}""",
                         HttpStatusCode.OK,
                         headersOf(HttpHeaders.ContentType, "application/json"),
                     )
+                request.url.encodedPath.contains("/1626-1") && showApiBody != null ->
+                    respond(showApiBody, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                else ->
+                    respond("""{"showapi_res_code":-1}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
             }
         }
         return AppComponents(testConfig(), EmbeddedPostgresSupport.db(), httpClient)

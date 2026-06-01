@@ -3,6 +3,7 @@ package cn.edu.bit.bitmart
 import cn.edu.bit.bitmart.auth.authRoutes
 import cn.edu.bit.bitmart.auth.bitmartBearer
 import cn.edu.bit.bitmart.config.BitmartConfig
+import cn.edu.bit.bitmart.listing.listingRoutes
 import cn.edu.bit.bitmart.shared.ApiError
 import cn.edu.bit.bitmart.shared.ErrorCode
 import io.ktor.http.HttpStatusCode
@@ -67,6 +68,7 @@ fun Application.module(components: AppComponents) {
     routing {
         get("/health") { call.respond(HealthResponse(status = "ok")) }
         authRoutes(components.authService)
+        listingRoutes(components.listingService, components.listingRequestMapper, components.config.pagination)
     }
 }
 
