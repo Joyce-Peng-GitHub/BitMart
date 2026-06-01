@@ -18,7 +18,12 @@ import cn.edu.bit.bitmart.listing.ListingRepository
 import cn.edu.bit.bitmart.listing.ListingRequestMapper
 import cn.edu.bit.bitmart.listing.ListingService
 import cn.edu.bit.bitmart.listing.TagRepository
+import cn.edu.bit.bitmart.storage.BlobStorage
+import cn.edu.bit.bitmart.storage.LocalDiskBlobStorage
+import cn.edu.bit.bitmart.storage.UploadService
+import cn.edu.bit.bitmart.user.NotificationRepository
 import cn.edu.bit.bitmart.user.UserRepository
+import cn.edu.bit.bitmart.user.UserService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
@@ -36,6 +41,7 @@ class AppComponents(
 ) {
     val userRepository = UserRepository()
     val sessionRepository = SessionRepository()
+    val notificationRepository = NotificationRepository()
     val verifyTicketStore = VerifyTicketStore(config.verifyTicket.ttlMinutes)
     val passwordHasher = PasswordHasher(
         memoryKb = config.argon2.memoryKb,
@@ -72,6 +78,13 @@ class AppComponents(
         tagConfig = config.tag,
     )
     val listingRequestMapper = ListingRequestMapper(config.expiry)
+
+    // 图片存储与上传。
+    val blobStorage: BlobStorage = LocalDiskBlobStorage(config.storage.root, config.storage.publicBaseUrl)
+    val uploadService = UploadService(blobStorage, config.upload)
+
+    // 用户资料与通知。
+    val userService = UserService(database, userRepository, notificationRepository)
 
     val tokenAuthenticator = TokenAuthenticator(database, sessionRepository, userRepository)
 

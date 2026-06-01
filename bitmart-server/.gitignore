@@ -2,8 +2,8 @@
 build/
 !gradle/wrapper/gradle-wrapper.jar
 
-# 运行时本地存储目录（图片等 Blob）。
-storage/
+# 运行时本地存储目录（图片等 Blob）。仅匹配项目根下的 storage，不影响源码包 .../storage/。
+/storage/
 
 # IDE
 .idea/

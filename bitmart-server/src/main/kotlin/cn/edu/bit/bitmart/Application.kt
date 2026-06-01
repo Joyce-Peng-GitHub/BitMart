@@ -4,6 +4,8 @@ import cn.edu.bit.bitmart.auth.authRoutes
 import cn.edu.bit.bitmart.auth.bitmartBearer
 import cn.edu.bit.bitmart.config.BitmartConfig
 import cn.edu.bit.bitmart.listing.listingRoutes
+import cn.edu.bit.bitmart.storage.uploadRoutes
+import cn.edu.bit.bitmart.user.meRoutes
 import cn.edu.bit.bitmart.shared.ApiError
 import cn.edu.bit.bitmart.shared.ErrorCode
 import io.ktor.http.HttpStatusCode
@@ -14,6 +16,7 @@ import io.ktor.server.auth.Authentication
 import io.ktor.server.netty.EngineMain
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.http.content.staticFiles
 import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
@@ -69,6 +72,10 @@ fun Application.module(components: AppComponents) {
         get("/health") { call.respond(HealthResponse(status = "ok")) }
         authRoutes(components.authService)
         listingRoutes(components.listingService, components.listingRequestMapper, components.config.pagination)
+        uploadRoutes(components.uploadService)
+        meRoutes(components.userService, components.config.pagination.defaultPageSize, components.config.pagination.maxPageSize)
+        // 静态文件：图片等 Blob 通过 /static/<key> 暴露（架构 §8）。
+        staticFiles(components.config.storage.publicBaseUrl, java.io.File(components.config.storage.root))
     }
 }
 
