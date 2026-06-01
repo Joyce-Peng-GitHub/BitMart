@@ -13,6 +13,8 @@ logback = "1.5.34"
 kotest = "6.1.11"
 mockk = "1.14.11"
 testcontainers = "1.21.4"
+embeddedPostgres = "2.2.2"
+embeddedPostgresBinaries = "18.4.0"
 
 [libraries]
 # Ktor server (versions managed by the Ktor BOM below).
@@ -45,6 +47,7 @@ exposed-bom = { module = "org.jetbrains.exposed:exposed-bom", version.ref = "exp
 exposed-core = { module = "org.jetbrains.exposed:exposed-core" }
 exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc" }
 exposed-json = { module = "org.jetbrains.exposed:exposed-json" }
+exposed-java-time = { module = "org.jetbrains.exposed:exposed-java-time" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
@@ -63,6 +66,10 @@ kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 testcontainers-core = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+
+# 本地/无 Docker 环境用的内嵌 PostgreSQL（zonky），运行真实 PG 进程。
+embedded-postgres = { module = "io.zonky.test:embedded-postgres", version.ref = "embeddedPostgres" }
+embedded-postgres-binaries-bom = { module = "io.zonky.test.postgres:embedded-postgres-binaries-bom", version.ref = "embeddedPostgresBinaries" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -47,6 +47,7 @@ dependencies {
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.json)
+    implementation(libs.exposed.java.time)
     implementation(libs.flyway.core)
     implementation(libs.flyway.database.postgresql)
     implementation(libs.postgresql)
@@ -67,6 +68,10 @@ dependencies {
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.testcontainers.core)
     testImplementation(libs.testcontainers.postgresql)
+
+    // 本地/无 Docker 环境运行真实 PostgreSQL 进行集成测试。
+    testImplementation(libs.embedded.postgres)
+    testImplementation(platform(libs.embedded.postgres.binaries.bom))
 }
 
 kotlin {
