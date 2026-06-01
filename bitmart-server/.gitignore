@@ -1,0 +1,14 @@
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# 运行时本地存储目录（图片等 Blob）。
+storage/
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+
+# 本地敏感配置覆盖。
+*.local.conf
