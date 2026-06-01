@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart
 
+import cn.edu.bit.bitmart.auth.AuthTestSupport
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.request.get
@@ -11,7 +12,7 @@ import io.ktor.server.testing.testApplication
 class HealthRouteTest : FunSpec({
     test("GET /health 返回 200 与 ok 状态") {
         testApplication {
-            application { module() }
+            application { module(AuthTestSupport.components()) }
             val response = client.get("/health")
             response.status shouldBe HttpStatusCode.OK
             response.bodyAsText() shouldBe """{"status":"ok"}"""

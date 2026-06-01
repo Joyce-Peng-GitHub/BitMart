@@ -1,21 +1,40 @@
 package cn.edu.bit.bitmart
 
+import cn.edu.bit.bitmart.auth.authRoutes
+import cn.edu.bit.bitmart.auth.bitmartBearer
+import cn.edu.bit.bitmart.config.BitmartConfig
 import cn.edu.bit.bitmart.shared.ApiError
+import cn.edu.bit.bitmart.shared.ErrorCode
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
+import io.ktor.server.auth.Authentication
 import io.ktor.server.netty.EngineMain
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 
 /** Ktor 入口：由 application.conf 的 EngineMain 装载。 */
 fun main(args: Array<String>) = EngineMain.main(args)
 
-/** 应用装配。各功能模块的路由将在此挂载。 */
+/** 生产入口：从配置装配组件后安装模块。 */
 fun Application.module() {
+    val config = BitmartConfig.from(environment.config)
+    val components = AppComponents.production(config)
+    module(components)
+}
+
+/** 可测试入口：注入已装配好的组件（测试可传入内嵌库与 Mock 客户端）。 */
+fun Application.module(components: AppComponents) {
+    val log = LoggerFactory.getLogger("bitmart.Application")
+
     install(ContentNegotiation) {
         json(Json {
             ignoreUnknownKeys = true
@@ -24,12 +43,32 @@ fun Application.module() {
         })
     }
 
-    routing {
-        get("/health") {
-            call.respond(HealthResponse(status = "ok"))
+    install(Authentication) {
+        bitmartBearer(components.tokenAuthenticator)
+    }
+
+    install(StatusPages) {
+        // 请求体解析失败（缺字段/类型不符）→ 400。
+        exception<ContentTransformationException> { call, cause ->
+            call.respond(
+                HttpStatusCode.BadRequest,
+                ApiError.of(ErrorCode.VALIDATION_FAILED, "请求体格式错误: ${cause.message}"),
+            )
         }
+        exception<Throwable> { call, cause ->
+            log.error("未处理异常", cause)
+            call.respond(
+                HttpStatusCode.InternalServerError,
+                ApiError.of(ErrorCode.INTERNAL_ERROR, "服务器内部错误"),
+            )
+        }
+    }
+
+    routing {
+        get("/health") { call.respond(HealthResponse(status = "ok")) }
+        authRoutes(components.authService)
     }
 }
 
-@kotlinx.serialization.Serializable
+@Serializable
 data class HealthResponse(val status: String)
