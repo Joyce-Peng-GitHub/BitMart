@@ -66,6 +66,12 @@ class BitMartApi(
         ApiResponseMapper.handle(client.get(url("/listings/$id")) { auth() })
     }
 
+    suspend fun createListing(req: CreateListingRequest): DomainResult<CreatedResponse> = safe {
+        ApiResponseMapper.handle(client.post(url("/listings")) {
+            auth(); contentType(ContentType.Application.Json); setBody(req)
+        })
+    }
+
     suspend fun popularTags(limit: Int): DomainResult<PopularTagsDto> = safe {
         ApiResponseMapper.handle(client.get(url("/tags/popular")) { parameter("limit", limit) })
     }

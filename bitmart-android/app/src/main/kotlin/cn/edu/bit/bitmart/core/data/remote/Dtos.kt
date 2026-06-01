@@ -95,3 +95,22 @@ data class ListingDetailDto(
 
 @Serializable
 data class PopularTagsDto(val tags: List<String>)
+
+/** 创建 listing 请求（与后端 CreateListingRequest 对齐）。 */
+@Serializable
+data class CreateListingRequest(
+    val type: String,
+    val category: String = "GENERAL",
+    val title: String,
+    val description: String = "",
+    val unitPrice: String? = null,
+    val quantityTotal: Int = 1,
+    val pickupLocation: String? = null,
+    val contacts: List<ContactDto>,
+    val tags: List<String> = emptyList(),
+    val expiresInDays: Int? = null,
+    val book: BookDto? = null,
+)
+
+@Serializable
+data class CreatedResponse(val id: Long)

@@ -3,6 +3,7 @@ package cn.edu.bit.bitmart.core.data.repository
 import cn.edu.bit.bitmart.core.data.remote.BitMartApi
 import cn.edu.bit.bitmart.core.data.remote.BookDto
 import cn.edu.bit.bitmart.core.data.remote.ContactDto
+import cn.edu.bit.bitmart.core.data.remote.CreateListingRequest
 import cn.edu.bit.bitmart.core.data.remote.ListingDetailDto
 import cn.edu.bit.bitmart.core.data.remote.ListingPageDto
 import cn.edu.bit.bitmart.core.data.remote.ListingSummaryDto
@@ -18,6 +19,7 @@ import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
+import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
 import javax.inject.Inject
 
 /** ListingRepository 实现：构造查询参数、调用 API、映射 DTO → 领域模型。 */
@@ -41,6 +43,22 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
 
     override suspend fun detail(id: Long): DomainResult<ListingDetail> =
         api.listingDetail(id).map { it.toDomain() }
+
+    override suspend fun publish(draft: PublishDraft): DomainResult<Long> =
+        api.createListing(
+            CreateListingRequest(
+                type = draft.type.name,
+                category = draft.category,
+                title = draft.title,
+                description = draft.description,
+                unitPrice = draft.unitPrice,
+                quantityTotal = draft.quantityTotal,
+                pickupLocation = draft.pickupLocation,
+                contacts = draft.contacts.map { ContactDto(it.channel.name, it.value) },
+                tags = draft.tags,
+                expiresInDays = draft.expiresInDays,
+            ),
+        ).map { it.id }
 
     override suspend fun popularTags(limit: Int): DomainResult<List<String>> =
         api.popularTags(limit).map { it.tags }
