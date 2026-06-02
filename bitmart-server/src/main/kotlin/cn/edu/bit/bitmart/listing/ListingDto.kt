@@ -34,6 +34,7 @@ data class CreateListingRequest(
     val tags: List<String> = emptyList(),
     val expiresInDays: Int? = null,
     val book: BookDto? = null,
+    val imageKeys: List<String> = emptyList(),   // /uploads/images 返回的 blobKey，按顺序展示
 )
 
 @Serializable
@@ -66,8 +67,8 @@ data class ListingSummaryDto(
     val unitPrice: String? = null,
     val quantityTotal: Int,
     val quantitySold: Int,
-    val pickupLocation: String? = null,
     val nickname: String? = null,
+    val firstImageUrl: String? = null,
     val tags: List<String>,
     val createdAt: String,
 ) {
@@ -80,8 +81,8 @@ data class ListingSummaryDto(
             unitPrice = s.unitPrice?.toPlainString(),
             quantityTotal = s.quantityTotal,
             quantitySold = s.quantitySold,
-            pickupLocation = s.pickupLocation,
             nickname = s.nickname,
+            firstImageUrl = s.firstImageUrl,
             tags = s.tags,
             createdAt = s.createdAt.toString(),
         )

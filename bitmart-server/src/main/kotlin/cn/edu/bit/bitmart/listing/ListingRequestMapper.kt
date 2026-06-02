@@ -34,6 +34,7 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
             expiresAt = now.plusDays(days.toLong()),
             tags = req.tags,
             book = req.book?.let { BookInput(it.isbn, it.title, it.authors, it.publisher, it.edition) },
+            imageKeys = req.imageKeys,
         )
     }
 

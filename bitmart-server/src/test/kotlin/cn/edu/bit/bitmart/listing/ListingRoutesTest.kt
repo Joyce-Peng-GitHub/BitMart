@@ -26,6 +26,10 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
+import java.time.OffsetDateTime
 
 /** /listings 端到端集成测试，跑在内嵌 PostgreSQL 上。 */
 class ListingRoutesTest : FunSpec({
@@ -235,6 +239,176 @@ class ListingRoutesTest : FunSpec({
             client.post("/api/v1/books/lookup") {
                 contentType(ContentType.Application.Json); setBody(BookLookupRequest("123"))
             }.status shouldBe HttpStatusCode.Unauthorized
+        }
+    }
+
+    test("发布时携带 imageKeys，列表返回 firstImageUrl（首图）") {
+        app { client ->
+            val token = client.registerToken()
+            val req = sellReq(title = "带图商品xyz").copy(imageKeys = listOf("2026/06/02/a.jpg", "2026/06/02/b.jpg"))
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(req)
+            }.status shouldBe HttpStatusCode.Created
+
+            val page = client.get("/api/v1/listings?type=SELL&q=带图商品xyz").body<ListingPageDto>()
+            val item = page.items.first { it.title == "带图商品xyz" }
+            // firstImageUrl 应为按 ord 排序的第一张图（a.jpg）。
+            item.firstImageUrl shouldBe "/static/2026/06/02/a.jpg"
+        }
+    }
+
+    test("公开列表摘要不含取货地点（取货地点仅详情页可见）") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "取货地点测试abc"))
+            }.body<CreatedResponse>().id
+            // 摘要 DTO 已无 pickupLocation 字段；详情仍返回。
+            val detail = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>()
+            detail.pickupLocation shouldBe "三号楼"
+        }
+    }
+
+    test("我的列表只返回本人发布项，且包含已售罄项") {
+        app { client ->
+            // 用户 A 发布一条，并将其全部标记售出。
+            val tokenA = client.registerToken()
+            val idA = client.post("/api/v1/listings") {
+                bearerAuth(tokenA); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "我的售罄商品A", quantityTotal = 2))
+            }.body<CreatedResponse>().id
+            client.patch("/api/v1/listings/$idA") {
+                bearerAuth(tokenA); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 2))
+            }.status shouldBe HttpStatusCode.OK
+
+            // 用户 B 发布一条。
+            val tokenB = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(tokenB); contentType(ContentType.Application.Json); setBody(sellReq(title = "B的商品"))
+            }.status shouldBe HttpStatusCode.Created
+
+            // A 的"我的列表"应含已售罄的 A 项，且不含 B 的项。
+            val mine = client.get("/api/v1/me/listings") { bearerAuth(tokenA) }.body<ListingPageDto>()
+            val titles = mine.items.map { it.title }
+            titles shouldContain "我的售罄商品A"
+            (titles.none { it == "B的商品" }) shouldBe true
+        }
+    }
+
+    test("我的列表未登录返回 401") {
+        app { client ->
+            client.get("/api/v1/me/listings").status shouldBe HttpStatusCode.Unauthorized
+        }
+    }
+
+    test("公开列表默认不含已售罄项（与我的列表区别）") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "公开售罄商品zzz", quantityTotal = 1))
+            }.body<CreatedResponse>().id
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 1))
+            }.status shouldBe HttpStatusCode.OK
+
+            // 公开列表（includeSold 默认 false）不应出现该售罄项。
+            val page = client.get("/api/v1/listings?type=SELL&q=公开售罄商品zzz").body<ListingPageDto>()
+            (page.items.none { it.title == "公开售罄商品zzz" }) shouldBe true
+        }
+    }
+
+    test("已过期项：我的列表可见，公开列表不可见") {
+        val components = AuthTestSupport.components()
+        testApplication {
+            application { configureApp(components) }
+            val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "过期商品qqq"))
+            }.body<CreatedResponse>().id
+
+            // 直接把 expires_at 改到过去（API 校验禁止提交过去时间，故绕过走 DB）。
+            transaction(components.database) {
+                cn.edu.bit.bitmart.db.Listings.update({ cn.edu.bit.bitmart.db.Listings.id eq id }) {
+                    it[expiresAt] = OffsetDateTime.now().minusDays(1)
+                }
+            }
+
+            // 公开列表不含已过期项。
+            val publicPage = client.get("/api/v1/listings?type=SELL&q=过期商品qqq").body<ListingPageDto>()
+            (publicPage.items.none { it.title == "过期商品qqq" }) shouldBe true
+
+            // 我的列表（includeExpired）仍含该项。
+            val mine = client.get("/api/v1/me/listings") { bearerAuth(token) }.body<ListingPageDto>()
+            mine.items.map { it.title } shouldContain "过期商品qqq"
+        }
+    }
+
+    test("firstImageUrl 按 ord 取首图，与插入顺序无关") {
+        app { client ->
+            val token = client.registerToken()
+            // imageKeys 顺序即 ord 顺序：第一个元素 ord=0 为首图。
+            val req = sellReq(title = "多图排序商品ppp")
+                .copy(imageKeys = listOf("first-by-ord.jpg", "second.jpg", "third.jpg"))
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(req)
+            }.status shouldBe HttpStatusCode.Created
+
+            val page = client.get("/api/v1/listings?type=SELL&q=多图排序商品ppp").body<ListingPageDto>()
+            page.items.first { it.title == "多图排序商品ppp" }.firstImageUrl shouldBe "/static/first-by-ord.jpg"
+        }
+    }
+
+    test("无图商品 firstImageUrl 为空") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "无图商品nnn"))
+            }.status shouldBe HttpStatusCode.Created
+            val page = client.get("/api/v1/listings?type=SELL&q=无图商品nnn").body<ListingPageDto>()
+            page.items.first { it.title == "无图商品nnn" }.firstImageUrl shouldBe null
+        }
+    }
+
+    test("批量发布支持逐条携带 imageKeys") {
+        app { client ->
+            val token = client.registerToken()
+            val a = sellReq(title = "批量带图A").copy(imageKeys = listOf("batchA.jpg"))
+            val b = sellReq(title = "批量带图B").copy(imageKeys = listOf("batchB.jpg"))
+            client.post("/api/v1/listings/batch") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(BatchCreateRequest(listOf(a, b)))
+            }.status shouldBe HttpStatusCode.Created
+
+            val page = client.get("/api/v1/listings?type=SELL&limit=50").body<ListingPageDto>()
+            page.items.first { it.title == "批量带图A" }.firstImageUrl shouldBe "/static/batchA.jpg"
+            page.items.first { it.title == "批量带图B" }.firstImageUrl shouldBe "/static/batchB.jpg"
+        }
+    }
+
+    test("我的列表按 type 过滤（仅收购）") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "我的在售sss"))
+            }.status shouldBe HttpStatusCode.Created
+            val buyReq = sellReq(title = "我的求购bbb").let {
+                CreateListingRequest(
+                    type = "BUY", category = "GENERAL", title = it.title, description = it.description,
+                    unitPrice = it.unitPrice, quantityTotal = it.quantityTotal, pickupLocation = it.pickupLocation,
+                    contacts = it.contacts, tags = it.tags, expiresInDays = it.expiresInDays,
+                )
+            }
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(buyReq)
+            }.status shouldBe HttpStatusCode.Created
+
+            val buyMine = client.get("/api/v1/me/listings?type=BUY") { bearerAuth(token) }.body<ListingPageDto>()
+            val titles = buyMine.items.map { it.title }
+            titles shouldContain "我的求购bbb"
+            (titles.none { it == "我的在售sss" }) shouldBe true
         }
     }
 })

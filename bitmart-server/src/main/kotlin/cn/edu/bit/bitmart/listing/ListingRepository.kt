@@ -66,6 +66,15 @@ class ListingRepository {
                 it[edition] = input.book.edition
             }
         }
+
+        // 图片：按携带顺序写入 listing_image，ord 从 0 递增。blobKey 来自 /uploads/images。
+        input.imageKeys.forEachIndexed { index, key ->
+            cn.edu.bit.bitmart.db.ListingImages.insert {
+                it[listingId] = id
+                it[blobKey] = key
+                it[ord] = index
+            }
+        }
         return id
     }
 
@@ -142,18 +151,20 @@ class ListingRepository {
     /**
      * 关键字搜索 + 过滤 + keyset 分页。用参数化原生 SQL 以完整控制 tsvector/trgm
      * 与游标条件，避免在 Exposed 表达式层拼接全文检索操作符。
+     *
+     * 公开列表（架构 §6.3）默认仅返回未过期、未售罄项；我的列表（§6.2）通过
+     * filter.ownerId + includeExpired + includeSold 放宽，返回本人全部未软删项。
      */
     fun list(filter: ListingFilter): List<ListingSummary> {
         val sql = StringBuilder(
             """
             SELECT l.id, l.type, l.category, l.title, l.unit_price,
-                   l.quantity_total, l.quantity_sold, l.pickup_location,
-                   u.nickname, l.created_at
+                   l.quantity_total, l.quantity_sold, u.nickname, l.created_at,
+                   (SELECT '/static/' || li.blob_key FROM listing_image li
+                     WHERE li.listing_id = l.id ORDER BY li.ord LIMIT 1) AS first_image
             FROM listing l
             JOIN app_user u ON u.id = l.user_id
             WHERE l.deleted_at IS NULL
-              AND l.expires_at > now()
-              AND l.type = ?
             """.trimIndent(),
         )
         // exec 的参数为 (IColumnType, value) 列表，类型安全且自动转义。
@@ -163,7 +174,21 @@ class ListingRepository {
         val decimalType = Listings.unitPrice.columnType        // NUMERIC(10,2)
         val tsType = Listings.expiresAt.columnType             // timestamptz
         val params = mutableListOf<Pair<IColumnType<*>, Any?>>()
-        params += intType to filter.type.ordinal
+
+        // 过期过滤：公开列表排除已过期；我的列表（includeExpired）不限。
+        if (!filter.includeExpired) {
+            sql.append("\n  AND l.expires_at > now()")
+        }
+        // 归属过滤：我的列表仅返回本人发布项。
+        filter.ownerId?.let {
+            sql.append("\n  AND l.user_id = ?")
+            params += longType to it
+        }
+        // type 可选：省略则买卖两类都返回。
+        filter.type?.let {
+            sql.append("\n  AND l.type = ?")
+            params += intType to it.ordinal
+        }
 
         filter.category?.let {
             sql.append("\n  AND l.category = ?")
@@ -220,8 +245,8 @@ class ListingRepository {
                     unitPrice = rs.getBigDecimal("unit_price"),
                     quantityTotal = rs.getInt("quantity_total"),
                     quantitySold = rs.getInt("quantity_sold"),
-                    pickupLocation = rs.getString("pickup_location"),
                     nickname = rs.getString("nickname"),
+                    firstImageUrl = rs.getString("first_image"),
                     tags = emptyList(),    // 由 Service 批量填充
                     createdAt = rs.getTimestamp("created_at").toInstant().atOffset(ZoneOffset.UTC),
                 )

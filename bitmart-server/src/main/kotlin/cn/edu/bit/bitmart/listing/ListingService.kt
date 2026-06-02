@@ -65,6 +65,13 @@ class ListingService(
         items.map { it.copy(tags = tagMap[it.id] ?: emptyList()) }
     }
 
+    /**
+     * 我的列表（架构 §6.2）：返回 ownerId 用户自己发布的项，包含已售罄与已过期
+     * （但排除软删除），供"我的商品/我的收购"管理。复用 list() 的标签填充。
+     */
+    fun myListings(ownerId: Long, filter: ListingFilter): List<ListingSummary> =
+        list(filter.copy(ownerId = ownerId, includeExpired = true, includeSold = true))
+
     /** 热门标签。 */
     fun popularTags(limit: Int): List<String> = transaction(database) {
         tagRepository.popular(limit)

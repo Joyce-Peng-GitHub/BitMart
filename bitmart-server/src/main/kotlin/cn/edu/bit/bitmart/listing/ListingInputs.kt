@@ -18,6 +18,7 @@ data class CreateListingInput(
     val expiresAt: OffsetDateTime,
     val tags: List<String>,
     val book: BookInput?,
+    val imageKeys: List<String> = emptyList(),   // 由 /uploads/images 返回的 blobKey，按顺序入库
     val source: Int = 0,
 )
 

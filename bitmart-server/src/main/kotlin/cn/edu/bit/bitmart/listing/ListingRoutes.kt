@@ -130,6 +130,20 @@ fun Route.listingRoutes(
         }
     }
 
+    // 我的列表（架构 §6.2）：当前用户自己发布的项，含已售罄/已过期，供"我的商品/我的收购"管理。
+    authenticate(cn.edu.bit.bitmart.auth.AUTH_BEARER) {
+        get("/me/listings") {
+            val principal = call.principal<UserPrincipal>()!!
+            val filter = call.parseListingFilter(pagination, defaultType = null)
+                ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "查询参数非法")
+            val items = service.myListings(principal.userId, filter)
+            val next = if (items.size >= filter.limit) {
+                items.lastOrNull()?.let { "${it.createdAt}|${it.id}" }
+            } else null
+            call.respond(ListingPageDto(items.map(ListingSummaryDto::from), next))
+        }
+    }
+
     // 热门标签（公开）。
     get("/tags/popular") {
         val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 20
@@ -162,10 +176,16 @@ private suspend fun ApplicationCall.respondValidation(errors: List<ValidationErr
     respond(HttpStatusCode.BadRequest, ApiError.of(ErrorCode.VALIDATION_FAILED, errors.joinToString("；") { "${it.field}: ${it.message}" }))
 }
 
-/** 从查询参数构造列表过滤条件；非法返回 null。 */
-private fun ApplicationCall.parseListingFilter(pagination: PaginationConfig): ListingFilter? {
+/**
+ * 从查询参数构造列表过滤条件；非法返回 null。
+ * @param defaultType type 参数缺省时的回退值；公开列表回退 SELL，我的列表传 null（不限买卖）。
+ */
+private fun ApplicationCall.parseListingFilter(
+    pagination: PaginationConfig,
+    defaultType: ListingType? = ListingType.SELL,
+): ListingFilter? {
     val q = request.queryParameters
-    val type = q["type"]?.let { raw -> ListingType.entries.firstOrNull { it.name.equals(raw, true) } } ?: ListingType.SELL
+    val type = q["type"]?.let { raw -> ListingType.entries.firstOrNull { it.name.equals(raw, true) } } ?: defaultType
     val category = q["category"]?.let { raw -> ListingCategory.entries.firstOrNull { it.name.equals(raw, true) } }
     val tagIds = q["tagIds"]?.split(",")?.mapNotNull { it.trim().toLongOrNull() } ?: emptyList()
     val minPrice = q["minPrice"]?.toBigDecimalOrNull()
