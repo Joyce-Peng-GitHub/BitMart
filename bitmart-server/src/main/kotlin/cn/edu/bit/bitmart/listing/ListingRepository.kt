@@ -69,7 +69,7 @@ class ListingRepository {
         return id
     }
 
-    /** 读取详情（含书籍、卖家昵称）。仅返回未软删除项。 */
+    /** 读取详情（含书籍、卖家昵称、图片）。仅返回未软删除项。 */
     fun findDetail(id: Long): ListingDetail? {
         val row = Listings.join(Users, JoinType.INNER, onColumn = Listings.userId, otherColumn = Users.id)
             .selectAll()
@@ -88,7 +88,12 @@ class ListingRepository {
             }
         } else null
 
-        return row.toDetail(book, emptyList())   // 标签由 Service 填充
+        val images = cn.edu.bit.bitmart.db.ListingImages.selectAll()
+            .where { cn.edu.bit.bitmart.db.ListingImages.listingId eq id }
+            .orderBy(cn.edu.bit.bitmart.db.ListingImages.ord)
+            .map { "/static/${it[cn.edu.bit.bitmart.db.ListingImages.blobKey]}" }
+
+        return row.toDetail(book, emptyList(), images)   // 标签由 Service 填充
     }
 
     /** 校验 listing 归属与存在性（用于修改/删除前的鉴权）。返回 ownerId 或 null。 */
@@ -225,7 +230,7 @@ class ListingRepository {
         } ?: emptyList()
     }
 
-    internal fun ResultRow.toDetail(book: BookInfo?, tags: List<String>): ListingDetail =
+    internal fun ResultRow.toDetail(book: BookInfo?, tags: List<String>, imageUrls: List<String>): ListingDetail =
         ListingDetail(
             id = this[Listings.id].value,
             type = ListingType.entries[this[Listings.type]],
@@ -240,6 +245,7 @@ class ListingRepository {
             pickupLocation = this[Listings.pickupLocation],
             contacts = this[Listings.contact],
             tags = tags,
+            imageUrls = imageUrls,
             expiresAt = this[Listings.expiresAt],
             createdAt = this[Listings.createdAt],
             updatedAt = this[Listings.updatedAt],

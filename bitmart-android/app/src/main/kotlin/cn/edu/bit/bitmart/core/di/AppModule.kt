@@ -10,8 +10,10 @@ import cn.edu.bit.bitmart.core.data.local.TokenStore
 import cn.edu.bit.bitmart.core.data.remote.BitMartApi
 import cn.edu.bit.bitmart.core.data.repository.AuthRepositoryImpl
 import cn.edu.bit.bitmart.core.data.repository.ListingRepositoryImpl
+import cn.edu.bit.bitmart.core.data.repository.ProfileRepositoryImpl
 import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
+import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -66,4 +68,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindListingRepository(impl: ListingRepositoryImpl): ListingRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindProfileRepository(impl: ProfileRepositoryImpl): ProfileRepository
 }

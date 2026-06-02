@@ -50,6 +50,7 @@ data class ListingDetail(
     val pickupLocation: String?,
     val contacts: List<Contact>,
     val tags: List<String>,
+    val imageUrls: List<String>,
     val expiresAt: String,
     val createdAt: String,
     val book: BookInfo?,

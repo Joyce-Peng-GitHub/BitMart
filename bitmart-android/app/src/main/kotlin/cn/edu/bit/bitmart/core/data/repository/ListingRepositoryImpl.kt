@@ -7,6 +7,7 @@ import cn.edu.bit.bitmart.core.data.remote.CreateListingRequest
 import cn.edu.bit.bitmart.core.data.remote.ListingDetailDto
 import cn.edu.bit.bitmart.core.data.remote.ListingPageDto
 import cn.edu.bit.bitmart.core.data.remote.ListingSummaryDto
+import cn.edu.bit.bitmart.core.data.remote.UpdateListingRequest
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.map
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
@@ -62,6 +63,23 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
 
     override suspend fun popularTags(limit: Int): DomainResult<List<String>> =
         api.popularTags(limit).map { it.tags }
+
+    override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft): DomainResult<Unit> =
+        api.updateListing(
+            id,
+            UpdateListingRequest(
+                title = update.title,
+                description = update.description,
+                unitPrice = update.unitPrice,
+                clearUnitPrice = update.clearUnitPrice,
+                pickupLocation = update.pickupLocation,
+                quantitySold = update.quantitySold,
+                expiresInDays = update.expiresInDays,
+            ),
+        )
+
+    override suspend fun delete(id: Long): DomainResult<Unit> =
+        api.deleteListing(id)
 }
 
 private fun ListingPageDto.toDomain() = ListingPage(items.map { it.toDomain() }, nextCursor)
@@ -81,7 +99,7 @@ private fun ListingDetailDto.toDomain() = ListingDetail(
     userId = userId, nickname = nickname, title = title, description = description,
     unitPrice = unitPrice, quantityTotal = quantityTotal, quantitySold = quantitySold,
     pickupLocation = pickupLocation, contacts = contacts.map { it.toDomain() }, tags = tags,
-    expiresAt = expiresAt, createdAt = createdAt, book = book?.toDomain(),
+    imageUrls = imageUrls, expiresAt = expiresAt, createdAt = createdAt, book = book?.toDomain(),
 )
 
 private fun ContactDto.toDomain() = Contact(

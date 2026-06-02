@@ -34,6 +34,17 @@ data class PublishDraft(
     val expiresInDays: Int? = null,
 )
 
+/** 修改草稿（更新现有 listing）。 */
+data class UpdateDraft(
+    val title: String? = null,
+    val description: String? = null,
+    val unitPrice: String? = null,
+    val clearUnitPrice: Boolean = false,
+    val pickupLocation: String? = null,
+    val quantitySold: Int? = null,
+    val expiresInDays: Int? = null,
+)
+
 /** 列表仓储接口。 */
 interface ListingRepository {
     /** 列表查询（公开，无需登录）。 */
@@ -44,6 +55,12 @@ interface ListingRepository {
 
     /** 发布单条（需登录）。返回新建 id。 */
     suspend fun publish(draft: PublishDraft): DomainResult<Long>
+
+    /** 修改 listing（需登录，仅本人或管理员）。 */
+    suspend fun update(id: Long, update: UpdateDraft): DomainResult<Unit>
+
+    /** 删除 listing（需登录，仅本人或管理员）。 */
+    suspend fun delete(id: Long): DomainResult<Unit>
 
     /** 热门标签。 */
     suspend fun popularTags(limit: Int): DomainResult<List<String>>

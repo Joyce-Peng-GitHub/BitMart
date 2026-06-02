@@ -87,6 +87,7 @@ data class ListingDetailDto(
     val pickupLocation: String? = null,
     val contacts: List<ContactDto> = emptyList(),
     val tags: List<String> = emptyList(),
+    val imageUrls: List<String> = emptyList(),
     val expiresAt: String,
     val createdAt: String,
     val updatedAt: String,
@@ -114,3 +115,15 @@ data class CreateListingRequest(
 
 @Serializable
 data class CreatedResponse(val id: Long)
+
+/** 修改 listing 请求（与后端 UpdateListingRequest 对齐）。 */
+@Serializable
+data class UpdateListingRequest(
+    val title: String? = null,
+    val description: String? = null,
+    val unitPrice: String? = null,
+    val clearUnitPrice: Boolean = false,
+    val pickupLocation: String? = null,
+    val quantitySold: Int? = null,
+    val expiresInDays: Int? = null,
+)

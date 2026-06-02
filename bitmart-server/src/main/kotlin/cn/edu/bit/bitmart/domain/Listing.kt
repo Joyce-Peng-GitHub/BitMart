@@ -33,6 +33,7 @@ data class ListingDetail(
     val pickupLocation: String?,
     val contacts: List<Contact>,
     val tags: List<String>,
+    val imageUrls: List<String>,
     val expiresAt: OffsetDateTime,
     val createdAt: OffsetDateTime,
     val updatedAt: OffsetDateTime,
