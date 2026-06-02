@@ -1,9 +1,6 @@
 package cn.edu.bit.bitmart
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -12,13 +9,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import cn.edu.bit.bitmart.feature.auth.AuthScreen
 import cn.edu.bit.bitmart.feature.detail.ListingDetailScreen
-import cn.edu.bit.bitmart.feature.feed.ListingFeedScreen
 import cn.edu.bit.bitmart.feature.publish.PublishScreen
 
-/** 顶层路由。 */
+/** 顶层路由。SHELL 为起始目的地（无需登录）；AUTH/PUBLISH/DETAIL 以全屏方式叠加于其上。 */
 object Routes {
+    const val SHELL = "shell"
     const val AUTH = "auth"
-    const val FEED = "feed"
     const val PUBLISH = "publish"
     const val DETAIL = "detail"
     const val DETAIL_ARG = "id"
@@ -26,29 +22,26 @@ object Routes {
 }
 
 /**
- * 应用导航图。根据登录态决定起始目的地；登录成功后跳转列表并清空回退栈。
+ * 应用顶层导航图。外壳（底部导航栏 + 买卖/我的）为起始目的地，可在未登录下浏览；
+ * 登录、发布、详情作为同级路由全屏叠加（不带底部栏）。详情/发布自行做登录校验。
  */
 @Composable
 fun BitMartNavHost(
-    rootViewModel: RootViewModel = hiltViewModel(),
     navController: NavHostController = rememberNavController(),
 ) {
-    val loggedIn by rootViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = false)
-    val start = if (loggedIn) Routes.FEED else Routes.AUTH
-
-    NavHost(navController = navController, startDestination = start) {
-        composable(Routes.AUTH) {
-            AuthScreen(onAuthenticated = {
-                navController.navigate(Routes.FEED) {
-                    popUpTo(Routes.AUTH) { inclusive = true }
-                }
-            })
-        }
-        composable(Routes.FEED) {
-            ListingFeedScreen(
+    NavHost(navController = navController, startDestination = Routes.SHELL) {
+        composable(Routes.SHELL) {
+            BitMartShell(
                 onItemClick = { id -> navController.navigate(Routes.detail(id)) },
                 onPublishClick = { navController.navigate(Routes.PUBLISH) },
+                onLoginClick = { navController.navigate(Routes.AUTH) },
             )
+        }
+        composable(Routes.AUTH) {
+            AuthScreen(onAuthenticated = {
+                // 登录成功后回到外壳（弹出登录页）。
+                navController.popBackStack(Routes.SHELL, inclusive = false)
+            })
         }
         composable(Routes.PUBLISH) {
             PublishScreen(onPublished = { navController.popBackStack() })

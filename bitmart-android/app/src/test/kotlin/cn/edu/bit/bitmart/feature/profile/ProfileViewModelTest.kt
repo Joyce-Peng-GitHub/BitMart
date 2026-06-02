@@ -1,0 +1,111 @@
+package cn.edu.bit.bitmart.feature.profile
+
+import cn.edu.bit.bitmart.core.domain.DomainResult
+import cn.edu.bit.bitmart.core.domain.model.User
+import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
+import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class ProfileViewModelTest {
+
+    private val dispatcher = StandardTestDispatcher()
+    @Before fun setup() = Dispatchers.setMain(dispatcher)
+    @After fun teardown() = Dispatchers.resetMain()
+
+    private val user = User(7, "1120201234", "小明", "小明", "NORMAL")
+
+    private fun authRepo(loggedIn: Boolean) = object : AuthRepository {
+        override suspend fun verify(studentId: String, password: String) = DomainResult.Success("t")
+        override suspend fun register(verifyTicket: String, studentId: String, password: String, nickname: String?) = DomainResult.Success(user)
+        override suspend fun login(studentId: String, password: String) = DomainResult.Success(user)
+        override suspend fun resetPassword(verifyTicket: String, studentId: String, newPassword: String) = DomainResult.Success(Unit)
+        override suspend fun logout() = DomainResult.Success(Unit)
+        override suspend fun deleteAccount() = DomainResult.Success(Unit)
+        override val isLoggedIn: Flow<Boolean> = flowOf(loggedIn)
+    }
+
+    /** 可变登录态的 auth 仓储，用于验证登录态变化时 UI 状态的响应式更新。 */
+    private fun authRepo(loginFlow: Flow<Boolean>) = object : AuthRepository {
+        override suspend fun verify(studentId: String, password: String) = DomainResult.Success("t")
+        override suspend fun register(verifyTicket: String, studentId: String, password: String, nickname: String?) = DomainResult.Success(user)
+        override suspend fun login(studentId: String, password: String) = DomainResult.Success(user)
+        override suspend fun resetPassword(verifyTicket: String, studentId: String, newPassword: String) = DomainResult.Success(Unit)
+        override suspend fun logout() = DomainResult.Success(Unit)
+        override suspend fun deleteAccount() = DomainResult.Success(Unit)
+        override val isLoggedIn: Flow<Boolean> = loginFlow
+    }
+
+    private fun profileRepo(me: DomainResult<User> = DomainResult.Success(user)) = object : ProfileRepository {
+        override suspend fun getMe() = me
+    }
+
+    @Test
+    fun `logged in loads me and exposes user`() = runTest {
+        val vm = ProfileViewModel(authRepo(loggedIn = true), profileRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.loggedIn)
+        assertEquals(7L, vm.state.value.user?.id)
+        assertEquals("1120201234", vm.state.value.user?.studentId)
+    }
+
+    @Test
+    fun `logged out exposes no user and does not error`() = runTest {
+        val vm = ProfileViewModel(authRepo(loggedIn = false), profileRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.state.value.loggedIn)
+        assertNull(vm.state.value.user)
+        assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `me failure surfaces message while logged in`() = runTest {
+        val vm = ProfileViewModel(
+            authRepo(loggedIn = true),
+            profileRepo(DomainResult.Failure("X", "拉取失败", 500)),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.loggedIn)
+        assertNull(vm.state.value.user)
+        assertEquals("拉取失败", vm.state.value.error)
+    }
+
+    @Test
+    fun `me network error surfaces prefixed message`() = runTest {
+        val vm = ProfileViewModel(
+            authRepo(loggedIn = true),
+            profileRepo(DomainResult.NetworkError("超时")),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("网络异常：超时", vm.state.value.error)
+        assertNull(vm.state.value.user)
+    }
+
+    @Test
+    fun `logout transition clears user reactively`() = runTest {
+        // 初始已登录 → 翻转为未登录，验证响应式清空用户信息。
+        val loginFlow = MutableStateFlow(true)
+        val vm = ProfileViewModel(authRepo(loginFlow), profileRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.loggedIn)
+        assertEquals(7L, vm.state.value.user?.id)
+
+        loginFlow.value = false
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.state.value.loggedIn)
+        assertNull(vm.state.value.user)
+    }
+}
