@@ -32,10 +32,10 @@ class UploadRoutesTest : FunSpec({
 
     suspend fun HttpClient.token(): String {
         val studentId = sid()
-        val ticket = post("/auth/bit101/verify") {
+        val ticket = post("/api/v1/auth/bit101/verify") {
             contentType(ContentType.Application.Json); setBody(VerifyRequest(studentId, "pw"))
         }.body<VerifyResponse>().verifyTicket
-        return post("/auth/register") {
+        return post("/api/v1/auth/register") {
             contentType(ContentType.Application.Json); setBody(RegisterRequest(ticket, studentId, "Secret123", null))
         }.body<AuthResponse>().token
     }
@@ -54,7 +54,7 @@ class UploadRoutesTest : FunSpec({
         app { client ->
             val token = client.token()
             val resp = client.submitFormWithBinaryData(
-                url = "/uploads/images",
+                url = "/api/v1/uploads/images",
                 formData = formData {
                     append("file", jpeg, Headers.build {
                         append(HttpHeaders.ContentType, "image/jpeg")
@@ -70,7 +70,7 @@ class UploadRoutesTest : FunSpec({
     test("未登录上传 401") {
         app { client ->
             val resp = client.submitFormWithBinaryData(
-                url = "/uploads/images",
+                url = "/api/v1/uploads/images",
                 formData = formData {
                     append("file", jpeg, Headers.build {
                         append(HttpHeaders.ContentType, "image/jpeg")
@@ -86,7 +86,7 @@ class UploadRoutesTest : FunSpec({
         app { client ->
             val token = client.token()
             val resp = client.submitFormWithBinaryData(
-                url = "/uploads/images",
+                url = "/api/v1/uploads/images",
                 formData = formData {
                     append("file", "not an image".toByteArray(), Headers.build {
                         append(HttpHeaders.ContentType, "image/jpeg")

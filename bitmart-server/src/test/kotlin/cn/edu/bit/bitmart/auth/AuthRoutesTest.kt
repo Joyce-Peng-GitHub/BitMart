@@ -42,14 +42,14 @@ class AuthRoutesTest : FunSpec({
     test("注册流程：verify 签发票 → register 返回 token 与用户") {
         testApp { client ->
             val studentId = sid()
-            val verify = client.post("/auth/bit101/verify") {
+            val verify = client.post("/api/v1/auth/bit101/verify") {
                 contentType(ContentType.Application.Json)
                 setBody(VerifyRequest(studentId, "anyUnifiedPw"))
             }
             verify.status shouldBe HttpStatusCode.OK
             val ticket = verify.body<VerifyResponse>().verifyTicket
 
-            val register = client.post("/auth/register") {
+            val register = client.post("/api/v1/auth/register") {
                 contentType(ContentType.Application.Json)
                 setBody(RegisterRequest(ticket, studentId, "Secret123", "小明"))
             }
@@ -63,7 +63,7 @@ class AuthRoutesTest : FunSpec({
 
     test("BIT101 校验失败 → 401，且不签发票") {
         testApp(AuthTestSupport.components(bit101Succeeds = false)) { client ->
-            val resp = client.post("/auth/bit101/verify") {
+            val resp = client.post("/api/v1/auth/bit101/verify") {
                 contentType(ContentType.Application.Json)
                 setBody(VerifyRequest(sid(), "wrong"))
             }
@@ -74,12 +74,12 @@ class AuthRoutesTest : FunSpec({
     test("弱密码注册 → 400") {
         testApp { client ->
             val studentId = sid()
-            val ticket = client.post("/auth/bit101/verify") {
+            val ticket = client.post("/api/v1/auth/bit101/verify") {
                 contentType(ContentType.Application.Json)
                 setBody(VerifyRequest(studentId, "pw"))
             }.body<VerifyResponse>().verifyTicket
 
-            val resp = client.post("/auth/register") {
+            val resp = client.post("/api/v1/auth/register") {
                 contentType(ContentType.Application.Json)
                 setBody(RegisterRequest(ticket, studentId, "weak", null))   // 太短且单一字符类
             }
@@ -89,7 +89,7 @@ class AuthRoutesTest : FunSpec({
 
     test("伪造/过期票注册 → 401") {
         testApp { client ->
-            val resp = client.post("/auth/register") {
+            val resp = client.post("/api/v1/auth/register") {
                 contentType(ContentType.Application.Json)
                 setBody(RegisterRequest("bogus-ticket", sid(), "Secret123", null))
             }
@@ -100,21 +100,21 @@ class AuthRoutesTest : FunSpec({
     test("登录：正确密码成功，错误密码 401") {
         testApp { client ->
             val studentId = sid()
-            val ticket = client.post("/auth/bit101/verify") {
+            val ticket = client.post("/api/v1/auth/bit101/verify") {
                 contentType(ContentType.Application.Json)
                 setBody(VerifyRequest(studentId, "pw"))
             }.body<VerifyResponse>().verifyTicket
-            client.post("/auth/register") {
+            client.post("/api/v1/auth/register") {
                 contentType(ContentType.Application.Json)
                 setBody(RegisterRequest(ticket, studentId, "Secret123", null))
             }
 
-            client.post("/auth/login") {
+            client.post("/api/v1/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody(LoginRequest(studentId, "Secret123"))
             }.status shouldBe HttpStatusCode.OK
 
-            client.post("/auth/login") {
+            client.post("/api/v1/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody(LoginRequest(studentId, "WrongPass1"))
             }.status shouldBe HttpStatusCode.Unauthorized
@@ -123,18 +123,18 @@ class AuthRoutesTest : FunSpec({
 
     test("未登录访问受保护端点 → 401") {
         testApp { client ->
-            client.delete("/auth/session").status shouldBe HttpStatusCode.Unauthorized
+            client.delete("/api/v1/auth/session").status shouldBe HttpStatusCode.Unauthorized
         }
     }
 
     test("登出后令牌失效（再次访问受保护端点 401）") {
         testApp { client ->
             val studentId = sid()
-            val ticket = client.post("/auth/bit101/verify") {
+            val ticket = client.post("/api/v1/auth/bit101/verify") {
                 contentType(ContentType.Application.Json)
                 setBody(VerifyRequest(studentId, "pw"))
             }.body<VerifyResponse>().verifyTicket
-            val regResp = client.post("/auth/register") {
+            val regResp = client.post("/api/v1/auth/register") {
                 contentType(ContentType.Application.Json)
                 setBody(RegisterRequest(ticket, studentId, "Secret123", null))
             }
@@ -142,27 +142,27 @@ class AuthRoutesTest : FunSpec({
             val token = regResp.body<AuthResponse>().token
 
             // 登出
-            client.delete("/auth/session") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
+            client.delete("/api/v1/auth/session") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
             // 令牌已吊销
-            client.delete("/auth/session") { bearerAuth(token) }.status shouldBe HttpStatusCode.Unauthorized
+            client.delete("/api/v1/auth/session") { bearerAuth(token) }.status shouldBe HttpStatusCode.Unauthorized
         }
     }
 
     test("注销账号：吊销会话且无法再登录") {
         testApp { client ->
             val studentId = sid()
-            val ticket = client.post("/auth/bit101/verify") {
+            val ticket = client.post("/api/v1/auth/bit101/verify") {
                 contentType(ContentType.Application.Json)
                 setBody(VerifyRequest(studentId, "pw"))
             }.body<VerifyResponse>().verifyTicket
-            val token = client.post("/auth/register") {
+            val token = client.post("/api/v1/auth/register") {
                 contentType(ContentType.Application.Json)
                 setBody(RegisterRequest(ticket, studentId, "Secret123", null))
             }.body<AuthResponse>().token
 
-            client.delete("/auth/account") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
+            client.delete("/api/v1/auth/account") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
             // 软删后无法登录。
-            client.post("/auth/login") {
+            client.post("/api/v1/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody(LoginRequest(studentId, "Secret123"))
             }.status shouldBe HttpStatusCode.Unauthorized

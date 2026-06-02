@@ -33,10 +33,10 @@ class MeRoutesTest : FunSpec({
 
     suspend fun HttpClient.register(): Pair<String, Long> {
         val studentId = sid()
-        val ticket = post("/auth/bit101/verify") {
+        val ticket = post("/api/v1/auth/bit101/verify") {
             contentType(ContentType.Application.Json); setBody(VerifyRequest(studentId, "pw"))
         }.body<VerifyResponse>().verifyTicket
-        val auth = post("/auth/register") {
+        val auth = post("/api/v1/auth/register") {
             contentType(ContentType.Application.Json); setBody(RegisterRequest(ticket, studentId, "Secret123", null))
         }.body<AuthResponse>()
         return auth.token to auth.user.id
@@ -52,13 +52,13 @@ class MeRoutesTest : FunSpec({
     }
 
     test("GET /me 需登录") {
-        app { client, _ -> client.get("/me").status shouldBe HttpStatusCode.Unauthorized }
+        app { client, _ -> client.get("/api/v1/me").status shouldBe HttpStatusCode.Unauthorized }
     }
 
     test("GET /me 返回当前用户，默认昵称为匿名") {
         app { client, _ ->
             val (token, _) = client.register()
-            val me = client.get("/me") { bearerAuth(token) }
+            val me = client.get("/api/v1/me") { bearerAuth(token) }
             me.status shouldBe HttpStatusCode.OK
             me.body<UserDto>().displayName shouldBe "匿名"
         }
@@ -67,13 +67,13 @@ class MeRoutesTest : FunSpec({
     test("PATCH /me 更新昵称") {
         app { client, _ ->
             val (token, _) = client.register()
-            val updated = client.patch("/me") {
+            val updated = client.patch("/api/v1/me") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateProfileRequest("阿强"))
             }
             updated.status shouldBe HttpStatusCode.OK
             updated.body<UserDto>().nickname shouldBe "阿强"
             // 再次读取确认持久化。
-            client.get("/me") { bearerAuth(token) }.body<UserDto>().displayName shouldBe "阿强"
+            client.get("/api/v1/me") { bearerAuth(token) }.body<UserDto>().displayName shouldBe "阿强"
         }
     }
 
@@ -85,7 +85,7 @@ class MeRoutesTest : FunSpec({
                 components.notificationRepository.create(null, 0, "全员公告", "维护通知", null)
                 components.notificationRepository.create(userId, 1, "到期提醒", "你的商品即将到期", null)
             }
-            val page = client.get("/me/notifications") { bearerAuth(token) }.body<NotificationPageDto>()
+            val page = client.get("/api/v1/me/notifications") { bearerAuth(token) }.body<NotificationPageDto>()
             val titles = page.items.map { it.title }
             (titles.contains("全员公告") && titles.contains("到期提醒")) shouldBe true
         }
@@ -99,9 +99,9 @@ class MeRoutesTest : FunSpec({
                 val b = components.notificationRepository.create(null, 0, "公告", "y", null)
                 a to b
             }
-            client.post("/me/notifications/$personalId/read") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
+            client.post("/api/v1/me/notifications/$personalId/read") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
             // 公告无归属，标记返回 404。
-            client.post("/me/notifications/$announceId/read") { bearerAuth(token) }.status shouldBe HttpStatusCode.NotFound
+            client.post("/api/v1/me/notifications/$announceId/read") { bearerAuth(token) }.status shouldBe HttpStatusCode.NotFound
         }
     }
 })

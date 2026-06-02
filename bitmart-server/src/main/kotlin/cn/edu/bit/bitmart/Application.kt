@@ -20,6 +20,7 @@ import io.ktor.server.http.content.staticFiles
 import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -72,15 +73,24 @@ fun Application.configureApp(components: AppComponents) {
     }
 
     routing {
+        // 健康检查不带版本前缀，便于探活。
         get("/health") { call.respond(HealthResponse(status = "ok")) }
-        authRoutes(components.authService)
-        listingRoutes(components.listingService, components.listingRequestMapper, components.config.pagination)
-        uploadRoutes(components.uploadService)
-        meRoutes(components.userService, components.config.pagination.defaultPageSize, components.config.pagination.maxPageSize)
-        // 静态文件：图片等 Blob 通过 /static/<key> 暴露（架构 §8）。
+
+        // 全部业务 API 统一挂在 /api/v1 前缀下（架构 §6），与客户端约定一致。
+        route(API_PREFIX) {
+            authRoutes(components.authService)
+            listingRoutes(components.listingService, components.listingRequestMapper, components.config.pagination)
+            uploadRoutes(components.uploadService)
+            meRoutes(components.userService, components.config.pagination.defaultPageSize, components.config.pagination.maxPageSize)
+        }
+
+        // 静态文件：图片等 Blob 通过 publicBaseUrl（默认 /static）暴露（架构 §8）。
         staticFiles(components.config.storage.publicBaseUrl, java.io.File(components.config.storage.root))
     }
 }
+
+/** API 统一前缀（架构 §6）。客户端与服务端共同遵守。 */
+const val API_PREFIX = "/api/v1"
 
 @Serializable
 data class HealthResponse(val status: String)

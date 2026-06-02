@@ -34,11 +34,11 @@ class ListingRoutesTest : FunSpec({
 
     suspend fun HttpClient.registerToken(): String {
         val studentId = sid()
-        val ticket = post("/auth/bit101/verify") {
+        val ticket = post("/api/v1/auth/bit101/verify") {
             contentType(ContentType.Application.Json)
             setBody(VerifyRequest(studentId, "pw"))
         }.body<VerifyResponse>().verifyTicket
-        return post("/auth/register") {
+        return post("/api/v1/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(RegisterRequest(ticket, studentId, "Secret123", null))
         }.body<AuthResponse>().token
@@ -70,12 +70,12 @@ class ListingRoutesTest : FunSpec({
     test("发布后可在列表中查到") {
         app { client ->
             val token = client.registerToken()
-            val created = client.post("/listings") {
+            val created = client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "线性代数"))
             }
             created.status shouldBe HttpStatusCode.Created
 
-            val page = client.get("/listings?type=SELL").body<ListingPageDto>()
+            val page = client.get("/api/v1/listings?type=SELL").body<ListingPageDto>()
             page.items.map { it.title } shouldContain "线性代数"
         }
     }
@@ -83,13 +83,13 @@ class ListingRoutesTest : FunSpec({
     test("详情：未登录 401，登录 200 且含联系方式") {
         app { client ->
             val token = client.registerToken()
-            val id = client.post("/listings") {
+            val id = client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq())
             }.body<CreatedResponse>().id
 
-            client.get("/listings/$id").status shouldBe HttpStatusCode.Unauthorized
+            client.get("/api/v1/listings/$id").status shouldBe HttpStatusCode.Unauthorized
 
-            val detail = client.get("/listings/$id") { bearerAuth(token) }
+            val detail = client.get("/api/v1/listings/$id") { bearerAuth(token) }
             detail.status shouldBe HttpStatusCode.OK
             detail.body<ListingDetailDto>().contacts.first().value shouldBe "wxid_x"
         }
@@ -99,7 +99,7 @@ class ListingRoutesTest : FunSpec({
         app { client ->
             val token = client.registerToken()
             val bad = sellReq().copy(contacts = emptyList())
-            client.post("/listings") {
+            client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(bad)
             }.status shouldBe HttpStatusCode.BadRequest
         }
@@ -108,11 +108,11 @@ class ListingRoutesTest : FunSpec({
     test("文字搜索命中标题") {
         app { client ->
             val token = client.registerToken()
-            client.post("/listings") {
+            client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json)
                 setBody(sellReq(title = "概率论与数理统计"))
             }
-            val page = client.get("/listings?type=SELL&q=概率论").body<ListingPageDto>()
+            val page = client.get("/api/v1/listings?type=SELL&q=概率论").body<ListingPageDto>()
             page.items.any { it.title.contains("概率论") } shouldBe true
         }
     }
@@ -120,9 +120,9 @@ class ListingRoutesTest : FunSpec({
     test("价格区间过滤") {
         app { client ->
             val token = client.registerToken()
-            client.post("/listings") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "便宜书", unitPrice = "10.00")) }
-            client.post("/listings") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "贵书", unitPrice = "200.00")) }
-            val page = client.get("/listings?type=SELL&minPrice=100&includeNoPrice=false").body<ListingPageDto>()
+            client.post("/api/v1/listings") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "便宜书", unitPrice = "10.00")) }
+            client.post("/api/v1/listings") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "贵书", unitPrice = "200.00")) }
+            val page = client.get("/api/v1/listings?type=SELL&minPrice=100&includeNoPrice=false").body<ListingPageDto>()
             page.items.all { (it.unitPrice?.toDouble() ?: 0.0) >= 100 } shouldBe true
         }
     }
@@ -130,16 +130,16 @@ class ListingRoutesTest : FunSpec({
     test("修改售出数量：单调递增，回退被拒") {
         app { client ->
             val token = client.registerToken()
-            val id = client.post("/listings") {
+            val id = client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(quantityTotal = 5))
             }.body<CreatedResponse>().id
 
-            client.patch("/listings/$id") {
+            client.patch("/api/v1/listings/$id") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 3))
             }.status shouldBe HttpStatusCode.OK
 
             // 回退到 1 → 校验失败 400。
-            client.patch("/listings/$id") {
+            client.patch("/api/v1/listings/$id") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 1))
             }.status shouldBe HttpStatusCode.BadRequest
         }
@@ -148,13 +148,13 @@ class ListingRoutesTest : FunSpec({
     test("非本人无法修改/删除（403）") {
         app { client ->
             val ownerToken = client.registerToken()
-            val id = client.post("/listings") {
+            val id = client.post("/api/v1/listings") {
                 bearerAuth(ownerToken); contentType(ContentType.Application.Json); setBody(sellReq())
             }.body<CreatedResponse>().id
 
             val otherToken = client.registerToken()
-            client.delete("/listings/$id") { bearerAuth(otherToken) }.status shouldBe HttpStatusCode.Forbidden
-            client.patch("/listings/$id") {
+            client.delete("/api/v1/listings/$id") { bearerAuth(otherToken) }.status shouldBe HttpStatusCode.Forbidden
+            client.patch("/api/v1/listings/$id") {
                 bearerAuth(otherToken); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(title = "篡改"))
             }.status shouldBe HttpStatusCode.Forbidden
         }
@@ -163,30 +163,30 @@ class ListingRoutesTest : FunSpec({
     test("删除后不在列表中且详情 404") {
         app { client ->
             val token = client.registerToken()
-            val id = client.post("/listings") {
+            val id = client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "待删除商品xyz"))
             }.body<CreatedResponse>().id
 
-            client.delete("/listings/$id") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
-            client.get("/listings/$id") { bearerAuth(token) }.status shouldBe HttpStatusCode.NotFound
+            client.delete("/api/v1/listings/$id") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
+            client.get("/api/v1/listings/$id") { bearerAuth(token) }.status shouldBe HttpStatusCode.NotFound
         }
     }
 
     test("批量发布：任一条非法则整体回滚") {
         app { client ->
             val token = client.registerToken()
-            val before = client.get("/listings?type=SELL&limit=50").body<ListingPageDto>().items.size
+            val before = client.get("/api/v1/listings?type=SELL&limit=50").body<ListingPageDto>().items.size
 
             val good = sellReq(title = "批量A")
             val bad = sellReq(title = "批量B").copy(contacts = emptyList())   // 非法
-            val resp = client.post("/listings/batch") {
+            val resp = client.post("/api/v1/listings/batch") {
                 bearerAuth(token); contentType(ContentType.Application.Json)
                 setBody(BatchCreateRequest(listOf(good, bad)))
             }
             resp.status shouldBe HttpStatusCode.BadRequest
 
             // 整体回滚：数量不变。
-            val after = client.get("/listings?type=SELL&limit=50").body<ListingPageDto>().items.size
+            val after = client.get("/api/v1/listings?type=SELL&limit=50").body<ListingPageDto>().items.size
             after shouldBe before
         }
     }
@@ -194,7 +194,7 @@ class ListingRoutesTest : FunSpec({
     test("批量发布全部合法则成功") {
         app { client ->
             val token = client.registerToken()
-            val resp = client.post("/listings/batch") {
+            val resp = client.post("/api/v1/listings/batch") {
                 bearerAuth(token); contentType(ContentType.Application.Json)
                 setBody(BatchCreateRequest(listOf(sellReq(title = "批C"), sellReq(title = "批D"))))
             }
@@ -206,11 +206,11 @@ class ListingRoutesTest : FunSpec({
     test("热门标签返回已用标签") {
         app { client ->
             val token = client.registerToken()
-            client.post("/listings") {
+            client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json)
                 setBody(sellReq(tags = listOf("热门标签测试")))
             }
-            val tags = client.get("/tags/popular").body<PopularTagsDto>().tags
+            val tags = client.get("/api/v1/tags/popular").body<PopularTagsDto>().tags
             tags shouldContain "热门标签测试"
         }
     }
@@ -222,7 +222,7 @@ class ListingRoutesTest : FunSpec({
         """.trimIndent()
         app(AuthTestSupport.components(showApiBody = showApiBody)) { client ->
             val token = client.registerToken()
-            val resp = client.post("/books/lookup") {
+            val resp = client.post("/api/v1/books/lookup") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(BookLookupRequest("9787111407010"))
             }
             resp.status shouldBe HttpStatusCode.OK
@@ -232,7 +232,7 @@ class ListingRoutesTest : FunSpec({
 
     test("未登录无法查询 ISBN（401）") {
         app { client ->
-            client.post("/books/lookup") {
+            client.post("/api/v1/books/lookup") {
                 contentType(ContentType.Application.Json); setBody(BookLookupRequest("123"))
             }.status shouldBe HttpStatusCode.Unauthorized
         }
