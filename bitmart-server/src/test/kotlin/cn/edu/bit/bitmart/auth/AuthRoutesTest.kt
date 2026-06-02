@@ -1,7 +1,7 @@
 package cn.edu.bit.bitmart.auth
 
 import cn.edu.bit.bitmart.AppComponents
-import cn.edu.bit.bitmart.module
+import cn.edu.bit.bitmart.configureApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -32,7 +32,7 @@ class AuthRoutesTest : FunSpec({
         components: AppComponents = AuthTestSupport.components(),
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) = testApplication {
-        application { module(components) }
+        application { configureApp(components) }
         val client = createClient {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }

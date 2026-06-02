@@ -7,7 +7,7 @@ import cn.edu.bit.bitmart.auth.RegisterRequest
 import cn.edu.bit.bitmart.auth.UserDto
 import cn.edu.bit.bitmart.auth.VerifyRequest
 import cn.edu.bit.bitmart.auth.VerifyResponse
-import cn.edu.bit.bitmart.module
+import cn.edu.bit.bitmart.configureApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.HttpClient
@@ -46,7 +46,7 @@ class MeRoutesTest : FunSpec({
         components: AppComponents = AuthTestSupport.components(),
         block: suspend (HttpClient, AppComponents) -> Unit,
     ) = testApplication {
-        application { module(components) }
+        application { configureApp(components) }
         val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
         block(client, components)
     }

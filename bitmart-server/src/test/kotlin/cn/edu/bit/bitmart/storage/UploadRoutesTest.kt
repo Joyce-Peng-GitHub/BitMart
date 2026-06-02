@@ -5,7 +5,7 @@ import cn.edu.bit.bitmart.auth.AuthTestSupport
 import cn.edu.bit.bitmart.auth.RegisterRequest
 import cn.edu.bit.bitmart.auth.VerifyRequest
 import cn.edu.bit.bitmart.auth.VerifyResponse
-import cn.edu.bit.bitmart.module
+import cn.edu.bit.bitmart.configureApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.HttpClient
@@ -45,7 +45,7 @@ class UploadRoutesTest : FunSpec({
     }
 
     fun app(block: suspend (HttpClient) -> Unit) = testApplication {
-        application { module(AuthTestSupport.components()) }
+        application { configureApp(AuthTestSupport.components()) }
         val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
         block(client)
     }

@@ -12,7 +12,7 @@ import io.ktor.server.testing.testApplication
 class HealthRouteTest : FunSpec({
     test("GET /health 返回 200 与 ok 状态") {
         testApplication {
-            application { module(AuthTestSupport.components()) }
+            application { configureApp(AuthTestSupport.components()) }
             val response = client.get("/health")
             response.status shouldBe HttpStatusCode.OK
             response.bodyAsText() shouldBe """{"status":"ok"}"""

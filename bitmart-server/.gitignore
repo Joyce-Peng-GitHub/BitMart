@@ -9,6 +9,8 @@ build/
 .idea/
 *.iml
 .kotlin/
+# IntelliJ/Eclipse 风格的编译输出目录。
+bin/
 
 # 本地敏感配置覆盖。
 *.local.conf

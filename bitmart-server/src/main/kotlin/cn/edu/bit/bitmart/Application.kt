@@ -28,15 +28,18 @@ import org.slf4j.LoggerFactory
 /** Ktor 入口：由 application.conf 的 EngineMain 装载。 */
 fun main(args: Array<String>) = EngineMain.main(args)
 
-/** 生产入口：从配置装配组件后安装模块。 */
+/** 生产入口：从配置装配组件后安装模块。由 application.conf 按名引用。 */
 fun Application.module() {
     val config = BitmartConfig.from(environment.config)
     val components = AppComponents.production(config)
-    module(components)
+    configureApp(components)
 }
 
-/** 可测试入口：注入已装配好的组件（测试可传入内嵌库与 Mock 客户端）。 */
-fun Application.module(components: AppComponents) {
+/**
+ * 实际装配逻辑。独立命名（非 module 重载），避免 Ktor 按名加载模块时
+ * 误选带 AppComponents 参数的函数而触发参数注入失败。测试可直接调用并注入组件。
+ */
+fun Application.configureApp(components: AppComponents) {
     val log = LoggerFactory.getLogger("bitmart.Application")
 
     install(ContentNegotiation) {
