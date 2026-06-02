@@ -28,6 +28,8 @@ class PublishViewModelTest {
         override suspend fun list(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
         override suspend fun detail(id: Long): DomainResult<ListingDetail> = DomainResult.Failure("X", "n/a", 404)
         override suspend fun publish(draft: PublishDraft): DomainResult<Long> { lastDraft = draft; return result }
+        override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft) = DomainResult.Success(Unit)
+        override suspend fun delete(id: Long) = DomainResult.Success(Unit)
         override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<String>())
     }
 

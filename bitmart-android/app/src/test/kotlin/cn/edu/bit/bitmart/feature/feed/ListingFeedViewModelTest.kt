@@ -38,6 +38,8 @@ class ListingFeedViewModelTest {
         }
         override suspend fun detail(id: Long) = DomainResult.Failure("X", "n/a", 404)
         override suspend fun publish(draft: cn.edu.bit.bitmart.core.domain.repository.PublishDraft) = DomainResult.Success(1L)
+        override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft) = DomainResult.Success(Unit)
+        override suspend fun delete(id: Long) = DomainResult.Success(Unit)
         override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<String>())
     }
 
