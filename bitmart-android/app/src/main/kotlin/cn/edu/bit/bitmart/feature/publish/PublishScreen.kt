@@ -1,74 +1,320 @@
 package cn.edu.bit.bitmart.feature.publish
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.scale
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ContactChannel
+import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.domain.model.PublishConfig
+import java.io.ByteArrayOutputStream
 
-/** 发布屏。买/卖共用，价格标签随类型切换；提交成功后回调。 */
+/**
+ * 发布屏（多草稿批量模型）：先选书籍/一般商品，填写字段后加入批次，最后一并提交。
+ * 书籍可扫码 ISBN → lookupBook 预填；可拍照/上传图片 → uploadImage / LLM 识别。
+ * @param onPublished 批次提交成功后回调（pop back）。
+ * @param onNavigateToLlmSettings LLM 未配置时跳转 LLM 设置页。
+ * @param onNavigateToBookScan 打开书籍条码扫描页。
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PublishScreen(
-    onPublished: (Long) -> Unit,
+    onPublished: () -> Unit,
+    onNavigateToLlmSettings: () -> Unit,
+    onNavigateToBookScan: () -> Unit,
+    /** 从条码扫描页回传的 ISBN（NavHost 观察 savedStateHandle 后传入）。 */
+    scannedIsbn: String? = null,
     viewModel: PublishViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(state.publishedId) { state.publishedId?.let(onPublished) }
+    val context = LocalContext.current
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+    // 从条码扫描页收到 ISBN → 预填书籍草稿。
+    LaunchedEffect(scannedIsbn) {
+        scannedIsbn?.let { viewModel.lookupBook(it) }
+    }
+
+    LaunchedEffect(state.batchSubmitted) {
+        if (state.batchSubmitted) onPublished()
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                PublishEvent.NavigateToLlmSettings -> onNavigateToLlmSettings()
+                PublishEvent.NavigateToBookScan -> onNavigateToBookScan()
+            }
+        }
+    }
+
+    // 仅上传图片（加入当前草稿的 imageKeys）。
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            val bytes = compressImage(context, it)
+            if (bytes != null) viewModel.uploadImage(bytes, "image.jpg")
+        }
+    }
+
+    // 拍照识别：同一张图片既上传（得 blobKey）又交给 LLM 识别合并到当前草稿。
+    val recognizePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            val bytes = compressImage(context, it)
+            if (bytes != null) {
+                viewModel.uploadImage(bytes, "image.jpg")
+                viewModel.recognizeWithLlm(bytes)
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("发布新项（批量）", style = MaterialTheme.typography.headlineSmall)
+
+        // 卖/买 类型选择。
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(state.type == ListingType.SELL, { viewModel.setType(ListingType.SELL) }, { Text("我要卖") })
             FilterChip(state.type == ListingType.BUY, { viewModel.setType(ListingType.BUY) }, { Text("我要买") })
         }
-        Spacer(Modifier.height(8.dp))
 
-        OutlinedTextField(state.title, viewModel::onTitle, label = { Text("标题") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(state.description, viewModel::onDescription, label = { Text("描述") }, modifier = Modifier.fillMaxWidth())
+        // 书籍/一般商品 类别选择。
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                state.selectedCategory == ListingCategory.GENERAL,
+                { viewModel.setCategory(ListingCategory.GENERAL) },
+                { Text("一般商品") },
+            )
+            FilterChip(
+                state.selectedCategory == ListingCategory.BOOK,
+                { viewModel.setCategory(ListingCategory.BOOK) },
+                { Text("书籍") },
+            )
+        }
+
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+        // 当前编辑的草稿字段。
+        val draft = state.currentDraft
+        if (draft.category == ListingCategory.BOOK) {
+            // 书籍专属字段。
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = draft.isbn ?: "",
+                    onValueChange = viewModel::onIsbn,
+                    label = { Text("ISBN") },
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = viewModel::openBookScan) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = "扫码")
+                }
+            }
+            OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text("作者") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text("出版社") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text("版本") }, modifier = Modifier.fillMaxWidth())
+        }
+
+        OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(draft.description, viewModel::onDescription, label = { Text("描述") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+
         val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
-        OutlinedTextField(state.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(state.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(state.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(state.tags, viewModel::onTags, label = { Text("标签（逗号分隔）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
 
-        Spacer(Modifier.height(8.dp))
+        // 联系方式。
         Text("联系方式", style = MaterialTheme.typography.titleSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ContactChannel.entries.take(3).forEach { ch ->
-                FilterChip(state.contactChannel == ch, { viewModel.onContactChannel(ch) }, { Text(ch.name) })
+                FilterChip(draft.contactChannel == ch, { viewModel.onContactChannel(ch) }, { Text(ch.name) })
             }
         }
-        OutlinedTextField(state.contactValue, viewModel::onContactValue, label = { Text("联系方式内容") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Text(
-            "提示：优先使用微信/QQ；填写手机号存在隐私风险。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
+        OutlinedTextField(draft.contactValue, viewModel::onContactValue, label = { Text("联系方式内容") }, modifier = Modifier.fillMaxWidth())
 
-        state.error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error) }
-
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = viewModel::submit, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
-            if (state.loading) CircularProgressIndicator(modifier = Modifier.height(20.dp)) else Text("发布")
+        // 标签（热门 + 自定义）。
+        Text("标签（最多${PublishConfig.MAX_TAGS}个）", style = MaterialTheme.typography.titleSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            state.popularTags.forEach { tag ->
+                FilterChip(tag in draft.tags, { viewModel.toggleTag(tag) }, { Text(tag) })
+            }
         }
+        var customTagInput by remember { mutableStateOf("") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = customTagInput,
+                onValueChange = { customTagInput = it },
+                label = { Text("自定义标签") },
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                onClick = { viewModel.addCustomTag(customTagInput); customTagInput = "" },
+                enabled = customTagInput.isNotBlank() && draft.tags.size < PublishConfig.MAX_TAGS,
+            ) {
+                Text("添加")
+            }
+        }
+        if (draft.tags.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                draft.tags.forEach { tag ->
+                    FilterChip(true, { viewModel.toggleTag(tag) }, { Text(tag) })
+                }
+            }
+        }
+
+        // 图片上传 / LLM 识别。
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { imagePicker.launch("image/*") }, enabled = !state.uploadingImage) {
+                Icon(Icons.Default.Image, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
+                Text("选择图片")
+            }
+            OutlinedButton(
+                onClick = { recognizePicker.launch("image/*") },
+                enabled = !state.llmRecognizing,
+            ) {
+                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
+                Text("拍照识别")
+            }
+        }
+        if (state.uploadingImage || state.llmRecognizing || state.lookingUpBook) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    when {
+                        state.uploadingImage -> "上传中..."
+                        state.llmRecognizing -> "识别中..."
+                        state.lookingUpBook -> "查询书籍中..."
+                        else -> ""
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        // 加入批次按钮。
+        Button(onClick = viewModel::addDraftToBatch, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(Modifier.width(4.dp))
+            Text("加入待发布列表")
+        }
+
+        // 已加入的批次列表。
+        if (state.draftBatch.isNotEmpty()) {
+            Text("待发布列表（${state.draftBatch.size}项）", style = MaterialTheme.typography.titleMedium)
+            state.draftBatch.forEachIndexed { index, item ->
+                Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.editDraft(index) }) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(item.title, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "${item.category.name} · ${item.quantityTotal}件",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                        }
+                        Row {
+                            IconButton(onClick = { viewModel.editDraft(index) }) {
+                                Icon(Icons.Default.Edit, contentDescription = "编辑")
+                            }
+                            IconButton(onClick = { viewModel.removeDraft(index) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "删除")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 批量提交按钮。
+            Button(
+                onClick = viewModel::submitBatch,
+                enabled = !state.loading,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (state.loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
+                else Text("提交全部（${state.draftBatch.size}项）")
+            }
+        }
+    }
+}
+
+/** 压缩并转换图片为 JPEG 字节（1024px 上限，80% 质量）。 */
+private fun compressImage(context: Context, uri: Uri): ByteArray? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val originalBitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream.close()
+
+        val maxDimension = 1024
+        val scaledBitmap = if (originalBitmap.width > maxDimension || originalBitmap.height > maxDimension) {
+            val scale = maxDimension.toFloat() / maxOf(originalBitmap.width, originalBitmap.height)
+            val newWidth = (originalBitmap.width * scale).toInt()
+            val newHeight = (originalBitmap.height * scale).toInt()
+            originalBitmap.scale(newWidth, newHeight).also {
+                if (it != originalBitmap) originalBitmap.recycle()
+            }
+        } else originalBitmap
+
+        val outputStream = ByteArrayOutputStream()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        scaledBitmap.recycle()
+
+        outputStream.toByteArray()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
     }
 }

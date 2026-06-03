@@ -33,6 +33,9 @@ class ListingDetailViewModelTest {
         override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
         override suspend fun detail(id: Long) = result
         override suspend fun publish(draft: PublishDraft) = DomainResult.Success(1L)
+        override suspend fun publishBatch(drafts: List<PublishDraft>) = DomainResult.Success(listOf(1L))
+        override suspend fun uploadImage(bytes: ByteArray, filename: String) = DomainResult.Success("blob-key")
+        override suspend fun lookupBook(isbn: String) = DomainResult.Success(null)
         override suspend fun update(id: Long, update: UpdateDraft) = DomainResult.Success(Unit)
         override suspend fun delete(id: Long) = DomainResult.Success(Unit)
         override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<String>())

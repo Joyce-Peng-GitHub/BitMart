@@ -111,6 +111,7 @@ data class CreateListingRequest(
     val tags: List<String> = emptyList(),
     val expiresInDays: Int? = null,
     val book: BookDto? = null,
+    val imageKeys: List<String> = emptyList(),
 )
 
 @Serializable
@@ -147,3 +148,36 @@ data class NotificationDto(
 
 @Serializable
 data class NotificationPageDto(val items: List<NotificationDto>, val nextCursor: String? = null)
+
+/** 批量发布请求（POST /listings/batch）。 */
+@Serializable
+data class BatchCreateRequest(val items: List<CreateListingRequest>)
+
+/** 批量发布响应（所有创建成功后返回全部 id）。 */
+@Serializable
+data class BatchCreatedResponse(val ids: List<Long>)
+
+/** 图片上传响应（POST /uploads/images，multipart）。 */
+@Serializable
+data class UploadResponse(
+    val blobKey: String,
+    val url: String,
+    val contentType: String,
+)
+
+/** 书籍元数据（POST /books/lookup 响应）。 */
+@Serializable
+data class BookMetaDto(
+    val isbn: String,
+    val title: String? = null,
+    val author: String? = null,
+    val publisher: String? = null,
+    val edition: String? = null,
+    val pubdate: String? = null,
+    val price: String? = null,
+    val page: Int? = null,
+    val binding: String? = null,
+    val format: String? = null,
+    val img: String? = null,
+    val summary: String? = null,
+)

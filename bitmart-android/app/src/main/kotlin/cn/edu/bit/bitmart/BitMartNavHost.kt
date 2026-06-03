@@ -1,6 +1,8 @@
 package cn.edu.bit.bitmart
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -9,6 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import cn.edu.bit.bitmart.feature.about.AboutScreen
 import cn.edu.bit.bitmart.feature.auth.AuthScreen
+import cn.edu.bit.bitmart.feature.bookscan.BookScanScreen
 import cn.edu.bit.bitmart.feature.detail.ListingDetailScreen
 import cn.edu.bit.bitmart.feature.notifications.NotificationsScreen
 import cn.edu.bit.bitmart.feature.profile.ContactsScreen
@@ -23,6 +26,7 @@ object Routes {
     const val SHELL = "shell"
     const val AUTH = "auth"
     const val PUBLISH = "publish"
+    const val BOOK_SCAN = "book_scan"
     const val DETAIL = "detail"
     const val DETAIL_ARG = "id"
     const val NOTIFICATIONS = "notifications"
@@ -64,8 +68,29 @@ fun BitMartNavHost(
                 navController.popBackStack(Routes.SHELL, inclusive = false)
             })
         }
-        composable(Routes.PUBLISH) {
-            PublishScreen(onPublished = { navController.popBackStack() })
+        composable(Routes.PUBLISH) { entry ->
+            // 从条码扫描页回传的 ISBN 写在本条目的 savedStateHandle（键 "isbn_result"）。
+            // 消费后删除，避免重复触发。
+            val scannedIsbn by entry.savedStateHandle.getStateFlow<String?>("isbn_result", null)
+                .collectAsStateWithLifecycle()
+            PublishScreen(
+                onPublished = { navController.popBackStack() },
+                onNavigateToLlmSettings = { navController.navigate(Routes.LLM_SETTINGS) },
+                onNavigateToBookScan = { navController.navigate(Routes.BOOK_SCAN) },
+                scannedIsbn = scannedIsbn?.also { entry.savedStateHandle.remove<String>("isbn_result") },
+            )
+        }
+        composable(Routes.BOOK_SCAN) {
+            // 扫到 ISBN 后写入 PUBLISH 条目（previousBackStackEntry）的 savedStateHandle，再弹出本页。
+            BookScanScreen(
+                onIsbnScanned = { isbn ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("isbn_result", isbn)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(
             route = "${Routes.DETAIL}/{${Routes.DETAIL_ARG}}",

@@ -48,6 +48,9 @@ class MyListingsViewModelTest {
         }
         override suspend fun detail(id: Long) = DomainResult.Failure("X", "n/a", 404)
         override suspend fun publish(draft: PublishDraft) = DomainResult.Success(1L)
+        override suspend fun publishBatch(drafts: List<PublishDraft>) = DomainResult.Success(listOf(1L))
+        override suspend fun uploadImage(bytes: ByteArray, filename: String) = DomainResult.Success("blob-key")
+        override suspend fun lookupBook(isbn: String) = DomainResult.Success(null)
         override suspend fun update(id: Long, update: UpdateDraft): DomainResult<Unit> {
             lastUpdate = id to update; return updateResult
         }

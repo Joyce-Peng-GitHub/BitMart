@@ -80,6 +80,37 @@ class BitMartApi(
         })
     }
 
+    suspend fun createListingBatch(req: BatchCreateRequest): DomainResult<BatchCreatedResponse> = safe {
+        ApiResponseMapper.handle(client.post(url("/listings/batch")) {
+            auth(); contentType(ContentType.Application.Json); setBody(req)
+        })
+    }
+
+    suspend fun uploadImage(bytes: ByteArray, filename: String): DomainResult<UploadResponse> = safe {
+        ApiResponseMapper.handle(client.post(url("/uploads/images")) {
+            auth()
+            setBody(io.ktor.client.request.forms.MultiPartFormDataContent(
+                io.ktor.client.request.forms.formData {
+                    append("file", bytes, io.ktor.http.Headers.build {
+                        append(io.ktor.http.HttpHeaders.ContentDisposition, "filename=\"$filename\"")
+                    })
+                }
+            ))
+        })
+    }
+
+    suspend fun lookupBook(isbn: String): DomainResult<BookMetaDto?> = safe {
+        val response = client.post(url("/books/lookup")) {
+            auth(); contentType(ContentType.Application.Json)
+            setBody(mapOf("isbn" to isbn))
+        }
+        if (response.status == io.ktor.http.HttpStatusCode.NotFound) {
+            DomainResult.Success(null)
+        } else {
+            ApiResponseMapper.handle(response)
+        }
+    }
+
     suspend fun popularTags(limit: Int): DomainResult<PopularTagsDto> = safe {
         ApiResponseMapper.handle(client.get(url("/tags/popular")) { parameter("limit", limit) })
     }

@@ -1,7 +1,9 @@
 package cn.edu.bit.bitmart.core.data.repository
 
+import cn.edu.bit.bitmart.core.data.remote.BatchCreateRequest
 import cn.edu.bit.bitmart.core.data.remote.BitMartApi
 import cn.edu.bit.bitmart.core.data.remote.BookDto
+import cn.edu.bit.bitmart.core.data.remote.BookMetaDto
 import cn.edu.bit.bitmart.core.data.remote.ContactDto
 import cn.edu.bit.bitmart.core.data.remote.CreateListingRequest
 import cn.edu.bit.bitmart.core.data.remote.ListingDetailDto
@@ -36,20 +38,16 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
         api.listingDetail(id).map { it.toDomain() }
 
     override suspend fun publish(draft: PublishDraft): DomainResult<Long> =
-        api.createListing(
-            CreateListingRequest(
-                type = draft.type.name,
-                category = draft.category,
-                title = draft.title,
-                description = draft.description,
-                unitPrice = draft.unitPrice,
-                quantityTotal = draft.quantityTotal,
-                pickupLocation = draft.pickupLocation,
-                contacts = draft.contacts.map { ContactDto(it.channel.name, it.value) },
-                tags = draft.tags,
-                expiresInDays = draft.expiresInDays,
-            ),
-        ).map { it.id }
+        api.createListing(draft.toCreateRequest()).map { it.id }
+
+    override suspend fun publishBatch(drafts: List<PublishDraft>): DomainResult<List<Long>> =
+        api.createListingBatch(BatchCreateRequest(drafts.map { it.toCreateRequest() })).map { it.ids }
+
+    override suspend fun uploadImage(bytes: ByteArray, filename: String): DomainResult<String> =
+        api.uploadImage(bytes, filename).map { it.blobKey }
+
+    override suspend fun lookupBook(isbn: String): DomainResult<BookInfo?> =
+        api.lookupBook(isbn).map { it?.toBookInfo() }
 
     override suspend fun popularTags(limit: Int): DomainResult<List<String>> =
         api.popularTags(limit).map { it.tags }
@@ -71,6 +69,25 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
     override suspend fun delete(id: Long): DomainResult<Unit> =
         api.deleteListing(id)
 }
+
+private fun PublishDraft.toCreateRequest() = CreateListingRequest(
+    type = type.name,
+    category = category.name,
+    title = title,
+    description = description,
+    unitPrice = unitPrice,
+    quantityTotal = quantityTotal,
+    pickupLocation = pickupLocation,
+    contacts = contacts.map { ContactDto(it.channel.name, it.value) },
+    tags = tags,
+    expiresInDays = expiresInDays,
+    book = book?.toDto(),
+    imageKeys = imageKeys,
+)
+
+private fun BookInfo.toDto() = BookDto(isbn, title, authors, publisher, edition)
+
+private fun BookMetaDto.toBookInfo() = BookInfo(isbn, title, author, publisher, edition)
 
 private fun ListingPageDto.toDomain() = ListingPage(items.map { it.toDomain() }, nextCursor)
 
