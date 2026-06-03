@@ -15,6 +15,7 @@ import cn.edu.bit.bitmart.feature.profile.ContactsScreen
 import cn.edu.bit.bitmart.feature.profile.MyListingsScreen
 import cn.edu.bit.bitmart.feature.publish.PublishScreen
 import cn.edu.bit.bitmart.feature.settings.AccountSettingsScreen
+import cn.edu.bit.bitmart.feature.settings.LlmSettingsScreen
 import cn.edu.bit.bitmart.feature.settings.SettingsScreen
 
 /** 顶层路由。SHELL 为起始目的地（无需登录）；其余以全屏方式叠加于其上。 */
@@ -28,6 +29,7 @@ object Routes {
     const val CONTACTS = "contacts"
     const val SETTINGS = "settings"
     const val ACCOUNT_SETTINGS = "account_settings"
+    const val LLM_SETTINGS = "llm_settings"
     const val ABOUT = "about"
     const val MY_LISTINGS = "my_listings"
     const val MY_LISTINGS_ARG = "buy"
@@ -82,8 +84,12 @@ fun BitMartNavHost(
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onAccountClick = { navController.navigate(Routes.ACCOUNT_SETTINGS) },
-                onComingSoon = { /* #37：LLM / 语言 / 主题设置；暂不导航。 */ },
+                onLlmClick = { navController.navigate(Routes.LLM_SETTINGS) },
+                onComingSoon = { /* 语言 / 主题设置；暂不导航。 */ },
             )
+        }
+        composable(Routes.LLM_SETTINGS) {
+            LlmSettingsScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.ACCOUNT_SETTINGS) {
             AccountSettingsScreen(

@@ -24,9 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 /**
- * 设置页：账号设置为本批次实现；LLM 设置、语言、主题为后续任务（#37）暂以“敬请期待”占位。
+ * 设置页：账号设置、LLM 设置为本批次实现；语言、主题为后续任务暂以“敬请期待”占位。
  * @param onBack 返回上一页。
  * @param onAccountClick 进入账号设置（若未登录由账号设置页跳转登录）。
+ * @param onLlmClick 进入 LLM 设置。
  * @param onComingSoon 点击尚未实现的项时的占位回调（展示提示）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 fun SettingsScreen(
     onBack: () -> Unit,
     onAccountClick: () -> Unit,
+    onLlmClick: () -> Unit,
     onComingSoon: (String) -> Unit,
 ) {
     Scaffold(
@@ -50,7 +52,7 @@ fun SettingsScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             SettingRow("账号设置", onClick = onAccountClick)
-            SettingRow("LLM 设置", subtitle = "敬请期待", onClick = { onComingSoon("LLM 设置") })
+            SettingRow("LLM 设置", onClick = onLlmClick)
             SettingRow("语言设置", subtitle = "敬请期待", onClick = { onComingSoon("语言设置") })
             SettingRow("主题设置", subtitle = "敬请期待", onClick = { onComingSoon("主题设置") })
         }
