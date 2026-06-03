@@ -127,3 +127,23 @@ data class UpdateListingRequest(
     val quantitySold: Int? = null,
     val expiresInDays: Int? = null,
 )
+
+/** 修改当前用户资料请求（PATCH /me），目前仅支持昵称。 */
+@Serializable
+data class UpdateMeRequest(val nickname: String? = null)
+
+/** 单条通知（公告 / 个人提醒合并流）。 */
+@Serializable
+data class NotificationDto(
+    val id: Long,
+    val category: Int,
+    val title: String,
+    val body: String,
+    val payload: String? = null,
+    val read: Boolean,
+    val createdAt: String,
+    val isAnnouncement: Boolean,
+)
+
+@Serializable
+data class NotificationPageDto(val items: List<NotificationDto>, val nextCursor: String? = null)

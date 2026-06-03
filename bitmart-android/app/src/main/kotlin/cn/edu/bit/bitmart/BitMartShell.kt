@@ -30,16 +30,26 @@ private enum class ShellTab(val route: String, val label: String, val icon: Imag
 
 /**
  * 应用外壳：Material3 底部导航栏，承载 “买卖” 与 “我的” 两个顶层目的地。
- * 该外壳无需登录即可浏览（列表为公开）；详情/发布/登录由上层导航以全屏方式叠加。
+ * 该外壳无需登录即可浏览（列表为公开）；详情/发布/登录/通知/设置等由上层导航以全屏方式叠加。
  * @param onItemClick 点击列表项进入详情。
  * @param onPublishClick 点击发布。
  * @param onLoginClick “我的” 页未登录时点击登录。
+ * @param onNotificationsClick 进入通知页。
+ * @param onContactsClick 进入常用联系方式页。
+ * @param onMyListingsClick 进入“我的商品/收购”管理页（buy=true 为收购）。
+ * @param onSettingsClick 进入设置页。
+ * @param onAboutClick 进入关于页。
  */
 @Composable
 fun BitMartShell(
     onItemClick: (Long) -> Unit,
     onPublishClick: () -> Unit,
     onLoginClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    onContactsClick: () -> Unit,
+    onMyListingsClick: (Boolean) -> Unit,
+    onSettingsClick: () -> Unit,
+    onAboutClick: () -> Unit,
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -75,7 +85,14 @@ fun BitMartShell(
                 TradeScreen(onItemClick = onItemClick, onPublishClick = onPublishClick)
             }
             composable(ShellTab.PROFILE.route) {
-                ProfileScreen(onLoginClick = onLoginClick)
+                ProfileScreen(
+                    onLoginClick = onLoginClick,
+                    onNotificationsClick = onNotificationsClick,
+                    onContactsClick = onContactsClick,
+                    onMyListingsClick = onMyListingsClick,
+                    onSettingsClick = onSettingsClick,
+                    onAboutClick = onAboutClick,
+                )
             }
         }
     }

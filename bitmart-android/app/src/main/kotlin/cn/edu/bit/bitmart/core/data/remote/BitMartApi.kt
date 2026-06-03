@@ -92,6 +92,23 @@ class BitMartApi(
         ApiResponseMapper.handle(client.get(url("/me")) { auth() })
     }
 
+    suspend fun updateMe(req: UpdateMeRequest): DomainResult<UserDto> = safe {
+        ApiResponseMapper.handle(client.patch(url("/me")) {
+            auth(); contentType(ContentType.Application.Json); setBody(req)
+        })
+    }
+
+    // —— 通知 ——
+    suspend fun notifications(cursor: String?, limit: Int): DomainResult<NotificationPageDto> = safe {
+        ApiResponseMapper.handle(client.get(url("/me/notifications")) {
+            auth(); if (cursor != null) parameter("cursor", cursor); parameter("limit", limit)
+        })
+    }
+
+    suspend fun markNotificationRead(id: Long): DomainResult<Unit> = safe {
+        ApiResponseMapper.handleUnit(client.post(url("/me/notifications/$id/read")) { auth() })
+    }
+
     private suspend fun io.ktor.client.request.HttpRequestBuilder.auth() {
         tokenProvider()?.let { bearerAuth(it) }
     }

@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import cn.edu.bit.bitmart.BuildConfig
+import cn.edu.bit.bitmart.core.data.local.ContactPrefsStore
+import cn.edu.bit.bitmart.core.data.local.DataStoreContactPrefsStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreTokenStore
 import cn.edu.bit.bitmart.core.data.local.TokenStore
 import cn.edu.bit.bitmart.core.data.remote.BitMartApi
@@ -41,6 +43,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideTokenStore(dataStore: DataStore<Preferences>): TokenStore = DataStoreTokenStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideContactPrefsStore(dataStore: DataStore<Preferences>): ContactPrefsStore =
+        DataStoreContactPrefsStore(dataStore)
 
     @Provides
     @Singleton

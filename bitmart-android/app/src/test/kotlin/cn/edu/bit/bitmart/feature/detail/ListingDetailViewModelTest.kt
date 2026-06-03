@@ -42,6 +42,10 @@ class ListingDetailViewModelTest {
         override suspend fun getMe(): DomainResult<User> =
             if (userId == null) DomainResult.Failure("UNAUTHORIZED", "未登录", 401)
             else DomainResult.Success(User(userId, "1120201234", null, "匿名", "NORMAL"))
+        override suspend fun updateNickname(nickname: String?) = DomainResult.Failure("X", "n/a", 400)
+        override suspend fun notifications(cursor: String?, limit: Int) =
+            DomainResult.Success(cn.edu.bit.bitmart.core.domain.model.NotificationPage(emptyList(), null))
+        override suspend fun markNotificationRead(id: Long) = DomainResult.Success(Unit)
     }
 
     private val detail = ListingDetail(

@@ -7,18 +7,32 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import cn.edu.bit.bitmart.feature.about.AboutScreen
 import cn.edu.bit.bitmart.feature.auth.AuthScreen
 import cn.edu.bit.bitmart.feature.detail.ListingDetailScreen
+import cn.edu.bit.bitmart.feature.notifications.NotificationsScreen
+import cn.edu.bit.bitmart.feature.profile.ContactsScreen
+import cn.edu.bit.bitmart.feature.profile.MyListingsPlaceholderScreen
 import cn.edu.bit.bitmart.feature.publish.PublishScreen
+import cn.edu.bit.bitmart.feature.settings.AccountSettingsScreen
+import cn.edu.bit.bitmart.feature.settings.SettingsScreen
 
-/** 顶层路由。SHELL 为起始目的地（无需登录）；AUTH/PUBLISH/DETAIL 以全屏方式叠加于其上。 */
+/** 顶层路由。SHELL 为起始目的地（无需登录）；其余以全屏方式叠加于其上。 */
 object Routes {
     const val SHELL = "shell"
     const val AUTH = "auth"
     const val PUBLISH = "publish"
     const val DETAIL = "detail"
     const val DETAIL_ARG = "id"
+    const val NOTIFICATIONS = "notifications"
+    const val CONTACTS = "contacts"
+    const val SETTINGS = "settings"
+    const val ACCOUNT_SETTINGS = "account_settings"
+    const val ABOUT = "about"
+    const val MY_LISTINGS = "my_listings"
+    const val MY_LISTINGS_ARG = "buy"
     fun detail(id: Long) = "$DETAIL/$id"
+    fun myListings(buy: Boolean) = "$MY_LISTINGS/$buy"
 }
 
 /**
@@ -35,6 +49,11 @@ fun BitMartNavHost(
                 onItemClick = { id -> navController.navigate(Routes.detail(id)) },
                 onPublishClick = { navController.navigate(Routes.PUBLISH) },
                 onLoginClick = { navController.navigate(Routes.AUTH) },
+                onNotificationsClick = { navController.navigate(Routes.NOTIFICATIONS) },
+                onContactsClick = { navController.navigate(Routes.CONTACTS) },
+                onMyListingsClick = { buy -> navController.navigate(Routes.myListings(buy)) },
+                onSettingsClick = { navController.navigate(Routes.SETTINGS) },
+                onAboutClick = { navController.navigate(Routes.ABOUT) },
             )
         }
         composable(Routes.AUTH) {
@@ -52,6 +71,41 @@ fun BitMartNavHost(
         ) { entry ->
             val id = entry.arguments?.getLong(Routes.DETAIL_ARG) ?: return@composable
             ListingDetailScreen(listingId = id)
+        }
+        composable(Routes.NOTIFICATIONS) {
+            NotificationsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.CONTACTS) {
+            ContactsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onAccountClick = { navController.navigate(Routes.ACCOUNT_SETTINGS) },
+                onComingSoon = { /* #37：LLM / 语言 / 主题设置；暂不导航。 */ },
+            )
+        }
+        composable(Routes.ACCOUNT_SETTINGS) {
+            AccountSettingsScreen(
+                onBack = { navController.popBackStack() },
+                // 未登录 → 跳登录页（替换账号设置，避免返回时再次弹回登录）。
+                onRequireLogin = {
+                    navController.navigate(Routes.AUTH) {
+                        popUpTo(Routes.ACCOUNT_SETTINGS) { inclusive = true }
+                    }
+                },
+                onLoggedOut = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.ABOUT) {
+            AboutScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = "${Routes.MY_LISTINGS}/{${Routes.MY_LISTINGS_ARG}}",
+            arguments = listOf(navArgument(Routes.MY_LISTINGS_ARG) { type = NavType.BoolType }),
+        ) { entry ->
+            val buy = entry.arguments?.getBoolean(Routes.MY_LISTINGS_ARG) ?: false
+            MyListingsPlaceholderScreen(buy = buy, onBack = { navController.popBackStack() })
         }
     }
 }

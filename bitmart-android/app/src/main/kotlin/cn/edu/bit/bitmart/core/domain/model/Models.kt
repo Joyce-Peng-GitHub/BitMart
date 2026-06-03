@@ -66,3 +66,21 @@ data class BookInfo(
 
 /** 一页列表结果及下一页游标。 */
 data class ListingPage(val items: List<ListingSummary>, val nextCursor: String?)
+
+/**
+ * 通知（公告 / 个人提醒合并流）。
+ * category 为后端的整型分类；isAnnouncement 区分公告与个人提醒（如过期提醒）。
+ */
+data class Notification(
+    val id: Long,
+    val category: Int,
+    val title: String,
+    val body: String,
+    val payload: String?,
+    val read: Boolean,
+    val createdAt: String,
+    val isAnnouncement: Boolean,
+)
+
+/** 一页通知结果及下一页游标（游标原样回传，客户端不解析）。 */
+data class NotificationPage(val items: List<Notification>, val nextCursor: String?)

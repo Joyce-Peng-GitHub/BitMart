@@ -51,6 +51,10 @@ class ProfileViewModelTest {
 
     private fun profileRepo(me: DomainResult<User> = DomainResult.Success(user)) = object : ProfileRepository {
         override suspend fun getMe() = me
+        override suspend fun updateNickname(nickname: String?) = DomainResult.Success(user)
+        override suspend fun notifications(cursor: String?, limit: Int) =
+            DomainResult.Success(cn.edu.bit.bitmart.core.domain.model.NotificationPage(emptyList(), null))
+        override suspend fun markNotificationRead(id: Long) = DomainResult.Success(Unit)
     }
 
     @Test
