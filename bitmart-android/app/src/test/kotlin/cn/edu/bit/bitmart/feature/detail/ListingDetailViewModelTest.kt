@@ -30,6 +30,7 @@ class ListingDetailViewModelTest {
 
     private fun listingRepo(result: DomainResult<ListingDetail>) = object : ListingRepository {
         override suspend fun list(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
+        override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
         override suspend fun detail(id: Long) = result
         override suspend fun publish(draft: PublishDraft) = DomainResult.Success(1L)
         override suspend fun update(id: Long, update: UpdateDraft) = DomainResult.Success(Unit)

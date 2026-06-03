@@ -12,7 +12,7 @@ import cn.edu.bit.bitmart.feature.auth.AuthScreen
 import cn.edu.bit.bitmart.feature.detail.ListingDetailScreen
 import cn.edu.bit.bitmart.feature.notifications.NotificationsScreen
 import cn.edu.bit.bitmart.feature.profile.ContactsScreen
-import cn.edu.bit.bitmart.feature.profile.MyListingsPlaceholderScreen
+import cn.edu.bit.bitmart.feature.profile.MyListingsScreen
 import cn.edu.bit.bitmart.feature.publish.PublishScreen
 import cn.edu.bit.bitmart.feature.settings.AccountSettingsScreen
 import cn.edu.bit.bitmart.feature.settings.SettingsScreen
@@ -105,7 +105,12 @@ fun BitMartNavHost(
             arguments = listOf(navArgument(Routes.MY_LISTINGS_ARG) { type = NavType.BoolType }),
         ) { entry ->
             val buy = entry.arguments?.getBoolean(Routes.MY_LISTINGS_ARG) ?: false
-            MyListingsPlaceholderScreen(buy = buy, onBack = { navController.popBackStack() })
+            MyListingsScreen(
+                buy = buy,
+                // 详情为全屏同级页，使用外层导航控制器。
+                onItemClick = { id -> navController.navigate(Routes.detail(id)) },
+                onBack = { navController.popBackStack() },
+            )
         }
     }
 }

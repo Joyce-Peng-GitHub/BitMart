@@ -21,6 +21,15 @@ data class FeedUiState(
     val items: List<ListingSummary> = emptyList(),
     val query: String = "",
     val includeSold: Boolean = false,
+    // 筛选条件（由筛选弹窗设置）。价格用字符串以匹配后端 NUMERIC 文本表示，空串视为未设置。
+    val minPrice: String = "",
+    val maxPrice: String = "",
+    val includeNoPrice: Boolean = true,
+    /**
+     * 已选标签名（来自热门标签）。注意：后端按 tagIds(Long) 过滤，而热门标签接口仅返回名称，
+     * 且无“名称→ID”查询接口，故标签筛选暂不下发到查询（仅在弹窗中回显选择）。详见 [toQuery] 的 TODO。
+     */
+    val selectedTags: List<String> = emptyList(),
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
     val error: String? = null,
@@ -49,6 +58,42 @@ class ListingFeedViewModel @Inject constructor(
 
     fun toggleIncludeSold() {
         _state.update { it.copy(includeSold = !it.includeSold) }
+        refresh()
+    }
+
+    /**
+     * 应用筛选弹窗的条件并重新查询。价格空串视为未设置；标签仅回显，不下发（见 [FeedUiState.selectedTags]）。
+     */
+    fun applyFilter(
+        minPrice: String,
+        maxPrice: String,
+        includeNoPrice: Boolean,
+        includeSold: Boolean,
+        selectedTags: List<String>,
+    ) {
+        _state.update {
+            it.copy(
+                minPrice = minPrice.trim(),
+                maxPrice = maxPrice.trim(),
+                includeNoPrice = includeNoPrice,
+                includeSold = includeSold,
+                selectedTags = selectedTags,
+            )
+        }
+        refresh()
+    }
+
+    /** 清空筛选条件（回到默认）并重新查询。不影响搜索关键词。 */
+    fun clearFilter() {
+        _state.update {
+            it.copy(
+                minPrice = "",
+                maxPrice = "",
+                includeNoPrice = true,
+                includeSold = false,
+                selectedTags = emptyList(),
+            )
+        }
         refresh()
     }
 
@@ -86,7 +131,20 @@ class ListingFeedViewModel @Inject constructor(
     private fun FeedUiState.toQuery(cursor: String?) = ListingQuery(
         type = type,
         text = query.ifBlank { null },
+        minPrice = minPrice.ifBlank { null },
+        maxPrice = maxPrice.ifBlank { null },
+        includeNoPrice = includeNoPrice,
         includeSold = includeSold,
+        // TODO(标签筛选)：后端按 tagIds(Long) 过滤，但热门标签接口仅返回名称且无“名称→ID”查询接口，
+        // 故此处不下发 tagIds（保持空），标签选择仅在弹窗中回显。待后端提供名称→ID 解析后再补全。
+        tagIds = emptyList(),
         cursor = cursor,
     )
+
+    /** 拉取热门标签供筛选弹窗展示（失败则返回空列表，弹窗自行降级）。 */
+    suspend fun loadPopularTags(limit: Int = 20): List<String> =
+        when (val r = listingRepository.popularTags(limit)) {
+            is DomainResult.Success -> r.data
+            else -> emptyList()
+        }
 }

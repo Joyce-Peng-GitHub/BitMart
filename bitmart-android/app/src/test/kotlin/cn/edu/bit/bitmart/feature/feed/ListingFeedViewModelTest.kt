@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -36,6 +37,7 @@ class ListingFeedViewModelTest {
             lastQuery = query
             return DomainResult.Success(pages[call++.coerceAtMost(pages.size - 1)])
         }
+        override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
         override suspend fun detail(id: Long) = DomainResult.Failure("X", "n/a", 404)
         override suspend fun publish(draft: cn.edu.bit.bitmart.core.domain.repository.PublishDraft) = DomainResult.Success(1L)
         override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft) = DomainResult.Success(Unit)
@@ -75,5 +77,53 @@ class ListingFeedViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(ListingType.BUY, vm.state.value.type)
         assertEquals(ListingType.BUY, repo.lastQuery?.type)
+    }
+
+    @Test
+    fun `applyFilter wires price and flags into query and refreshes`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = ListingFeedViewModel(repo)
+        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTags = listOf("教材"))
+        dispatcher.scheduler.advanceUntilIdle()
+        // 状态保存筛选条件。
+        assertEquals("10", vm.state.value.minPrice)
+        assertEquals("50", vm.state.value.maxPrice)
+        assertEquals(false, vm.state.value.includeNoPrice)
+        assertTrue(vm.state.value.includeSold)
+        assertEquals(listOf("教材"), vm.state.value.selectedTags)
+        // 条件下发到查询（标签除外，见 toQuery TODO）。
+        assertEquals("10", repo.lastQuery?.minPrice)
+        assertEquals("50", repo.lastQuery?.maxPrice)
+        assertEquals(false, repo.lastQuery?.includeNoPrice)
+        assertEquals(true, repo.lastQuery?.includeSold)
+        assertTrue(repo.lastQuery?.tagIds?.isEmpty() == true)
+    }
+
+    @Test
+    fun `blank price filters map to null in query`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = ListingFeedViewModel(repo)
+        vm.applyFilter(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTags = emptyList())
+        dispatcher.scheduler.advanceUntilIdle()
+        assertNull(repo.lastQuery?.minPrice)
+        assertNull(repo.lastQuery?.maxPrice)
+    }
+
+    @Test
+    fun `clearFilter resets filter state and reloads with defaults`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = ListingFeedViewModel(repo)
+        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTags = listOf("x"))
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.clearFilter()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("", vm.state.value.minPrice)
+        assertEquals("", vm.state.value.maxPrice)
+        assertTrue(vm.state.value.includeNoPrice)
+        assertEquals(false, vm.state.value.includeSold)
+        assertTrue(vm.state.value.selectedTags.isEmpty())
+        assertNull(repo.lastQuery?.minPrice)
+        assertEquals(true, repo.lastQuery?.includeNoPrice)
+        assertEquals(false, repo.lastQuery?.includeSold)
     }
 }

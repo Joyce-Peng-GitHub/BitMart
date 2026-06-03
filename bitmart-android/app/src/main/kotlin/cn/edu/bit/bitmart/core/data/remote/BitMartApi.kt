@@ -63,6 +63,13 @@ class BitMartApi(
         })
     }
 
+    /** 当前用户自己发布的列表（需登录）。参数同 listListings（type 可省略）。 */
+    suspend fun myListings(params: Map<String, String?>): DomainResult<ListingPageDto> = safe {
+        ApiResponseMapper.handle(client.get(url("/me/listings")) {
+            auth(); params.forEach { (k, v) -> if (v != null) parameter(k, v) }
+        })
+    }
+
     suspend fun listingDetail(id: Long): DomainResult<ListingDetailDto> = safe {
         ApiResponseMapper.handle(client.get(url("/listings/$id")) { auth() })
     }

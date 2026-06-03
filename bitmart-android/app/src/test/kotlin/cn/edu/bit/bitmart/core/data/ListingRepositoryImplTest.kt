@@ -56,4 +56,42 @@ class ListingRepositoryImplTest {
         assertTrue(result is DomainResult.Failure)
         assertEquals(401, (result as DomainResult.Failure).httpStatus)
     }
+
+    @Test
+    fun `myListings hits me-listings with type param and bearer auth`() = runTest {
+        var captured: HttpRequestData? = null
+        val api = TestApiSupport.api(token = "tok-123") { req ->
+            captured = req
+            respond(pageBody, HttpStatusCode.OK, TestApiSupport.jsonHeaders())
+        }
+        val repo = ListingRepositoryImpl(api)
+
+        val result = repo.myListings(ListingQuery(type = ListingType.BUY))
+
+        assertTrue(result is DomainResult.Success)
+        assertEquals(1, (result as DomainResult.Success).data.items.size)
+        val req = captured!!
+        // 命中 /me/listings 路径。
+        assertTrue(req.url.encodedPath.endsWith("/me/listings"))
+        // type 参数下发。
+        assertEquals("BUY", req.url.parameters["type"])
+        // 携带 bearer 鉴权头。
+        assertEquals("Bearer tok-123", req.headers["Authorization"])
+    }
+
+    @Test
+    fun `summary maps firstImageUrl through`() = runTest {
+        val body = """
+            {"items":[{"id":7,"type":"SELL","category":"GENERAL","title":"图书","unitPrice":null,
+              "quantityTotal":1,"quantitySold":0,"firstImageUrl":"/static/2026/06/02/x.jpg",
+              "tags":[],"createdAt":"2026-06-02T00:00:00Z"}],"nextCursor":null}
+        """.trimIndent()
+        val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
+        val repo = ListingRepositoryImpl(api)
+
+        val result = repo.list(ListingQuery(type = ListingType.SELL))
+
+        assertTrue(result is DomainResult.Success)
+        assertEquals("/static/2026/06/02/x.jpg", (result as DomainResult.Success).data.items.first().firstImageUrl)
+    }
 }

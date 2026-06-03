@@ -26,21 +26,11 @@ import javax.inject.Inject
 /** ListingRepository 实现：构造查询参数、调用 API、映射 DTO → 领域模型。 */
 class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : ListingRepository {
 
-    override suspend fun list(query: ListingQuery): DomainResult<ListingPage> {
-        val params = buildMap {
-            put("type", query.type.name)
-            query.category?.let { put("category", it) }
-            query.text?.let { put("q", it) }
-            if (query.tagIds.isNotEmpty()) put("tagIds", query.tagIds.joinToString(","))
-            query.minPrice?.let { put("minPrice", it) }
-            query.maxPrice?.let { put("maxPrice", it) }
-            put("includeNoPrice", query.includeNoPrice.toString())
-            put("includeSold", query.includeSold.toString())
-            query.cursor?.let { put("cursor", it) }
-            query.limit?.let { put("limit", it.toString()) }
-        }
-        return api.listListings(params).map { it.toDomain() }
-    }
+    override suspend fun list(query: ListingQuery): DomainResult<ListingPage> =
+        api.listListings(query.toParams()).map { it.toDomain() }
+
+    override suspend fun myListings(query: ListingQuery): DomainResult<ListingPage> =
+        api.myListings(query.toParams()).map { it.toDomain() }
 
     override suspend fun detail(id: Long): DomainResult<ListingDetail> =
         api.listingDetail(id).map { it.toDomain() }
@@ -84,12 +74,26 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
 
 private fun ListingPageDto.toDomain() = ListingPage(items.map { it.toDomain() }, nextCursor)
 
+/** 构造列表查询参数（list 与 my-listings 共用，键名与后端 parseListingFilter 对齐）。 */
+private fun ListingQuery.toParams(): Map<String, String?> = buildMap {
+    put("type", type.name)
+    category?.let { put("category", it) }
+    text?.let { put("q", it) }
+    if (tagIds.isNotEmpty()) put("tagIds", tagIds.joinToString(","))
+    minPrice?.let { put("minPrice", it) }
+    maxPrice?.let { put("maxPrice", it) }
+    put("includeNoPrice", includeNoPrice.toString())
+    put("includeSold", includeSold.toString())
+    cursor?.let { put("cursor", it) }
+    limit?.let { put("limit", it.toString()) }
+}
+
 private fun ListingSummaryDto.toDomain() = ListingSummary(
     id = id,
     type = enumValueOf<ListingType>(type),
     category = enumValueOf<ListingCategory>(category),
     title = title, unitPrice = unitPrice, quantityTotal = quantityTotal, quantitySold = quantitySold,
-    pickupLocation = pickupLocation, nickname = nickname, tags = tags, createdAt = createdAt,
+    firstImageUrl = firstImageUrl, nickname = nickname, tags = tags, createdAt = createdAt,
 )
 
 private fun ListingDetailDto.toDomain() = ListingDetail(

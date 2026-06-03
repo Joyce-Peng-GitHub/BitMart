@@ -63,8 +63,8 @@ data class ListingSummaryDto(
     val unitPrice: String? = null,
     val quantityTotal: Int,
     val quantitySold: Int,
-    val pickupLocation: String? = null,
     val nickname: String? = null,
+    val firstImageUrl: String? = null,
     val tags: List<String> = emptyList(),
     val createdAt: String,
 )

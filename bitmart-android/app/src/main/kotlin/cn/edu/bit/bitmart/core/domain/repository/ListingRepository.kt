@@ -50,6 +50,12 @@ interface ListingRepository {
     /** 列表查询（公开，无需登录）。 */
     suspend fun list(query: ListingQuery): DomainResult<ListingPage>
 
+    /**
+     * 当前用户自己发布的列表（需登录，架构 §6.2）。含已售罄/已过期，排除软删除；
+     * keyset 分页，摘要字段同 [list]。
+     */
+    suspend fun myListings(query: ListingQuery): DomainResult<ListingPage>
+
     /** 详情（需登录；未登录后端返回 401）。 */
     suspend fun detail(id: Long): DomainResult<ListingDetail>
 
