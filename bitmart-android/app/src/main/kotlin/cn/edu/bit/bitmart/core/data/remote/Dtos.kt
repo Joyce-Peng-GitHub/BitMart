@@ -175,7 +175,7 @@ data class BookMetaDto(
     val edition: String? = null,
     val pubdate: String? = null,
     val price: String? = null,
-    val page: Int? = null,
+    val page: String? = null,
     val binding: String? = null,
     val format: String? = null,
     val img: String? = null,
