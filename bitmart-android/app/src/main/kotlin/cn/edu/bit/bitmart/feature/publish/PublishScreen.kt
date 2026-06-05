@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -162,6 +163,12 @@ fun PublishScreen(
                     label = { Text("ISBN") },
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(
+                    onClick = { draft.isbn?.takeIf { it.isNotBlank() }?.let(viewModel::lookupBook) },
+                    enabled = !state.lookingUpBook && !draft.isbn.isNullOrBlank(),
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = "查询书籍")
+                }
                 IconButton(onClick = viewModel::openBookScan) {
                     Icon(Icons.Default.QrCodeScanner, contentDescription = "扫码")
                 }
