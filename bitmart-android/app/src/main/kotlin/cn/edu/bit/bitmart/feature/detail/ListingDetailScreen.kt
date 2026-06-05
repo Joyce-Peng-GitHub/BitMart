@@ -31,6 +31,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,7 +71,14 @@ fun ListingDetailScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+    Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { innerPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
         when {
             state.loading -> CircularProgressIndicator()
             state.needLogin -> Text("请登录后查看详情", color = MaterialTheme.colorScheme.error)
@@ -124,15 +134,14 @@ fun ListingDetailScreen(
                 Spacer(Modifier.height(4.dp))
 
                 // 多渠道联系方式展示
-                d.contacts.forEach { contact ->
-                    ContactItem(contact.channel, contact.value)
-                }
+                d.contacts.forEach { ContactItem(it.value) }
 
                 // 隐私提示横幅
                 Spacer(Modifier.height(8.dp))
                 PrivacyReminderBanner()
             }
         }
+    }
     }
 
     // 删除确认对话框
@@ -199,21 +208,12 @@ fun ImageCarousel(imageUrls: List<String>, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ContactItem(channel: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        val channelLabel = when (channel.uppercase()) {
-            "WECHAT" -> "微信"
-            "QQ" -> "QQ"
-            "PHONE" -> "手机"
-            "EMAIL" -> "邮箱"
-            else -> channel.ifBlank { "其他" }
-        }
-        Text("$channelLabel：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
-    }
+fun ContactItem(value: String) {
+    Text(
+        text = value,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+    )
 }
 
 @Composable

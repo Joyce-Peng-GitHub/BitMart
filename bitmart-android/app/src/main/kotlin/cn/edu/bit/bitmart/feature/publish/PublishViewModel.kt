@@ -7,7 +7,6 @@ import cn.edu.bit.bitmart.core.data.local.current
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
 import cn.edu.bit.bitmart.core.domain.model.Contact
-import cn.edu.bit.bitmart.core.domain.model.ContactChannel
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.PublishConfig
@@ -36,8 +35,7 @@ data class DraftItem(
     val unitPrice: String = "",
     val quantityTotal: String = "1",
     val pickupLocation: String = "",
-    val contactChannel: String = ContactChannel.WECHAT.name,
-    val contactValue: String = "",
+    val contact: String = "",
     val tags: List<String> = emptyList(),
     // 书籍专属字段（category=BOOK 时有效）。
     val isbn: String? = null,
@@ -113,8 +111,7 @@ class PublishViewModel @Inject constructor(
     fun onUnitPrice(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(unitPrice = v)) }
     fun onQuantity(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(quantityTotal = v)) }
     fun onPickup(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(pickupLocation = v)) }
-    fun onContactChannel(c: ContactChannel) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contactChannel = c.name)) }
-    fun onContactValue(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contactValue = v)) }
+    fun onContact(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contact = v)) }
 
     fun onIsbn(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(isbn = v)) }
     fun onAuthor(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(author = v)) }
@@ -253,7 +250,7 @@ class PublishViewModel @Inject constructor(
         val draft = _state.value.currentDraft
         // 客户端基础校验。
         if (draft.title.isBlank()) { _state.update { it.copy(error = "请填写标题") }; return }
-        if (draft.contactValue.isBlank()) { _state.update { it.copy(error = "请填写联系方式") }; return }
+        if (draft.contact.isBlank()) { _state.update { it.copy(error = "请填写联系方式") }; return }
         val qty = draft.quantityTotal.toIntOrNull()
         if (qty == null || qty < 1) { _state.update { it.copy(error = "件数必须为正整数") }; return }
 
@@ -311,7 +308,7 @@ class PublishViewModel @Inject constructor(
         unitPrice = unitPrice.trim().ifBlank { null },
         quantityTotal = quantityTotal.toInt(),
         pickupLocation = pickupLocation.trim().ifBlank { null },
-        contacts = listOf(Contact(contactChannel, contactValue.trim())),
+        contacts = listOf(Contact("", contact.trim())),
         tags = tags,
         book = if (category == ListingCategory.BOOK) BookInfo(
             isbn = isbn?.trim()?.ifBlank { null },

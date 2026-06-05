@@ -51,7 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.scale
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import cn.edu.bit.bitmart.core.domain.model.ContactChannel
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.Scaffold
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.PublishConfig
@@ -114,8 +116,15 @@ fun PublishScreen(
         }
     }
 
+    Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
+    ) { innerPadding ->
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("发布新项（批量）", style = MaterialTheme.typography.headlineSmall)
@@ -170,14 +179,7 @@ fun PublishScreen(
         OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
 
-        // 联系方式。
-        Text("联系方式", style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ContactChannel.entries.take(3).forEach { ch ->
-                FilterChip(draft.contactChannel == ch.name, { viewModel.onContactChannel(ch) }, { Text(ch.name) })
-            }
-        }
-        OutlinedTextField(draft.contactValue, viewModel::onContactValue, label = { Text("联系方式内容") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式（微信/QQ/手机号等）") }, modifier = Modifier.fillMaxWidth())
 
         // 标签（热门 + 自定义）。
         Text("标签（最多${PublishConfig.MAX_TAGS}个）", style = MaterialTheme.typography.titleSmall)
@@ -288,6 +290,7 @@ fun PublishScreen(
                 else Text("提交全部（${state.draftBatch.size}项）")
             }
         }
+    }
     }
 }
 

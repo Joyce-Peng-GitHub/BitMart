@@ -65,7 +65,7 @@ class PublishViewModelTest {
     @Test
     fun `addDraftToBatch validates and adds to batch list`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
-        vm.onTitle("二手书"); vm.onContactValue("wxid_x"); vm.onQuantity("2")
+        vm.onTitle("二手书"); vm.onContact("wxid_x"); vm.onQuantity("2")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, vm.state.value.draftBatch.size)
@@ -76,7 +76,7 @@ class PublishViewModelTest {
     @Test
     fun `addDraftToBatch blocks blank title`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
-        vm.onContactValue("x")
+        vm.onContact("x")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("请填写标题", vm.state.value.error)
@@ -89,7 +89,7 @@ class PublishViewModelTest {
         val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
         vm.setCategory(ListingCategory.BOOK)
         vm.onTitle("深入理解计算机系统"); vm.onIsbn("9787111544937"); vm.onAuthor("Bryant")
-        vm.onContactValue("wxid_x"); vm.onQuantity("1")
+        vm.onContact("wxid_x"); vm.onQuantity("1")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
 
         vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
@@ -118,7 +118,7 @@ class PublishViewModelTest {
             FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
             FakeLlmConfigStore(),
         )
-        vm.onTitle("x"); vm.onContactValue("y")
+        vm.onTitle("x"); vm.onContact("y")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
 
         vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
@@ -233,8 +233,8 @@ class PublishViewModelTest {
     @Test
     fun `removeDraft removes by index`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
-        vm.onTitle("A"); vm.onContactValue("x"); vm.addDraftToBatch()
-        vm.onTitle("B"); vm.onContactValue("x"); vm.addDraftToBatch()
+        vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
+        vm.onTitle("B"); vm.onContact("x"); vm.addDraftToBatch()
         dispatcher.scheduler.advanceUntilIdle()
 
         vm.removeDraft(0)
@@ -245,7 +245,7 @@ class PublishViewModelTest {
     @Test
     fun `editDraft loads into currentDraft and removes from batch`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
-        vm.onTitle("A"); vm.onContactValue("x"); vm.addDraftToBatch()
+        vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
         dispatcher.scheduler.advanceUntilIdle()
 
         vm.editDraft(0)
