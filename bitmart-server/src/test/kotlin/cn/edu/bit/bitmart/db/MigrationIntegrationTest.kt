@@ -1,7 +1,6 @@
 package cn.edu.bit.bitmart.db
 
 import cn.edu.bit.bitmart.domain.Contact
-import cn.edu.bit.bitmart.domain.ContactChannel
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContainAll
@@ -67,8 +66,8 @@ class MigrationIntegrationTest : FunSpec({
                 it[createdAt] = OffsetDateTime.now()
             }.value
             val contacts = listOf(
-                Contact(ContactChannel.WECHAT, "wxid_abc"),
-                Contact(ContactChannel.QQ, "10001"),
+                Contact("WECHAT", "wxid_abc"),
+                Contact("QQ", "10001"),
             )
             val lid = Listings.insertAndGetId {
                 it[type] = 0; it[category] = 0
@@ -100,7 +99,7 @@ class MigrationIntegrationTest : FunSpec({
                 it[title] = "数据结构与算法"
                 it[description] = "经典教材，九成新"
                 it[quantityTotal] = 1; it[quantitySold] = 0
-                it[contact] = listOf(Contact(ContactChannel.QQ, "123"))
+                it[contact] = listOf(Contact("QQ", "123"))
                 it[expiresAt] = OffsetDateTime.now().plusDays(10)
                 it[createdAt] = OffsetDateTime.now(); it[updatedAt] = OffsetDateTime.now()
                 it[sourceType] = 0
@@ -126,7 +125,7 @@ class MigrationIntegrationTest : FunSpec({
                     it[type] = 0; it[category] = 0; it[userId] = uid
                     it[title] = "x"; it[description] = ""
                     it[quantityTotal] = 1; it[quantitySold] = 5      // 违反 CHECK
-                    it[contact] = listOf(Contact(ContactChannel.QQ, "1"))
+                    it[contact] = listOf(Contact("QQ", "1"))
                     it[expiresAt] = OffsetDateTime.now().plusDays(1)
                     it[createdAt] = OffsetDateTime.now(); it[updatedAt] = OffsetDateTime.now()
                     it[sourceType] = 0

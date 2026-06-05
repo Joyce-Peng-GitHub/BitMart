@@ -174,7 +174,7 @@ fun PublishScreen(
         Text("联系方式", style = MaterialTheme.typography.titleSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ContactChannel.entries.take(3).forEach { ch ->
-                FilterChip(draft.contactChannel == ch, { viewModel.onContactChannel(ch) }, { Text(ch.name) })
+                FilterChip(draft.contactChannel == ch.name, { viewModel.onContactChannel(ch) }, { Text(ch.name) })
             }
         }
         OutlinedTextField(draft.contactValue, viewModel::onContactValue, label = { Text("联系方式内容") }, modifier = Modifier.fillMaxWidth())

@@ -127,7 +127,7 @@ data class ListingDetailDto(
             quantityTotal = d.quantityTotal,
             quantitySold = d.quantitySold,
             pickupLocation = d.pickupLocation,
-            contacts = d.contacts.map { ContactDto(it.channel.name, it.value) },
+            contacts = d.contacts.map { ContactDto(it.channel, it.value) },
             tags = d.tags,
             imageUrls = d.imageUrls,
             expiresAt = d.expiresAt.toString(),
@@ -161,5 +161,5 @@ data class BookMetaDto(
 )
 
 /** 把领域 Contact 与 DTO 互转。 */
-fun ContactDto.toDomain(channel: cn.edu.bit.bitmart.domain.ContactChannel) = Contact(channel, value)
+fun ContactDto.toDomain() = Contact(channel, value)
 fun BookInfo.toDto() = BookDto(isbn, title, authors, publisher, edition)

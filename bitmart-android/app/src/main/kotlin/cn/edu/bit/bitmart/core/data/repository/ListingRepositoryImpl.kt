@@ -14,7 +14,6 @@ import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.map
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
 import cn.edu.bit.bitmart.core.domain.model.Contact
-import cn.edu.bit.bitmart.core.domain.model.ContactChannel
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.model.ListingPage
@@ -78,7 +77,7 @@ private fun PublishDraft.toCreateRequest() = CreateListingRequest(
     unitPrice = unitPrice,
     quantityTotal = quantityTotal,
     pickupLocation = pickupLocation,
-    contacts = contacts.map { ContactDto(it.channel.name, it.value) },
+    contacts = contacts.map { ContactDto(it.channel, it.value) },
     tags = tags,
     expiresInDays = expiresInDays,
     book = book?.toDto(),
@@ -123,9 +122,6 @@ private fun ListingDetailDto.toDomain() = ListingDetail(
     imageUrls = imageUrls, expiresAt = expiresAt, createdAt = createdAt, book = book?.toDomain(),
 )
 
-private fun ContactDto.toDomain() = Contact(
-    channel = runCatching { enumValueOf<ContactChannel>(channel) }.getOrDefault(ContactChannel.OTHER),
-    value = value,
-)
+private fun ContactDto.toDomain() = Contact(channel = channel, value = value)
 
 private fun BookDto.toDomain() = BookInfo(isbn, title, authors, publisher, edition)

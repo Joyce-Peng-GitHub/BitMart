@@ -15,10 +15,10 @@ enum class ListingType { SELL, BUY }
 /** 列表品类。 */
 enum class ListingCategory { GENERAL, BOOK }
 
-/** 联系方式渠道。 */
+/** 联系方式渠道提示（仅 UI 层使用，API 不强制枚举）。 */
 enum class ContactChannel { WECHAT, QQ, PHONE, EMAIL, OTHER }
 
-data class Contact(val channel: ContactChannel, val value: String)
+data class Contact(val channel: String = "", val value: String)
 
 /**
  * 列表摘要（列表页）。价格用字符串以匹配后端 NUMERIC 文本表示。

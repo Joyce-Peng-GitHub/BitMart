@@ -184,7 +184,7 @@ listing (
   quantity_sold   INT NOT NULL DEFAULT 0
                   CHECK (quantity_sold BETWEEN 0 AND quantity_total),
   pickup_location TEXT NULL,
-  contact         JSONB NOT NULL,            -- {channel:"WECHAT|QQ|PHONE|...", value:""}+
+  contact         JSONB NOT NULL,            -- {channel:"<自由字符串>", value:""}+
   expires_at      TIMESTAMPTZ NOT NULL,
   created_at      TIMESTAMPTZ NOT NULL,
   updated_at      TIMESTAMPTZ NOT NULL,
@@ -405,11 +405,11 @@ interface BlobStorage {
 ## 9. 业务规则细节
 
 - **过期**：`min_days/max_days/default_days` 写入 `application.conf`（创建与延期同源）。延期校验：新 `expiresAt` 必须满足 `now + min_days <= expiresAt <= now + max_days`。后台定时任务每小时检查"24h 内到期"产生通知；推送和站内信同时发出。
-- **数量**：`quantity_sold` 受 CHECK 约束；前端"调整售出数量"仅允许 `>=` 历史值（不可"反悔"），后端 UPDATE 语句使用 `SET quantity_sold = :new WHERE quantity_sold <= :new` 保证单调递增（管理员如需修正可直接操作数据库）。若 UPDATE 影响 0 行，返回 409 Conflict。
+- **数量**：`quantity_sold` 受 CHECK 约束（`BETWEEN 0 AND quantity_total`）；前端"调整售出数量"允许增加和减少（需求§my-listings），后端校验范围 `0 <= newSold <= quantityTotal`。
 - **updated_at**：由应用层在每次 UPDATE 时显式设置为 `now()`（Exposed DSL 中统一处理），不使用数据库触发器。
 - **删除**：`listing.deleted_at` 打标；查询统一加 `deleted_at IS NULL`。
 - **注销**：事务内 `UPDATE user SET deleted_at=now()`，并对该用户的 listing 全部软删；其会话全部吊销；`notification` 不删（保留站内审计）。
-- **联系方式存储**：服务端 `contact` 为 JSONB 数组以兼容多渠道；应用层校验：数组长度 >= 1，每项 `channel` 必须为枚举值、`value` 非空。详情接口对未登录拒绝。
+- **联系方式存储**：服务端 `contact` 为 JSONB 数组，`channel` 为自由字符串（不强制枚举值），`value` 非空即可；API 不区分渠道种类，仅在 Android 界面层以 `ContactChannel` 枚举做显示标签映射（微信/QQ/手机/邮箱/其他），并可插入隐私提示文案。详情接口对未登录拒绝。
 - **隐私提示**：前端在「填写联系方式」与「展示联系方式」两处插入风险提示文案（资源文件，多语言友好）。
 
 ---

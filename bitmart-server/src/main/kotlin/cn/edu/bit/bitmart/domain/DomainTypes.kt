@@ -11,9 +11,9 @@ enum class ListingCategory { GENERAL, BOOK }
 /** 来源：用户发布或 NapCat 机器人导入（改进项预留，架构 §14）。 */
 enum class ListingSource { USER, NAPCAT_BOT }
 
-/** 联系方式渠道。鼓励微信/QQ，使用手机号会提示隐私风险（需求·安全与隐私）。 */
+/** 联系方式渠道提示（仅 UI 层使用，API 不强制枚举）。 */
 enum class ContactChannel { WECHAT, QQ, PHONE, EMAIL, OTHER }
 
-/** 单条联系方式。contact 在库中以 JSONB 数组存储，至少一项（架构 §9）。 */
+/** 单条联系方式。channel 可选（未指定时为空字符串），API 不强制种类。 */
 @Serializable
-data class Contact(val channel: ContactChannel, val value: String)
+data class Contact(val channel: String = "", val value: String)

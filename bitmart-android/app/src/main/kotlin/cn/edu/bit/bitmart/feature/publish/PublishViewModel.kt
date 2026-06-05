@@ -36,7 +36,7 @@ data class DraftItem(
     val unitPrice: String = "",
     val quantityTotal: String = "1",
     val pickupLocation: String = "",
-    val contactChannel: ContactChannel = ContactChannel.WECHAT,
+    val contactChannel: String = ContactChannel.WECHAT.name,
     val contactValue: String = "",
     val tags: List<String> = emptyList(),
     // 书籍专属字段（category=BOOK 时有效）。
@@ -113,7 +113,7 @@ class PublishViewModel @Inject constructor(
     fun onUnitPrice(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(unitPrice = v)) }
     fun onQuantity(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(quantityTotal = v)) }
     fun onPickup(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(pickupLocation = v)) }
-    fun onContactChannel(c: ContactChannel) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contactChannel = c)) }
+    fun onContactChannel(c: ContactChannel) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contactChannel = c.name)) }
     fun onContactValue(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contactValue = v)) }
 
     fun onIsbn(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(isbn = v)) }

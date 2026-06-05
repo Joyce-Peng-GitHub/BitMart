@@ -4,7 +4,6 @@ import app.cash.turbine.test
 import cn.edu.bit.bitmart.core.data.FakeLlmConfigStore
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
-import cn.edu.bit.bitmart.core.domain.model.ContactChannel
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.model.ListingPage

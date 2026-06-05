@@ -78,7 +78,7 @@ class ListingService(
     }
 
     /**
-     * 修改 listing。仅本人或管理员可改。售出数量单调递增（冲突返回 QuantityConflict）；
+     * 修改 listing。仅本人或管理员可改。售出数量可增可减（范围 0..quantityTotal）；
      * 延期须落在过期窗口内。
      */
     fun update(

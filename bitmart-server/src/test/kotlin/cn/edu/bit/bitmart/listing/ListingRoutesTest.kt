@@ -131,7 +131,7 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
-    test("修改售出数量：单调递增，回退被拒") {
+    test("修改售出数量：增加和减少均合法") {
         app { client ->
             val token = client.registerToken()
             val id = client.post("/api/v1/listings") {
@@ -142,9 +142,14 @@ class ListingRoutesTest : FunSpec({
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 3))
             }.status shouldBe HttpStatusCode.OK
 
-            // 回退到 1 → 校验失败 400。
+            // 减少到 1 → 同样合法（需求允许增删）。
             client.patch("/api/v1/listings/$id") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 1))
+            }.status shouldBe HttpStatusCode.OK
+
+            // 超过总量 5 → 校验失败 400。
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 6))
             }.status shouldBe HttpStatusCode.BadRequest
         }
     }

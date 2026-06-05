@@ -22,7 +22,7 @@ class ListingValidatorTest : FunSpec({
         title: String = "二手教材",
         quantityTotal: Int = 1,
         unitPrice: BigDecimal? = BigDecimal("30.00"),
-        contacts: List<Contact> = listOf(Contact(ContactChannel.WECHAT, "wxid_abc")),
+        contacts: List<Contact> = listOf(Contact("WECHAT", "wxid_abc")),
         tagList: List<String> = listOf("教材"),
         expiresAt: Instant = now.plus(Duration.ofDays(30)),
     ) = ListingInput(title, quantityTotal, unitPrice, contacts, tagList, expiresAt)
@@ -57,7 +57,7 @@ class ListingValidatorTest : FunSpec({
 
     test("联系方式内容为空被拒绝") {
         val r = validator.validateCreate(
-            validInput(contacts = listOf(Contact(ContactChannel.QQ, "  "))), now,
+            validInput(contacts = listOf(Contact("QQ", "  "))), now,
         )
         codes(r) shouldContain "CONTACT_VALUE_BLANK"
     }
@@ -113,9 +113,17 @@ class ListingValidatorTest : FunSpec({
         validator.validateQuantitySoldUpdate(currentSold = 3, newSold = 3, quantityTotal = 10).isValid.shouldBeTrue()
     }
 
-    test("售出数量减少被拒绝") {
-        val r = validator.validateQuantitySoldUpdate(currentSold = 5, newSold = 3, quantityTotal = 10)
-        codes(r) shouldContain "QUANTITY_SOLD_DECREASE"
+    test("售出数量减少合法") {
+        validator.validateQuantitySoldUpdate(currentSold = 5, newSold = 3, quantityTotal = 10).isValid.shouldBeTrue()
+    }
+
+    test("售出数量减为 0 合法") {
+        validator.validateQuantitySoldUpdate(currentSold = 5, newSold = 0, quantityTotal = 10).isValid.shouldBeTrue()
+    }
+
+    test("售出数量为负被拒绝") {
+        val r = validator.validateQuantitySoldUpdate(currentSold = 5, newSold = -1, quantityTotal = 10)
+        codes(r) shouldContain "QUANTITY_SOLD_NEGATIVE"
     }
 
     test("售出数量超过总量被拒绝") {

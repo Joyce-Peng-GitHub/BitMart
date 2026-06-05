@@ -31,8 +31,7 @@ class ListingValidator(
     }
 
     /**
-     * 校验售出数量更新：只能 >= 历史值（不可反悔），且不超过总量（架构 §9）。
-     * @return 校验结果；UPDATE 的并发安全由 SQL `WHERE quantity_sold <= :new` 保证。
+     * 校验售出数量更新：允许增加或减少，但不得超过总量且不得小于 0（架构 §9）。
      */
     fun validateQuantitySoldUpdate(
         currentSold: Int,
@@ -41,10 +40,10 @@ class ListingValidator(
     ): ValidationResult {
         val errors = ValidationErrors()
         errors.check(
-            newSold >= currentSold,
+            newSold >= 0,
             field = "quantitySold",
-            code = "QUANTITY_SOLD_DECREASE",
-            message = "售出数量只能增加，不能从 $currentSold 降为 $newSold",
+            code = "QUANTITY_SOLD_NEGATIVE",
+            message = "售出数量不能为负",
         )
         errors.check(
             newSold <= quantityTotal,

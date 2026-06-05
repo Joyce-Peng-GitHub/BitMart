@@ -4,7 +4,6 @@ import cn.edu.bit.bitmart.core.data.repository.ListingRepositoryImpl
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
 import cn.edu.bit.bitmart.core.domain.model.Contact
-import cn.edu.bit.bitmart.core.domain.model.ContactChannel
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
@@ -37,7 +36,7 @@ class ListingRepositoryBatchTest {
                 unitPrice = "50",
                 quantityTotal = 1,
                 pickupLocation = "图书馆",
-                contacts = listOf(Contact(ContactChannel.WECHAT, "wxid_abc")),
+                contacts = listOf(Contact("WECHAT", "wxid_abc")),
                 tags = listOf("教材", "计算机"),
                 book = BookInfo("9787111544937", "深入理解计算机系统", "Bryant", "机械工业", "第3版"),
                 imageKeys = listOf("2026/06/02/uuid1.jpg"),
@@ -50,7 +49,7 @@ class ListingRepositoryBatchTest {
                 unitPrice = null,
                 quantityTotal = 1,
                 pickupLocation = null,
-                contacts = listOf(Contact(ContactChannel.QQ, "123456")),
+                contacts = listOf(Contact("", "123456")),
                 tags = emptyList(),
                 imageKeys = emptyList(),
             ),
@@ -83,7 +82,7 @@ class ListingRepositoryBatchTest {
                 type = ListingType.SELL,
                 category = ListingCategory.GENERAL,
                 title = "",
-                contacts = listOf(Contact(ContactChannel.WECHAT, "x")),
+                contacts = listOf(Contact("", "x")),
             ),
         ))
 

@@ -2,7 +2,6 @@ package cn.edu.bit.bitmart.listing
 
 import cn.edu.bit.bitmart.config.ExpiryConfig
 import cn.edu.bit.bitmart.domain.Contact
-import cn.edu.bit.bitmart.domain.ContactChannel
 import cn.edu.bit.bitmart.domain.ListingCategory
 import cn.edu.bit.bitmart.domain.ListingType
 import java.math.BigDecimal
@@ -49,10 +48,7 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
             expiresAt = req.expiresInDays?.let { now.plusDays(it.toLong()) },
         )
 
-    private fun ContactDto.toContact(): Contact {
-        val channel = parseEnum<ContactChannel>(channel, "contact.channel")
-        return Contact(channel, value)
-    }
+    private fun ContactDto.toContact(): Contact = Contact(channel, value)
 
     private fun parsePrice(raw: String?): BigDecimal? {
         if (raw.isNullOrBlank()) return null

@@ -117,8 +117,8 @@ class MyListingsViewModelTest {
     }
 
     @Test
-    fun `adjustSold 409 conflict surfaces error and keeps item unchanged`() = runTest {
-        // 服务端对"售出数量回退"返回 409；UI 需能看到错误，且本地不应错误改值。
+    fun `adjustSold failure surfaces error and keeps item unchanged`() = runTest {
+        // 服务端返回 409（如并发修改冲突）；UI 需能看到错误，且本地不应错误改值。
         val repo = FakeRepo(
             listOf(ListingPage(listOf(summary(1, total = 5, sold = 3)), null)),
             updateResult = DomainResult.Failure("CONFLICT", "售出数量冲突，请刷新后重试", 409),

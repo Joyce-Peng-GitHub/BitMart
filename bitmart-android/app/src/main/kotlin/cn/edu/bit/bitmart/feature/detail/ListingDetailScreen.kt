@@ -46,7 +46,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import cn.edu.bit.bitmart.core.domain.model.ContactChannel
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import coil3.compose.AsyncImage
 
@@ -200,17 +199,17 @@ fun ImageCarousel(imageUrls: List<String>, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ContactItem(channel: ContactChannel, value: String) {
+fun ContactItem(channel: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val channelLabel = when (channel) {
-            ContactChannel.WECHAT -> "微信"
-            ContactChannel.QQ -> "QQ"
-            ContactChannel.PHONE -> "手机"
-            ContactChannel.EMAIL -> "邮箱"
-            ContactChannel.OTHER -> "其他"
+        val channelLabel = when (channel.uppercase()) {
+            "WECHAT" -> "微信"
+            "QQ" -> "QQ"
+            "PHONE" -> "手机"
+            "EMAIL" -> "邮箱"
+            else -> channel.ifBlank { "其他" }
         }
         Text("$channelLabel：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         Text(value, style = MaterialTheme.typography.bodyMedium)

@@ -15,7 +15,6 @@ import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.IntegerColumnType
@@ -135,15 +134,9 @@ class ListingRepository {
             it[updatedAt] = OffsetDateTime.now()
         }
 
-    /**
-     * 单调递增地更新售出数量：SET quantity_sold = :new WHERE quantity_sold <= :new
-     * （架构 §9）。返回受影响行数；0 表示并发冲突（应返回 409）。
-     */
+    /** 更新售出数量（允许增减，范围由 Service 层校验保证）。返回受影响行数。 */
     fun updateQuantitySold(id: Long, newSold: Int): Int =
-        Listings.update({
-            (Listings.id eq id) and Listings.deletedAt.isNull() and
-                (Listings.quantitySold lessEq newSold)
-        }) {
+        Listings.update({ (Listings.id eq id) and Listings.deletedAt.isNull() }) {
             it[quantitySold] = newSold
             it[updatedAt] = OffsetDateTime.now()
         }

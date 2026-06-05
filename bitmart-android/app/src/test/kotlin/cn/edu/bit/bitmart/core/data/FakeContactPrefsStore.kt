@@ -10,7 +10,7 @@ class FakeContactPrefsStore(initial: List<StoredContact> = emptyList()) : Contac
     override val contactsFlow = flow
 
     override suspend fun add(contact: StoredContact) {
-        if (flow.value.none { it.channel == contact.channel && it.value == contact.value }) {
+        if (contact !in flow.value) {
             flow.value = flow.value + contact
         }
     }

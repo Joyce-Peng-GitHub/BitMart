@@ -1,8 +1,6 @@
 package cn.edu.bit.bitmart.feature.profile
 
 import cn.edu.bit.bitmart.core.data.FakeContactPrefsStore
-import cn.edu.bit.bitmart.core.data.local.StoredContact
-import cn.edu.bit.bitmart.core.domain.model.ContactChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -25,12 +23,12 @@ class ContactsViewModelTest {
         val store = FakeContactPrefsStore()
         val vm = ContactsViewModel(store)
 
-        vm.add(ContactChannel.WECHAT, "wxid_x")
+        vm.add("wxid_x")
         dispatcher.scheduler.advanceUntilIdle()
 
         val saved = store.contactsFlow.first()
         assertEquals(1, saved.size)
-        assertEquals(StoredContact("WECHAT", "wxid_x"), saved.first())
+        assertEquals("wxid_x", saved.first())
     }
 
     @Test
@@ -38,7 +36,7 @@ class ContactsViewModelTest {
         val store = FakeContactPrefsStore()
         val vm = ContactsViewModel(store)
 
-        vm.add(ContactChannel.QQ, "   ")
+        vm.add("   ")
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(0, store.contactsFlow.first().size)
@@ -46,10 +44,10 @@ class ContactsViewModelTest {
 
     @Test
     fun `add dedupes identical channel and value`() = runTest {
-        val store = FakeContactPrefsStore(listOf(StoredContact("WECHAT", "wxid_x")))
+        val store = FakeContactPrefsStore(listOf("wxid_x"))
         val vm = ContactsViewModel(store)
 
-        vm.add(ContactChannel.WECHAT, "wxid_x")
+        vm.add("wxid_x")
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, store.contactsFlow.first().size)
@@ -57,9 +55,7 @@ class ContactsViewModelTest {
 
     @Test
     fun `removeAt deletes contact at index`() = runTest {
-        val store = FakeContactPrefsStore(
-            listOf(StoredContact("WECHAT", "a"), StoredContact("QQ", "b")),
-        )
+        val store = FakeContactPrefsStore(listOf("wxid_a", "qq_b"))
         val vm = ContactsViewModel(store)
 
         vm.removeAt(0)
@@ -67,6 +63,6 @@ class ContactsViewModelTest {
 
         val saved = store.contactsFlow.first()
         assertEquals(1, saved.size)
-        assertEquals(StoredContact("QQ", "b"), saved.first())
+        assertEquals("qq_b", saved.first())
     }
 }
