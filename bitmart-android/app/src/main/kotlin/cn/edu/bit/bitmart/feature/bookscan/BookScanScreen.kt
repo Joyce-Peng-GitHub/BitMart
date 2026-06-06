@@ -1,4 +1,4 @@
-package cn.edu.bit.bitmart.feature.bookscan
+﻿package cn.edu.bit.bitmart.feature.bookscan
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -129,10 +129,13 @@ private fun CameraPreview(onBarcodeScanned: (String) -> Unit) {
                     it.surfaceProvider = previewView.surfaceProvider
                 }
 
+                val fired = java.util.concurrent.atomic.AtomicBoolean(false)
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build().also { analysis ->
-                        analysis.setAnalyzer(cameraExecutor, MLKitBarcodeAnalyzer(onBarcodeScanned))
+                        analysis.setAnalyzer(cameraExecutor, MLKitBarcodeAnalyzer { isbn ->
+                            if (fired.compareAndSet(false, true)) onBarcodeScanned(isbn)
+                        })
                     }
 
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA

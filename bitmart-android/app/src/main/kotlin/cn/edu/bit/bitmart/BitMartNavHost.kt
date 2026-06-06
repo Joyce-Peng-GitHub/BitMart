@@ -70,14 +70,14 @@ fun BitMartNavHost(
         }
         composable(Routes.PUBLISH) { entry ->
             // 从条码扫描页回传的 ISBN 写在本条目的 savedStateHandle（键 "isbn_result"）。
-            // 消费后删除，避免重复触发。
             val scannedIsbn by entry.savedStateHandle.getStateFlow<String?>("isbn_result", null)
                 .collectAsStateWithLifecycle()
             PublishScreen(
                 onPublished = { navController.popBackStack() },
                 onNavigateToLlmSettings = { navController.navigate(Routes.LLM_SETTINGS) },
                 onNavigateToBookScan = { navController.navigate(Routes.BOOK_SCAN) },
-                scannedIsbn = scannedIsbn?.also { entry.savedStateHandle.remove<String>("isbn_result") },
+                scannedIsbn = scannedIsbn,
+                onIsbnConsumed = { entry.savedStateHandle.remove<String>("isbn_result") },
             )
         }
         composable(Routes.BOOK_SCAN) {

@@ -1,4 +1,4 @@
-package cn.edu.bit.bitmart.feature.publish
+﻿package cn.edu.bit.bitmart.feature.publish
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -75,6 +75,7 @@ fun PublishScreen(
     onNavigateToBookScan: () -> Unit,
     /** 从条码扫描页回传的 ISBN（NavHost 观察 savedStateHandle 后传入）。 */
     scannedIsbn: String? = null,
+    onIsbnConsumed: () -> Unit = {},
     viewModel: PublishViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -82,7 +83,10 @@ fun PublishScreen(
 
     // 从条码扫描页收到 ISBN → 预填书籍草稿。
     LaunchedEffect(scannedIsbn) {
-        scannedIsbn?.let { viewModel.lookupBook(it) }
+        if (scannedIsbn != null) {
+            viewModel.lookupBook(scannedIsbn)
+            onIsbnConsumed()
+        }
     }
 
     LaunchedEffect(state.batchSubmitted) {

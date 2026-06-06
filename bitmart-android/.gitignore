@@ -7,3 +7,4 @@ local.properties
 .kotlin/
 .cxx/
 captures/
+gradle/gradle-daemon-jvm.properties
