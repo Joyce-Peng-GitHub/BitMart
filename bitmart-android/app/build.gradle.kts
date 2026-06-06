@@ -21,8 +21,8 @@ android {
 
     buildTypes {
         debug {
-            // 开发环境后端地址（模拟器访问宿主机 localhost）。
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080\"")
+            // 开发环境后端地址（adb reverse tcp:8080 tcp:8080 转发后真机/模拟器均可用）。
+            buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:8080\"")
         }
         release {
             isMinifyEnabled = false
