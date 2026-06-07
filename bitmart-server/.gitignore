@@ -14,3 +14,6 @@ bin/
 
 # 本地敏感配置覆盖。
 *.local.conf
+
+# Runtime log output (see logback.xml LOG_DIR).
+/logs/
