@@ -45,7 +45,7 @@ class ListingFeedViewModelTest {
         override suspend fun lookupBook(isbn: String) = DomainResult.Success(null)
         override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft) = DomainResult.Success(Unit)
         override suspend fun delete(id: Long) = DomainResult.Success(Unit)
-        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<String>())
+        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<cn.edu.bit.bitmart.core.domain.repository.TagInfo>())
     }
 
     @Test
@@ -86,27 +86,25 @@ class ListingFeedViewModelTest {
     fun `applyFilter wires price and flags into query and refreshes`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = ListingFeedViewModel(repo)
-        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTags = listOf("教材"))
+        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L, 2L))
         dispatcher.scheduler.advanceUntilIdle()
-        // 状态保存筛选条件。
         assertEquals("10", vm.state.value.minPrice)
         assertEquals("50", vm.state.value.maxPrice)
         assertEquals(false, vm.state.value.includeNoPrice)
         assertTrue(vm.state.value.includeSold)
-        assertEquals(listOf("教材"), vm.state.value.selectedTags)
-        // 条件下发到查询（标签除外，见 toQuery TODO）。
+        assertEquals(listOf(1L, 2L), vm.state.value.selectedTagIds)
         assertEquals("10", repo.lastQuery?.minPrice)
         assertEquals("50", repo.lastQuery?.maxPrice)
         assertEquals(false, repo.lastQuery?.includeNoPrice)
         assertEquals(true, repo.lastQuery?.includeSold)
-        assertTrue(repo.lastQuery?.tagIds?.isEmpty() == true)
+        assertEquals(listOf(1L, 2L), repo.lastQuery?.tagIds)
     }
 
     @Test
     fun `blank price filters map to null in query`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = ListingFeedViewModel(repo)
-        vm.applyFilter(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTags = emptyList())
+        vm.applyFilter(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTagIds = emptyList())
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(repo.lastQuery?.minPrice)
         assertNull(repo.lastQuery?.maxPrice)
@@ -116,7 +114,7 @@ class ListingFeedViewModelTest {
     fun `clearFilter resets filter state and reloads with defaults`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = ListingFeedViewModel(repo)
-        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTags = listOf("x"))
+        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L))
         dispatcher.scheduler.advanceUntilIdle()
         vm.clearFilter()
         dispatcher.scheduler.advanceUntilIdle()
@@ -124,7 +122,7 @@ class ListingFeedViewModelTest {
         assertEquals("", vm.state.value.maxPrice)
         assertTrue(vm.state.value.includeNoPrice)
         assertEquals(false, vm.state.value.includeSold)
-        assertTrue(vm.state.value.selectedTags.isEmpty())
+        assertTrue(vm.state.value.selectedTagIds.isEmpty())
         assertNull(repo.lastQuery?.minPrice)
         assertEquals(true, repo.lastQuery?.includeNoPrice)
         assertEquals(false, repo.lastQuery?.includeSold)

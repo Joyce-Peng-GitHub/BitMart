@@ -80,7 +80,7 @@ class ListingService(
         list(filter.copy(ownerId = ownerId, includeExpired = true, includeSold = true))
 
     /** 热门标签。 */
-    fun popularTags(limit: Int): List<String> = transaction(database) {
+    fun popularTags(limit: Int): List<PopularTag> = transaction(database) {
         tagRepository.popular(limit)
     }
 

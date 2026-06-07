@@ -33,33 +33,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
+import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 
 /**
  * 买卖列表的筛选弹窗：价格区间、是否含面议、是否含售罄、标签多选。
- * 支持清空 / 取消 / 确认（架构 §6.3 + UI 规范“筛选弹窗”）。
- *
- * 标签说明：后端按 tagIds(Long) 过滤，而热门标签仅提供名称且无“名称→ID”查询接口，
- * 故标签选择目前仅作回显，确认后不会下发到查询（见 [ListingFeedViewModel.applyFilter]）。
  *
  * @param initial 当前已应用的筛选状态，用于回显。
- * @param loadTags 拉取热门标签（挂起）。
- * @param onConfirm (minPrice, maxPrice, includeNoPrice, includeSold, selectedTags)。
+ * @param loadTags 拉取热门标签（挂起），返回 id+name 对。
+ * @param onConfirm (minPrice, maxPrice, includeNoPrice, includeSold, selectedTagIds)。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FilterDialog(
     initial: FeedUiState,
-    loadTags: suspend () -> List<String>,
+    loadTags: suspend () -> List<TagInfo>,
     onDismiss: () -> Unit,
     onClear: () -> Unit,
-    onConfirm: (String, String, Boolean, Boolean, List<String>) -> Unit,
+    onConfirm: (String, String, Boolean, Boolean, List<Long>) -> Unit,
 ) {
     var minPrice by remember { mutableStateOf(initial.minPrice) }
     var maxPrice by remember { mutableStateOf(initial.maxPrice) }
     var includeNoPrice by remember { mutableStateOf(initial.includeNoPrice) }
     var includeSold by remember { mutableStateOf(initial.includeSold) }
-    val selectedTags = remember { mutableStateListOf<String>().apply { addAll(initial.selectedTags) } }
-    var popularTags by remember { mutableStateOf<List<String>>(emptyList()) }
+    val selectedTagIds = remember { mutableStateListOf<Long>().apply { addAll(initial.selectedTagIds) } }
+    var popularTags by remember { mutableStateOf<List<TagInfo>>(emptyList()) }
 
     LaunchedEffect(Unit) { popularTags = loadTags() }
 
@@ -101,17 +98,17 @@ fun FilterDialog(
 
                 if (popularTags.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text("标签（暂不参与过滤）", style = MaterialTheme.typography.labelMedium)
+                    Text("标签", style = MaterialTheme.typography.labelMedium)
                     FlowRow(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         popularTags.forEach { tag ->
-                            val selected = tag in selectedTags
+                            val selected = tag.id in selectedTagIds
                             FilterChip(
                                 selected = selected,
-                                onClick = { if (selected) selectedTags.remove(tag) else selectedTags.add(tag) },
-                                label = { Text(tag) },
+                                onClick = { if (selected) selectedTagIds.remove(tag.id) else selectedTagIds.add(tag.id) },
+                                label = { Text(tag.name) },
                             )
                         }
                     }
@@ -120,7 +117,7 @@ fun FilterDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                onConfirm(minPrice, maxPrice, includeNoPrice, includeSold, selectedTags.toList())
+                onConfirm(minPrice, maxPrice, includeNoPrice, includeSold, selectedTagIds.toList())
                 onDismiss()
             }) { Text("确认") }
         },

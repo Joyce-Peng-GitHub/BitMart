@@ -38,7 +38,7 @@ class ListingDetailViewModelTest {
         override suspend fun lookupBook(isbn: String) = DomainResult.Success(null)
         override suspend fun update(id: Long, update: UpdateDraft) = DomainResult.Success(Unit)
         override suspend fun delete(id: Long) = DomainResult.Success(Unit)
-        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<String>())
+        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<cn.edu.bit.bitmart.core.domain.repository.TagInfo>())
     }
 
     /** 当前用户：用于 ListingDetailViewModel 判定是否为发布者本人。 */

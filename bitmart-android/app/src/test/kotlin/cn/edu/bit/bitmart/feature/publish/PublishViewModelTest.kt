@@ -40,7 +40,10 @@ class PublishViewModelTest {
         var batchResult: DomainResult<List<Long>> = DomainResult.Success(listOf(1L, 2L)),
         var uploadResult: DomainResult<String> = DomainResult.Success("blob-key"),
         var lookupResult: DomainResult<BookInfo?> = DomainResult.Success(null),
-        var tagsResult: DomainResult<List<String>> = DomainResult.Success(listOf("热门1", "热门2")),
+        var tagsResult: DomainResult<List<cn.edu.bit.bitmart.core.domain.repository.TagInfo>> = DomainResult.Success(listOf(
+            cn.edu.bit.bitmart.core.domain.repository.TagInfo(1L, "热门1"),
+            cn.edu.bit.bitmart.core.domain.repository.TagInfo(2L, "热门2"),
+        )),
     ) : ListingRepository {
         var lastBatchDrafts: List<PublishDraft>? = null
 
@@ -266,7 +269,10 @@ class PublishViewModelTest {
     @Test
     fun `loads popular tags on init`() = runTest {
         val vm = PublishViewModel(
-            FakeRepo(tagsResult = DomainResult.Success(listOf("热门1", "热门2"))),
+            FakeRepo(tagsResult = DomainResult.Success(listOf(
+                cn.edu.bit.bitmart.core.domain.repository.TagInfo(1L, "热门1"),
+                cn.edu.bit.bitmart.core.domain.repository.TagInfo(2L, "热门2"),
+            ))),
             FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
             FakeLlmConfigStore(),
         )

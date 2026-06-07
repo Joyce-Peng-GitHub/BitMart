@@ -220,7 +220,7 @@ class ListingRoutesTest : FunSpec({
                 setBody(sellReq(tags = listOf("热门标签测试")))
             }
             val tags = client.get("/api/v1/tags/popular").body<PopularTagsDto>().tags
-            tags shouldContain "热门标签测试"
+            tags.map { it.name } shouldContain "热门标签测试"
         }
     }
 

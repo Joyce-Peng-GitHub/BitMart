@@ -139,7 +139,10 @@ data class ListingDetailDto(
 }
 
 @Serializable
-data class PopularTagsDto(val tags: List<String>)
+data class TagDto(val id: Long, val name: String)
+
+@Serializable
+data class PopularTagsDto(val tags: List<TagDto>)
 
 @Serializable
 data class BookLookupRequest(val isbn: String)

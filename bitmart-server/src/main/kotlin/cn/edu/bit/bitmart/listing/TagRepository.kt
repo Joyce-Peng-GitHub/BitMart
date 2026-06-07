@@ -62,10 +62,12 @@ class TagRepository {
             .groupBy({ it[ListingTags.listingId] }, { it[Tags.name] })
     }
 
-    /** 热门标签（按用量降序）。 */
-    fun popular(limit: Int): List<String> =
+    /** 热门标签（按用量降序）。返回 id+name 对，便于客户端按 id 过滤。 */
+    fun popular(limit: Int): List<PopularTag> =
         Tags.selectAll()
             .orderBy(Tags.usageCount to SortOrder.DESC)
             .limit(limit)
-            .map { it[Tags.name] }
+            .map { PopularTag(id = it[Tags.id].value, name = it[Tags.name]) }
 }
+
+data class PopularTag(val id: Long, val name: String)

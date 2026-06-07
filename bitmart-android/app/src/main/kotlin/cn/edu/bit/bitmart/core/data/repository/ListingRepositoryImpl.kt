@@ -13,6 +13,7 @@ import cn.edu.bit.bitmart.core.data.remote.UpdateListingRequest
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.map
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
+import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.model.Contact
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
@@ -48,8 +49,8 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
     override suspend fun lookupBook(isbn: String): DomainResult<BookInfo?> =
         api.lookupBook(isbn).map { it?.toBookInfo() }
 
-    override suspend fun popularTags(limit: Int): DomainResult<List<String>> =
-        api.popularTags(limit).map { it.tags }
+    override suspend fun popularTags(limit: Int): DomainResult<List<TagInfo>> =
+        api.popularTags(limit).map { it.tags.map { t -> TagInfo(t.id, t.name) } }
 
     override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft): DomainResult<Unit> =
         api.updateListing(

@@ -95,7 +95,10 @@ data class ListingDetailDto(
 )
 
 @Serializable
-data class PopularTagsDto(val tags: List<String>)
+data class TagDto(val id: Long, val name: String)
+
+@Serializable
+data class PopularTagsDto(val tags: List<TagDto>)
 
 /** 创建 listing 请求（与后端 CreateListingRequest 对齐）。 */
 @Serializable

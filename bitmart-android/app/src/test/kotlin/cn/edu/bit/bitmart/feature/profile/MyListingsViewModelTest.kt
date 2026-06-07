@@ -55,7 +55,7 @@ class MyListingsViewModelTest {
             lastUpdate = id to update; return updateResult
         }
         override suspend fun delete(id: Long): DomainResult<Unit> { deletedId = id; return deleteResult }
-        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<String>())
+        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<cn.edu.bit.bitmart.core.domain.repository.TagInfo>())
     }
 
     @Test

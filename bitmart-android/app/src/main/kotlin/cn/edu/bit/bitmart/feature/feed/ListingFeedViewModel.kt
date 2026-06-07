@@ -6,6 +6,7 @@ import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
+import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,10 +27,9 @@ data class FeedUiState(
     val maxPrice: String = "",
     val includeNoPrice: Boolean = true,
     /**
-     * 已选标签名（来自热门标签）。注意：后端按 tagIds(Long) 过滤，而热门标签接口仅返回名称，
-     * 且无“名称→ID”查询接口，故标签筛选暂不下发到查询（仅在弹窗中回显选择）。详见 [toQuery] 的 TODO。
+     * 已选标签 ID（来自热门标签接口）。直接下发到 [toQuery] 的 tagIds。
      */
-    val selectedTags: List<String> = emptyList(),
+    val selectedTagIds: List<Long> = emptyList(),
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
     val error: String? = null,
@@ -61,15 +61,12 @@ class ListingFeedViewModel @Inject constructor(
         refresh()
     }
 
-    /**
-     * 应用筛选弹窗的条件并重新查询。价格空串视为未设置；标签仅回显，不下发（见 [FeedUiState.selectedTags]）。
-     */
     fun applyFilter(
         minPrice: String,
         maxPrice: String,
         includeNoPrice: Boolean,
         includeSold: Boolean,
-        selectedTags: List<String>,
+        selectedTagIds: List<Long>,
     ) {
         _state.update {
             it.copy(
@@ -77,7 +74,7 @@ class ListingFeedViewModel @Inject constructor(
                 maxPrice = maxPrice.trim(),
                 includeNoPrice = includeNoPrice,
                 includeSold = includeSold,
-                selectedTags = selectedTags,
+                selectedTagIds = selectedTagIds,
             )
         }
         refresh()
@@ -91,7 +88,7 @@ class ListingFeedViewModel @Inject constructor(
                 maxPrice = "",
                 includeNoPrice = true,
                 includeSold = false,
-                selectedTags = emptyList(),
+                selectedTagIds = emptyList(),
             )
         }
         refresh()
@@ -135,14 +132,12 @@ class ListingFeedViewModel @Inject constructor(
         maxPrice = maxPrice.ifBlank { null },
         includeNoPrice = includeNoPrice,
         includeSold = includeSold,
-        // TODO(标签筛选)：后端按 tagIds(Long) 过滤，但热门标签接口仅返回名称且无“名称→ID”查询接口，
-        // 故此处不下发 tagIds（保持空），标签选择仅在弹窗中回显。待后端提供名称→ID 解析后再补全。
-        tagIds = emptyList(),
+        tagIds = selectedTagIds,
         cursor = cursor,
     )
 
     /** 拉取热门标签供筛选弹窗展示（失败则返回空列表，弹窗自行降级）。 */
-    suspend fun loadPopularTags(limit: Int = 20): List<String> =
+    suspend fun loadPopularTags(limit: Int = 20): List<TagInfo> =
         when (val r = listingRepository.popularTags(limit)) {
             is DomainResult.Success -> r.data
             else -> emptyList()

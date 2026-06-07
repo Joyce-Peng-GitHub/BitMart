@@ -147,7 +147,7 @@ fun Route.listingRoutes(
     // 热门标签（公开）。
     get("/tags/popular") {
         val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 20
-        call.respond(PopularTagsDto(service.popularTags(limit)))
+        call.respond(PopularTagsDto(service.popularTags(limit).map { TagDto(it.id, it.name) }))
     }
 
     // ISBN 查询（需登录，服务端代理 + 缓存）。

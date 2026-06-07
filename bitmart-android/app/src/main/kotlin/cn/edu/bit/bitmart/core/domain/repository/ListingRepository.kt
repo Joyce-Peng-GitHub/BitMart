@@ -82,5 +82,7 @@ interface ListingRepository {
     suspend fun delete(id: Long): DomainResult<Unit>
 
     /** 热门标签。 */
-    suspend fun popularTags(limit: Int): DomainResult<List<String>>
+    suspend fun popularTags(limit: Int): DomainResult<List<TagInfo>>
 }
+
+data class TagInfo(val id: Long, val name: String)
