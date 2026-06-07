@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
  */
 object ApiResponseMapper {
     private val json = Json { ignoreUnknownKeys = true }
+    private const val TAG = "BitMartApi"
 
     suspend inline fun <reified T> handle(response: HttpResponse): DomainResult<T> {
         return if (response.status.isSuccess()) {
@@ -33,10 +34,9 @@ object ApiResponseMapper {
 
     fun parseError(status: Int, body: String): DomainResult.Failure {
         val envelope = runCatching { json.decodeFromString<ApiErrorEnvelope>(body) }.getOrNull()
-        return DomainResult.Failure(
-            code = envelope?.error?.code ?: "HTTP_$status",
-            message = envelope?.error?.message ?: "请求失败（$status）",
-            httpStatus = status,
-        )
+        val code = envelope?.error?.code ?: "HTTP_$status"
+        val message = envelope?.error?.message ?: "Request failed ($status)"
+        android.util.Log.w(TAG, "API error status=$status code=$code message=$message")
+        return DomainResult.Failure(code = code, message = message, httpStatus = status)
     }
 }

@@ -1,8 +1,11 @@
 package cn.edu.bit.bitmart
 
+import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -45,16 +48,35 @@ object Routes {
  * 应用顶层导航图。外壳（底部导航栏 + 买卖/我的）为起始目的地，可在未登录下浏览；
  * 登录、发布、详情作为同级路由全屏叠加（不带底部栏）。详情/发布自行做登录校验。
  */
+private const val NAV_TAG = "BitMartNav"
+
 @Composable
 fun BitMartNavHost(
     navController: NavHostController = rememberNavController(),
 ) {
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { _, destination, arguments ->
+            Log.d(NAV_TAG, "navigate -> ${destination.route} args=$arguments")
+        }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose { navController.removeOnDestinationChangedListener(listener) }
+    }
+
     NavHost(navController = navController, startDestination = Routes.SHELL) {
         composable(Routes.SHELL) {
             BitMartShell(
-                onItemClick = { id -> navController.navigate(Routes.detail(id)) },
-                onPublishClick = { navController.navigate(Routes.PUBLISH) },
-                onLoginClick = { navController.navigate(Routes.AUTH) },
+                onItemClick = { id ->
+                    Log.i(NAV_TAG, "click: listing id=$id")
+                    navController.navigate(Routes.detail(id))
+                },
+                onPublishClick = {
+                    Log.i(NAV_TAG, "click: publish")
+                    navController.navigate(Routes.PUBLISH)
+                },
+                onLoginClick = {
+                    Log.i(NAV_TAG, "click: login")
+                    navController.navigate(Routes.AUTH)
+                },
                 onNotificationsClick = { navController.navigate(Routes.NOTIFICATIONS) },
                 onContactsClick = { navController.navigate(Routes.CONTACTS) },
                 onMyListingsClick = { buy -> navController.navigate(Routes.myListings(buy)) },
@@ -64,16 +86,18 @@ fun BitMartNavHost(
         }
         composable(Routes.AUTH) {
             AuthScreen(onAuthenticated = {
-                // 登录成功后回到外壳（弹出登录页）。
+                Log.i(NAV_TAG, "auth: login success")
                 navController.popBackStack(Routes.SHELL, inclusive = false)
             })
         }
         composable(Routes.PUBLISH) { entry ->
-            // 从条码扫描页回传的 ISBN 写在本条目的 savedStateHandle（键 "isbn_result"）。
             val scannedIsbn by entry.savedStateHandle.getStateFlow<String?>("isbn_result", null)
                 .collectAsStateWithLifecycle()
             PublishScreen(
-                onPublished = { navController.popBackStack() },
+                onPublished = {
+                    Log.i(NAV_TAG, "action: listing published")
+                    navController.popBackStack()
+                },
                 onNavigateToLlmSettings = { navController.navigate(Routes.LLM_SETTINGS) },
                 onNavigateToBookScan = { navController.navigate(Routes.BOOK_SCAN) },
                 scannedIsbn = scannedIsbn,
@@ -81,12 +105,10 @@ fun BitMartNavHost(
             )
         }
         composable(Routes.BOOK_SCAN) {
-            // 扫到 ISBN 后写入 PUBLISH 条目（previousBackStackEntry）的 savedStateHandle，再弹出本页。
             BookScanScreen(
                 onIsbnScanned = { isbn ->
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set("isbn_result", isbn)
+                    Log.i(NAV_TAG, "action: isbn scanned isbn=$isbn")
+                    navController.previousBackStackEntry?.savedStateHandle?.set("isbn_result", isbn)
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() },

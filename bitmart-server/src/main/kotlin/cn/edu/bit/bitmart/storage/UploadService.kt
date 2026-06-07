@@ -1,6 +1,7 @@
 package cn.edu.bit.bitmart.storage
 
 import cn.edu.bit.bitmart.config.UploadConfig
+import org.slf4j.LoggerFactory
 
 /** 图片上传结果。 */
 sealed interface UploadResult {
@@ -17,14 +18,23 @@ class UploadService(
     private val blobStorage: BlobStorage,
     private val uploadConfig: UploadConfig,
 ) {
-    suspend fun uploadImage(bytes: ByteArray): UploadResult {
-        if (bytes.isEmpty()) return UploadResult.Empty
-        if (bytes.size > uploadConfig.maxFileBytes) return UploadResult.TooLarge
+    private val log = LoggerFactory.getLogger(UploadService::class.java)
 
-        val type = ImageTypeDetector.detect(bytes) ?: return UploadResult.UnsupportedType
-        if (type.mimeType !in uploadConfig.allowedMimeTypes) return UploadResult.UnsupportedType
+    suspend fun uploadImage(bytes: ByteArray): UploadResult {
+        if (bytes.isEmpty()) return UploadResult.Empty.also { log.warn("Upload rejected: empty bytes") }
+        if (bytes.size > uploadConfig.maxFileBytes) return UploadResult.TooLarge.also {
+            log.warn("Upload rejected: too large bytes={}", bytes.size)
+        }
+
+        val type = ImageTypeDetector.detect(bytes) ?: return UploadResult.UnsupportedType.also {
+            log.warn("Upload rejected: unrecognized image type")
+        }
+        if (type.mimeType !in uploadConfig.allowedMimeTypes) return UploadResult.UnsupportedType.also {
+            log.warn("Upload rejected: disallowed mime type={}", type.mimeType)
+        }
 
         val ref = blobStorage.put(bytes, type.mimeType, type.extension)
+        log.info("Image uploaded key={} type={} bytes={}", ref.key, type.mimeType, bytes.size)
         return UploadResult.Success(ref.key, ref.url, ref.contentType)
     }
 }

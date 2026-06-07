@@ -41,12 +41,14 @@ class OpenAiCompatibleLlmClient(
 ) : LlmClient {
 
     private val json = Json { ignoreUnknownKeys = true }
+    private val tag = "BitMartLlm"
 
     override suspend fun recognize(
         config: LlmConfig,
         imageBytes: ByteArray,
         category: ListingCategory,
     ): DomainResult<LlmRecognition> = try {
+        android.util.Log.d(tag, "LLM recognize start category=$category bytes=${imageBytes.size}")
         val response = client.post("${config.baseUrl.trimEnd('/')}/v1/chat/completions") {
             header(HttpHeaders.Authorization, "Bearer ${config.apiKey}")
             contentType(ContentType.Application.Json)
@@ -55,11 +57,16 @@ class OpenAiCompatibleLlmClient(
         }
         val text = response.bodyAsText()
         if (!response.status.isSuccess()) {
+            android.util.Log.w(tag, "LLM HTTP error status=${response.status.value}")
             DomainResult.Failure("LLM_HTTP_${response.status.value}", "识别服务返回错误（${response.status.value}）", response.status.value)
         } else {
-            parseContent(text, category)
+            val result = parseContent(text, category)
+            if (result is DomainResult.Success) android.util.Log.d(tag, "LLM recognize success category=$category")
+            else android.util.Log.w(tag, "LLM parse failed category=$category")
+            result
         }
     } catch (e: Exception) {
+        android.util.Log.e(tag, "LLM recognize error: ${e.message}", e)
         DomainResult.NetworkError(e.message ?: "网络异常")
     }
 

@@ -15,8 +15,14 @@ import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.netty.EngineMain
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.callid.CallId
+import io.ktor.server.plugins.callid.callIdMdc
+import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.path
 import io.ktor.server.http.content.staticFiles
+import org.slf4j.event.Level
 import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
@@ -42,6 +48,21 @@ fun Application.module() {
  */
 fun Application.configureApp(components: AppComponents) {
     val log = LoggerFactory.getLogger("bitmart.Application")
+
+    install(CallId) {
+        generate { it.request.headers["X-Request-ID"] ?: java.util.UUID.randomUUID().toString() }
+        replyToHeader("X-Request-ID")
+    }
+
+    install(CallLogging) {
+        level = Level.INFO
+        callIdMdc("requestId")
+        format { call ->
+            val status = call.response.status()?.value ?: 0
+            "${call.request.httpMethod.value} ${call.request.path()} -> $status"
+        }
+        filter { call -> call.request.path() != "/health" }
+    }
 
     install(ContentNegotiation) {
         json(Json {

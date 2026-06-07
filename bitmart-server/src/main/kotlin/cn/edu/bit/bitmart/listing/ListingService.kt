@@ -32,8 +32,12 @@ class ListingService(
     /** 发布单条。 */
     fun publish(input: CreateListingInput): PublishResult {
         val result = validator.validateCreate(input.toValidationInput(), Instant.now())
-        if (!result.isValid) return PublishResult.ValidationFailed(result.errors)
+        if (!result.isValid) {
+            log.warn("Publish validation failed userId={} errors={}", input.userId, result.errors)
+            return PublishResult.ValidationFailed(result.errors)
+        }
         val id = transaction(database) { insertWithTags(input) }
+        log.info("Listing published id={} userId={} type={}", id, input.userId, input.type)
         return PublishResult.Success(id)
     }
 
@@ -44,9 +48,12 @@ class ListingService(
             val r = validator.validateCreate(input.toValidationInput(), now)
             if (r.isValid) null else i to r.errors
         }.toMap()
-        if (errorsByIndex.isNotEmpty()) return BatchPublishResult.ValidationFailed(errorsByIndex)
-
+        if (errorsByIndex.isNotEmpty()) {
+            log.warn("Batch publish validation failed count={} failedIndexes={}", inputs.size, errorsByIndex.keys)
+            return BatchPublishResult.ValidationFailed(errorsByIndex)
+        }
         val ids = transaction(database) { inputs.map { insertWithTags(it) } }
+        log.info("Batch published count={} ids={}", ids.size, ids)
         return BatchPublishResult.Success(ids)
     }
 
@@ -87,8 +94,11 @@ class ListingService(
         requesterRole: UserRole,
         input: UpdateListingInput,
     ): UpdateResult = transaction(database) {
-        val ownerId = listingRepository.findOwner(id) ?: return@transaction UpdateResult.NotFound
+        val ownerId = listingRepository.findOwner(id) ?: return@transaction UpdateResult.NotFound.also {
+            log.warn("Update listing not found id={}", id)
+        }
         if (ownerId != requesterId && requesterRole != UserRole.ADMIN) {
+            log.warn("Update listing forbidden id={} requesterId={}", id, requesterId)
             return@transaction UpdateResult.Forbidden
         }
         val now = Instant.now()
@@ -96,7 +106,10 @@ class ListingService(
         // 延期校验。
         input.expiresAt?.let {
             val r = validator.validateExtension(it.toInstant(), now)
-            if (!r.isValid) return@transaction UpdateResult.ValidationFailed(r.errors)
+            if (!r.isValid) {
+                log.warn("Update listing extension invalid id={} errors={}", id, r.errors)
+                return@transaction UpdateResult.ValidationFailed(r.errors)
+            }
         }
         // 价格校验（若显式改价）。
         if (input.unitPrice != null && input.unitPrice.signum() < 0) {
@@ -116,17 +129,22 @@ class ListingService(
             val affected = listingRepository.updateQuantitySold(id, newSold)
             if (affected == 0) return@transaction UpdateResult.QuantityConflict
         }
+        log.info("Listing updated id={} requesterId={}", id, requesterId)
         UpdateResult.Success
     }
 
     /** 软删除。仅本人或管理员。 */
     fun delete(id: Long, requesterId: Long, requesterRole: UserRole): UpdateResult =
         transaction(database) {
-            val ownerId = listingRepository.findOwner(id) ?: return@transaction UpdateResult.NotFound
+            val ownerId = listingRepository.findOwner(id) ?: return@transaction UpdateResult.NotFound.also {
+                log.warn("Delete listing not found id={}", id)
+            }
             if (ownerId != requesterId && requesterRole != UserRole.ADMIN) {
+                log.warn("Delete listing forbidden id={} requesterId={}", id, requesterId)
                 return@transaction UpdateResult.Forbidden
             }
             listingRepository.softDelete(id)
+            log.info("Listing deleted id={} requesterId={}", id, requesterId)
             UpdateResult.Success
         }
 
@@ -136,15 +154,25 @@ class ListingService(
      */
     suspend fun lookupBook(isbn: String): BookLookupResult {
         val cached = transaction(database) { bookMetaRepository.find(isbn) }
-        if (cached != null) return BookLookupResult.Found(cached)
-
+        if (cached != null) {
+            log.debug("Book cache hit isbn={}", isbn)
+            return BookLookupResult.Found(cached)
+        }
+        log.debug("Book cache miss isbn={}, fetching from ShowAPI", isbn)
         return when (val r = showApiClient.lookup(isbn)) {
             is IsbnLookupResult.Found -> {
                 transaction(database) { bookMetaRepository.save(r.meta, r.rawJson) }
+                log.info("Book fetched and cached isbn={} title={}", isbn, r.meta.title)
                 BookLookupResult.Found(r.meta)
             }
-            is IsbnLookupResult.NotFound -> BookLookupResult.NotFound
-            is IsbnLookupResult.ServiceError -> BookLookupResult.ServiceError(r.message)
+            is IsbnLookupResult.NotFound -> {
+                log.info("Book not found isbn={}", isbn)
+                BookLookupResult.NotFound
+            }
+            is IsbnLookupResult.ServiceError -> {
+                log.warn("Book lookup service error isbn={} msg={}", isbn, r.message)
+                BookLookupResult.ServiceError(r.message)
+            }
         }
     }
 
