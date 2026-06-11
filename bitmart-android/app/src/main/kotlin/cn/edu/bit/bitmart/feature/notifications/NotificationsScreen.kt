@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.Notification
+import cn.edu.bit.bitmart.core.ui.formatTimestampMinute
 
 /**
  * 通知页：公告与个人提醒（如过期提醒）合并展示。点击未读项标记已读。
@@ -121,7 +122,7 @@ private fun NotificationCard(n: Notification, onClick: () -> Unit) {
                 if (!n.read) Badge()
             }
             Text(n.body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-            Text(n.createdAt, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+            Text(formatTimestampMinute(n.createdAt), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

@@ -34,6 +34,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // java.time 在 API < 26 不可用，minSdk 24 需开启脱糖。
+        isCoreLibraryDesugaringEnabled = true
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
@@ -46,6 +48,8 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
