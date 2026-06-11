@@ -149,21 +149,35 @@ class PublishViewModel @Inject constructor(
 
     /**
      * 上传图片（从 URI 读取字节后调用此方法）。
-     * 成功后将 blobKey 加入当前草稿的 imageKeys。
+     * 成功后将 blobKey 加入当前草稿的 imageKeys；超过 [PublishConfig.MAX_IMAGES] 时拒绝。
      */
     fun uploadImage(bytes: ByteArray, filename: String) {
+        if (_state.value.currentDraft.imageKeys.size >= PublishConfig.MAX_IMAGES) {
+            _state.update { it.copy(error = "最多上传${PublishConfig.MAX_IMAGES}张图片") }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(uploadingImage = true, error = null) }
             when (val r = listingRepository.uploadImage(bytes, filename)) {
                 is DomainResult.Success -> _state.update { st ->
-                    st.copy(
-                        uploadingImage = false,
-                        currentDraft = st.currentDraft.copy(imageKeys = st.currentDraft.imageKeys + r.data),
-                    )
+                    // 再查一次上限：选图与拍照识别可能并发上传，两者都通过入口校验后仍可能越限。
+                    val keys = st.currentDraft.imageKeys
+                    if (keys.size >= PublishConfig.MAX_IMAGES) {
+                        st.copy(uploadingImage = false, error = "最多上传${PublishConfig.MAX_IMAGES}张图片")
+                    } else {
+                        st.copy(uploadingImage = false, currentDraft = st.currentDraft.copy(imageKeys = keys + r.data))
+                    }
                 }
                 is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
             }
+        }
+    }
+
+    /** 删除当前草稿中的某张已上传图片（按下标）。 */
+    fun removeImage(index: Int) {
+        _state.update { st ->
+            st.copy(currentDraft = st.currentDraft.copy(imageKeys = st.currentDraft.imageKeys.filterIndexed { i, _ -> i != index }))
         }
     }
 

@@ -6,8 +6,10 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -17,8 +19,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -47,8 +51,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.scale
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,6 +67,8 @@ import androidx.compose.material3.Scaffold
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.PublishConfig
+import cn.edu.bit.bitmart.core.ui.blobKeyToMediaUrl
+import coil3.compose.AsyncImage
 import java.io.ByteArrayOutputStream
 
 /**
@@ -222,22 +233,87 @@ fun PublishScreen(
             }
         }
 
-        // 图片上传 / LLM 识别。
+        // 图片上传 / LLM 识别。达到张数上限后两个入口都禁用。
+        val canAddImage = draft.imageKeys.size < PublishConfig.MAX_IMAGES
+        Text("图片（${draft.imageKeys.size}/${PublishConfig.MAX_IMAGES}）", style = MaterialTheme.typography.titleSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { imagePicker.launch("image/*") }, enabled = !state.uploadingImage) {
+            OutlinedButton(
+                onClick = { imagePicker.launch("image/*") },
+                enabled = !state.uploadingImage && canAddImage,
+            ) {
                 Icon(Icons.Default.Image, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
                 Text("选择图片")
             }
             OutlinedButton(
                 onClick = { recognizePicker.launch("image/*") },
-                enabled = !state.llmRecognizing,
+                enabled = !state.llmRecognizing && canAddImage,
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
                 Text("拍照识别")
             }
         }
+
+        // 已上传图片缩略图：点击放大预览，右上角垃圾桶删除。
+        var previewImageKey by remember { mutableStateOf<String?>(null) }
+        if (draft.imageKeys.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                draft.imageKeys.forEachIndexed { index, key ->
+                    Box {
+                        AsyncImage(
+                            model = blobKeyToMediaUrl(key),
+                            contentDescription = "图片${index + 1}",
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { previewImageKey = key },
+                            contentScale = ContentScale.Crop,
+                        )
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "删除图片${index + 1}",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(2.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .clickable { viewModel.removeImage(index) }
+                                .padding(6.dp)
+                                .size(18.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        // 全屏图片预览（点击任意处关闭）。
+        previewImageKey?.let { key ->
+            Dialog(
+                onDismissRequest = { previewImageKey = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.9f))
+                        .clickable { previewImageKey = null },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AsyncImage(
+                        model = blobKeyToMediaUrl(key),
+                        contentDescription = "图片预览",
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+            }
+        }
+
         if (state.uploadingImage || state.llmRecognizing || state.lookingUpBook) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(modifier = Modifier.height(16.dp))

@@ -46,6 +46,7 @@ class PublishViewModelTest {
         )),
     ) : ListingRepository {
         var lastBatchDrafts: List<PublishDraft>? = null
+        var uploadCalls = 0
 
         override suspend fun list(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
         override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
@@ -54,7 +55,9 @@ class PublishViewModelTest {
         override suspend fun publishBatch(drafts: List<PublishDraft>): DomainResult<List<Long>> {
             lastBatchDrafts = drafts; return batchResult
         }
-        override suspend fun uploadImage(bytes: ByteArray, filename: String) = uploadResult
+        override suspend fun uploadImage(bytes: ByteArray, filename: String): DomainResult<String> {
+            uploadCalls++; return uploadResult
+        }
         override suspend fun lookupBook(isbn: String) = lookupResult
         override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft) = DomainResult.Success(Unit)
         override suspend fun delete(id: Long) = DomainResult.Success(Unit)
@@ -141,6 +144,56 @@ class PublishViewModelTest {
 
         assertTrue(vm.state.value.currentDraft.imageKeys.contains("2026/06/02/uuid.jpg"))
         assertFalse(vm.state.value.uploadingImage)
+    }
+
+    @Test
+    fun `uploadImage rejects when MAX_IMAGES reached`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        repeat(PublishConfig.MAX_IMAGES) {
+            repo.uploadResult = DomainResult.Success("key-$it")
+            vm.uploadImage(byteArrayOf(1), "img.jpg"); dispatcher.scheduler.advanceUntilIdle()
+        }
+        assertEquals(PublishConfig.MAX_IMAGES, vm.state.value.currentDraft.imageKeys.size)
+
+        vm.uploadImage(byteArrayOf(1), "overflow.jpg"); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(PublishConfig.MAX_IMAGES, vm.state.value.currentDraft.imageKeys.size)
+        assertEquals("最多上传${PublishConfig.MAX_IMAGES}张图片", vm.state.value.error)
+        assertEquals(PublishConfig.MAX_IMAGES, repo.uploadCalls) // 超限时不再发起上传请求。
+    }
+
+    @Test
+    fun `uploadImage concurrent uploads clamp at MAX_IMAGES with error`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        repeat(PublishConfig.MAX_IMAGES - 1) {
+            repo.uploadResult = DomainResult.Success("key-$it")
+            vm.uploadImage(byteArrayOf(1), "img.jpg"); dispatcher.scheduler.advanceUntilIdle()
+        }
+
+        // 两次上传同时在途（都先通过入口校验，再先后完成）→ 第二次完成时已满，应报错而非静默丢弃。
+        repo.uploadResult = DomainResult.Success("key-last")
+        vm.uploadImage(byteArrayOf(1), "a.jpg")
+        vm.uploadImage(byteArrayOf(2), "b.jpg")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(PublishConfig.MAX_IMAGES, vm.state.value.currentDraft.imageKeys.size)
+        assertEquals("最多上传${PublishConfig.MAX_IMAGES}张图片", vm.state.value.error)
+    }
+
+    @Test
+    fun `removeImage removes by index`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        repo.uploadResult = DomainResult.Success("key-a")
+        vm.uploadImage(byteArrayOf(1), "a.jpg"); dispatcher.scheduler.advanceUntilIdle()
+        repo.uploadResult = DomainResult.Success("key-b")
+        vm.uploadImage(byteArrayOf(2), "b.jpg"); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.removeImage(0)
+
+        assertEquals(listOf("key-b"), vm.state.value.currentDraft.imageKeys)
     }
 
     @Test
