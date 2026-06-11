@@ -24,6 +24,10 @@ class UserService(
     fun notifications(userId: Long, cursor: NotificationCursor?, limit: Int): List<NotificationItem> =
         transaction(database) { notificationRepository.listForUser(userId, cursor, limit) }
 
+    /** 个人未读通知数（不含公告，理由见 [NotificationRepository.unreadCountFor]）。 */
+    fun unreadNotificationCount(userId: Long): Long =
+        transaction(database) { notificationRepository.unreadCountFor(userId) }
+
     /** 标记通知已读。返回是否成功（公告或非本人通知返回 false）。 */
     fun markNotificationRead(userId: Long, notificationId: Long): Boolean =
         transaction(database) { notificationRepository.markRead(userId, notificationId) > 0 }

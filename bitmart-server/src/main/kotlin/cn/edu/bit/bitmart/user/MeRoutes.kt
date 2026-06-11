@@ -37,6 +37,9 @@ data class NotificationDto(
 @Serializable
 data class NotificationPageDto(val items: List<NotificationDto>, val nextCursor: String? = null)
 
+@Serializable
+data class UnreadCountDto(val count: Long)
+
 /** /me 路由（全部需登录）。 */
 fun Route.meRoutes(userService: UserService, paginationDefault: Int, paginationMax: Int) {
     authenticate(AUTH_BEARER) {
@@ -64,6 +67,12 @@ fun Route.meRoutes(userService: UserService, paginationDefault: Int, paginationM
                 val items = userService.notifications(principal.userId, cursor, limit)
                 val next = if (items.size >= limit) items.lastOrNull()?.let { "${it.createdAt}|${it.id}" } else null
                 call.respond(NotificationPageDto(items.map { it.toDto() }, next))
+            }
+
+            // 未读角标用。仅统计个人未读，公告不计入（公告不可标记已读）。
+            get("/notifications/unread-count") {
+                val principal = call.principal<UserPrincipal>()!!
+                call.respond(UnreadCountDto(userService.unreadNotificationCount(principal.userId)))
             }
 
             post("/notifications/{id}/read") {

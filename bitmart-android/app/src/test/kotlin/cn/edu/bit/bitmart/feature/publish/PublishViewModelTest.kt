@@ -90,6 +90,50 @@ class PublishViewModelTest {
     }
 
     @Test
+    fun `expiresInDays passes through to PublishDraft`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        vm.onTitle("台灯"); vm.onContact("x"); vm.onExpiresInDays("60")
+        vm.addDraftToBatch()
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(60, repo.lastBatchDrafts!![0].expiresInDays)
+    }
+
+    @Test
+    fun `blank expiresInDays maps to null for server default`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        vm.onTitle("台灯"); vm.onContact("x")
+        vm.addDraftToBatch()
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(repo.lastBatchDrafts!![0].expiresInDays)
+    }
+
+    @Test
+    fun `addDraftToBatch blocks out-of-range or invalid expiresInDays`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        vm.onTitle("台灯"); vm.onContact("x")
+
+        for (bad in listOf("0", "${PublishConfig.EXPIRY_MAX_DAYS + 1}", "abc", "1.5")) {
+            vm.onExpiresInDays(bad)
+            vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+            assertTrue("应拒绝有效期输入: $bad", vm.state.value.error!!.contains("有效期"))
+            assertTrue(vm.state.value.draftBatch.isEmpty())
+        }
+
+        // 边界值合法：min 与 max 都应通过。
+        vm.onExpiresInDays("${PublishConfig.EXPIRY_MIN_DAYS}")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.draftBatch.size)
+
+        vm.onTitle("台灯2"); vm.onContact("x"); vm.onExpiresInDays("${PublishConfig.EXPIRY_MAX_DAYS}")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, vm.state.value.draftBatch.size)
+    }
+
+    @Test
     fun `submitBatch maps drafts with book and imageKeys`() = runTest {
         val repo = FakeRepo()
         val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())

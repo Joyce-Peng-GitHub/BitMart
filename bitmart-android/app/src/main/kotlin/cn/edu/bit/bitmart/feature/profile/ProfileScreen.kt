@@ -12,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -22,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +56,9 @@ fun ProfileScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    // 每次进入“我的”页（含从通知页返回）刷新未读角标。
+    LaunchedEffect(Unit) { viewModel.refreshUnreadCount() }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -60,7 +66,15 @@ fun ProfileScreen(
                 title = { Text("我的") },
                 actions = {
                     IconButton(onClick = onNotificationsClick) {
-                        Icon(Icons.Default.MailOutline, contentDescription = "通知")
+                        BadgedBox(
+                            badge = {
+                                if (state.unreadCount > 0) {
+                                    Badge { Text(if (state.unreadCount > 99) "99+" else state.unreadCount.toString()) }
+                                }
+                            },
+                        ) {
+                            Icon(Icons.Default.MailOutline, contentDescription = "通知")
+                        }
                     }
                 },
             )

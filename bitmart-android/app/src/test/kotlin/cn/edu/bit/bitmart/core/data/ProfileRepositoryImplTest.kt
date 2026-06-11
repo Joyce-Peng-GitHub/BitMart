@@ -97,4 +97,22 @@ class ProfileRepositoryImplTest {
         assertEquals(HttpMethod.Post, req.method)
         assertTrue(req.url.encodedPath.endsWith("/me/notifications/42/read"))
     }
+
+    @Test
+    fun `unreadNotificationCount gets count endpoint and maps to int`() = runTest {
+        var captured: HttpRequestData? = null
+        val api = TestApiSupport.api(token = "tok") { req ->
+            captured = req
+            respond("""{"count":7}""", HttpStatusCode.OK, TestApiSupport.jsonHeaders())
+        }
+        val repo = ProfileRepositoryImpl(api)
+
+        val result = repo.unreadNotificationCount()
+
+        assertTrue(result is DomainResult.Success)
+        assertEquals(7, (result as DomainResult.Success).data)
+        val req = requireNotNull(captured)
+        assertEquals(HttpMethod.Get, req.method)
+        assertTrue(req.url.encodedPath.endsWith("/me/notifications/unread-count"))
+    }
 }

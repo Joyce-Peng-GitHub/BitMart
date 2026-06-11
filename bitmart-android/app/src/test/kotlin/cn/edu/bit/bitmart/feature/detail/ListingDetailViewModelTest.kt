@@ -50,6 +50,7 @@ class ListingDetailViewModelTest {
         override suspend fun notifications(cursor: String?, limit: Int) =
             DomainResult.Success(cn.edu.bit.bitmart.core.domain.model.NotificationPage(emptyList(), null))
         override suspend fun markNotificationRead(id: Long) = DomainResult.Success(Unit)
+        override suspend fun unreadNotificationCount() = DomainResult.Success(0)
     }
 
     private val detail = ListingDetail(

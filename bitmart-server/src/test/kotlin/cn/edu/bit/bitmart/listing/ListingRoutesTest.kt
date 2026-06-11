@@ -84,6 +84,45 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
+    // 回归：expiresInDays 取最小值 1 天时，映射与校验须共用同一时间基准，
+    // 否则 expiresAt 恰在窗口下边界，会因校验时重取时钟恒判 EXPIRY_TOO_SOON。
+    test("有效期为最小值 1 天时单条发布成功") {
+        app { client ->
+            val token = client.registerToken()
+            val created = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "一天后过期").copy(expiresInDays = 1))
+            }
+            created.status shouldBe HttpStatusCode.Created
+        }
+    }
+
+    test("有效期为最小值 1 天时批量发布成功") {
+        app { client ->
+            val token = client.registerToken()
+            val created = client.post("/api/v1/listings/batch") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(BatchCreateRequest(listOf(sellReq(title = "批量一天后过期").copy(expiresInDays = 1))))
+            }
+            created.status shouldBe HttpStatusCode.Created
+        }
+    }
+
+    test("延期为最小值 1 天时修改成功") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq())
+            }.body<CreatedResponse>().id
+
+            val patched = client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(expiresInDays = 1))
+            }
+            patched.status shouldBe HttpStatusCode.OK
+        }
+    }
+
     test("详情：未登录 401，登录 200 且含联系方式") {
         app { client ->
             val token = client.registerToken()

@@ -17,6 +17,7 @@ data class BitmartConfig(
     val pagination: PaginationConfig,
     val upload: UploadConfig,
     val storage: StorageConfig,
+    val notification: NotificationConfig,
     val bit101: Bit101Config,
     val showapi: ShowApiConfig,
 ) {
@@ -35,6 +36,7 @@ data class BitmartConfig(
                 pagination = PaginationConfig.from(c.config("pagination")),
                 upload = UploadConfig.from(c.config("upload")),
                 storage = StorageConfig.from(c.config("storage")),
+                notification = NotificationConfig.from(c.config("notification")),
                 bit101 = Bit101Config.from(c.config("bit101")),
                 showapi = ShowApiConfig.from(c.config("showapi")),
             )

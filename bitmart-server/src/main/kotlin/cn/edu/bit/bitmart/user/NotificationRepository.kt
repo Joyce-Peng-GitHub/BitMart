@@ -13,6 +13,12 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
 
+/** 通知类别（与 V2 迁移注释一致）。 */
+object NotificationCategory {
+    const val ANNOUNCEMENT = 0
+    const val EXPIRY_WARN = 1
+}
+
 /** 通知项（合并个人通知与全员公告）。 */
 data class NotificationItem(
     val id: Long,
@@ -71,6 +77,15 @@ class NotificationRepository {
                 )
             }
     }
+
+    /**
+     * 个人未读通知数。公告不计入：公告无归属、不可标记已读（见 [markRead]），
+     * 计入会导致客户端角标永不清零。
+     */
+    fun unreadCountFor(userId: Long): Long =
+        Notifications.selectAll()
+            .where { (Notifications.userId eq userId) and Notifications.readAt.isNull() }
+            .count()
 
     /**
      * 标记已读：仅允许标记本人通知（公告不可标记已读，因其无归属，返回 0）。

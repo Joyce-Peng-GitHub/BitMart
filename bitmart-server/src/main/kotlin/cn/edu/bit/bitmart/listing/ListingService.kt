@@ -29,9 +29,14 @@ class ListingService(
 ) {
     private val log = LoggerFactory.getLogger(ListingService::class.java)
 
-    /** 发布单条。 */
-    fun publish(input: CreateListingInput): PublishResult {
-        val result = validator.validateCreate(input.toValidationInput(), Instant.now())
+    /**
+     * 发布单条。
+     * @param now 校验时间基准。须与路由层换算 expiresInDays→expiresAt 用的是同一时刻：
+     * 若此处重新取时钟，expiresAt 恰为最小有效期（now+minDays）时会因毫秒级时差恒判
+     * EXPIRY_TOO_SOON（且因 JIT 冷热路径耗时不同而表现为"重试就成功"的间歇失败）。
+     */
+    fun publish(input: CreateListingInput, now: Instant = Instant.now()): PublishResult {
+        val result = validator.validateCreate(input.toValidationInput(), now)
         if (!result.isValid) {
             log.warn("Publish validation failed userId={} errors={}", input.userId, result.errors)
             return PublishResult.ValidationFailed(result.errors)
@@ -41,9 +46,11 @@ class ListingService(
         return PublishResult.Success(id)
     }
 
-    /** 批量发布：任一条校验失败则整体拒绝；全部通过则单事务插入（全成功或全回滚）。 */
-    fun publishBatch(inputs: List<CreateListingInput>): BatchPublishResult {
-        val now = Instant.now()
+    /**
+     * 批量发布：任一条校验失败则整体拒绝；全部通过则单事务插入（全成功或全回滚）。
+     * @param now 校验时间基准，含义同 [publish]。
+     */
+    fun publishBatch(inputs: List<CreateListingInput>, now: Instant = Instant.now()): BatchPublishResult {
         val errorsByIndex = inputs.withIndex().mapNotNull { (i, input) ->
             val r = validator.validateCreate(input.toValidationInput(), now)
             if (r.isValid) null else i to r.errors
@@ -87,12 +94,14 @@ class ListingService(
     /**
      * 修改 listing。仅本人或管理员可改。售出数量可增可减（范围 0..quantityTotal）；
      * 延期须落在过期窗口内。
+     * @param now 校验时间基准，须与路由层换算延期天数用的同一时刻（见 [publish]）。
      */
     fun update(
         id: Long,
         requesterId: Long,
         requesterRole: UserRole,
         input: UpdateListingInput,
+        now: Instant = Instant.now(),
     ): UpdateResult = transaction(database) {
         val ownerId = listingRepository.findOwner(id) ?: return@transaction UpdateResult.NotFound.also {
             log.warn("Update listing not found id={}", id)
@@ -101,7 +110,6 @@ class ListingService(
             log.warn("Update listing forbidden id={} requesterId={}", id, requesterId)
             return@transaction UpdateResult.Forbidden
         }
-        val now = Instant.now()
 
         // 延期校验。
         input.expiresAt?.let {

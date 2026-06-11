@@ -199,6 +199,12 @@ fun PublishScreen(
         val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
         OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            draft.expiresInDays,
+            viewModel::onExpiresInDays,
+            label = { Text("有效期（天，留空默认${PublishConfig.EXPIRY_DEFAULT_DAYS}天）") },
+            modifier = Modifier.fillMaxWidth(),
+        )
         OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
 
         OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式（微信/QQ/手机号等）") }, modifier = Modifier.fillMaxWidth())

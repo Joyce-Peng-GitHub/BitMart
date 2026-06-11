@@ -40,6 +40,9 @@ fun Application.module() {
     val config = BitmartConfig.from(environment.config)
     val components = AppComponents.production(config)
     configureApp(components)
+    // 后台定时任务仅在生产入口启动；测试经 configureApp 装配，不启动循环。
+    // Application 即 CoroutineScope，停机时任务随之取消。
+    components.expiryWarningJob.start(this)
 }
 
 /**

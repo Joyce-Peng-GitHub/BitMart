@@ -125,6 +125,19 @@ data class UploadConfig(
     }
 }
 
+/** 应用内通知 / 过期提醒定时任务（架构 §9：每小时检查 24h 内到期）。 */
+data class NotificationConfig(val expiryWarnWindowHours: Long, val expiryWarnIntervalMinutes: Long) {
+    companion object {
+        fun from(c: ApplicationConfig) = NotificationConfig(
+            expiryWarnWindowHours = c.long("expiryWarnWindowHours"),
+            expiryWarnIntervalMinutes = c.long("expiryWarnIntervalMinutes"),
+        ).also {
+            require(it.expiryWarnWindowHours >= 1) { "notification.expiryWarnWindowHours 必须 >= 1" }
+            require(it.expiryWarnIntervalMinutes >= 1) { "notification.expiryWarnIntervalMinutes 必须 >= 1" }
+        }
+    }
+}
+
 data class StorageConfig(val root: String, val publicBaseUrl: String) {
     companion object {
         fun from(c: ApplicationConfig) = StorageConfig(

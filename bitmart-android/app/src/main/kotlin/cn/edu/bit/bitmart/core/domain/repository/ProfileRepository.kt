@@ -17,4 +17,7 @@ interface ProfileRepository {
 
     /** 将某条通知标记为已读。 */
     suspend fun markNotificationRead(id: Long): DomainResult<Unit>
+
+    /** 未读通知数（仅个人未读；公告不可标记已读，故不计入）。 */
+    suspend fun unreadNotificationCount(): DomainResult<Int>
 }

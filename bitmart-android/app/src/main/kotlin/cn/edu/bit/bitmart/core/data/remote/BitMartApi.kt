@@ -147,6 +147,10 @@ class BitMartApi(
         ApiResponseMapper.handleUnit(client.post(url("/me/notifications/$id/read")) { auth() })
     }
 
+    suspend fun unreadNotificationCount(): DomainResult<UnreadCountDto> = safe {
+        ApiResponseMapper.handle(client.get(url("/me/notifications/unread-count")) { auth() })
+    }
+
     private suspend fun io.ktor.client.request.HttpRequestBuilder.auth() {
         tokenProvider()?.let { bearerAuth(it) }
     }

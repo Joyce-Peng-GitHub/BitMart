@@ -152,6 +152,10 @@ data class NotificationDto(
 @Serializable
 data class NotificationPageDto(val items: List<NotificationDto>, val nextCursor: String? = null)
 
+/** 未读通知数（GET /me/notifications/unread-count，仅个人未读，不含公告）。 */
+@Serializable
+data class UnreadCountDto(val count: Long)
+
 /** 批量发布请求（POST /listings/batch）。 */
 @Serializable
 data class BatchCreateRequest(val items: List<CreateListingRequest>)

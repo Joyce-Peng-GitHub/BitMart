@@ -10,4 +10,9 @@ object PublishConfig {
 
     /** 单条发布项的图片张数上限。 */
     const val MAX_IMAGES = 9
+
+    /** 有效期（天）允许范围与默认值，与服务端 expiry 配置保持一致。 */
+    const val EXPIRY_MIN_DAYS = 1
+    const val EXPIRY_MAX_DAYS = 365
+    const val EXPIRY_DEFAULT_DAYS = 30
 }

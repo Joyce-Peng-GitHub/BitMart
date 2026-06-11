@@ -13,6 +13,7 @@ import cn.edu.bit.bitmart.domain.ListingValidator
 import cn.edu.bit.bitmart.domain.PasswordPolicy
 import cn.edu.bit.bitmart.external.Bit101Client
 import cn.edu.bit.bitmart.external.ShowApiClient
+import cn.edu.bit.bitmart.job.ExpiryWarningJob
 import cn.edu.bit.bitmart.listing.BookMetaRepository
 import cn.edu.bit.bitmart.listing.ListingRepository
 import cn.edu.bit.bitmart.listing.ListingRequestMapper
@@ -29,6 +30,7 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.serialization.kotlinx.json.json as clientJson
 import org.jetbrains.exposed.v1.jdbc.Database
+import java.time.Duration
 
 /**
  * 应用依赖容器。集中装配各组件，便于在测试中替换（如内嵌数据库、Mock HttpClient）。
@@ -85,6 +87,14 @@ class AppComponents(
 
     // 用户资料与通知。
     val userService = UserService(database, userRepository, notificationRepository)
+
+    // 后台定时任务：过期提醒。生产入口 module() 调用 start()；测试可直接调 runOnce()。
+    val expiryWarningJob = ExpiryWarningJob(
+        database = database,
+        notificationRepository = notificationRepository,
+        warnWindow = Duration.ofHours(config.notification.expiryWarnWindowHours),
+        interval = Duration.ofMinutes(config.notification.expiryWarnIntervalMinutes),
+    )
 
     val tokenAuthenticator = TokenAuthenticator(database, sessionRepository, userRepository)
 

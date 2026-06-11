@@ -41,6 +41,7 @@ class NotificationsViewModelTest {
         override suspend fun markNotificationRead(id: Long): DomainResult<Unit> {
             marked = id; return markResult
         }
+        override suspend fun unreadNotificationCount(): DomainResult<Int> = DomainResult.Success(0)
     }
 
     @Test

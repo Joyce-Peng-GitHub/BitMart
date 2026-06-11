@@ -49,12 +49,16 @@ class ProfileViewModelTest {
         override val isLoggedIn: Flow<Boolean> = loginFlow
     }
 
-    private fun profileRepo(me: DomainResult<User> = DomainResult.Success(user)) = object : ProfileRepository {
+    private fun profileRepo(
+        me: DomainResult<User> = DomainResult.Success(user),
+        unread: DomainResult<Int> = DomainResult.Success(0),
+    ) = object : ProfileRepository {
         override suspend fun getMe() = me
         override suspend fun updateNickname(nickname: String?) = DomainResult.Success(user)
         override suspend fun notifications(cursor: String?, limit: Int) =
             DomainResult.Success(cn.edu.bit.bitmart.core.domain.model.NotificationPage(emptyList(), null))
         override suspend fun markNotificationRead(id: Long) = DomainResult.Success(Unit)
+        override suspend fun unreadNotificationCount() = unread
     }
 
     @Test
@@ -111,5 +115,44 @@ class ProfileViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.state.value.loggedIn)
         assertNull(vm.state.value.user)
+    }
+
+    @Test
+    fun `logged in loads unread count for badge`() = runTest {
+        val vm = ProfileViewModel(authRepo(loggedIn = true), profileRepo(unread = DomainResult.Success(5)))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(5, vm.state.value.unreadCount)
+    }
+
+    @Test
+    fun `unread count fetch failure keeps previous value silently`() = runTest {
+        val vm = ProfileViewModel(
+            authRepo(loggedIn = true),
+            profileRepo(unread = DomainResult.NetworkError("超时")),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, vm.state.value.unreadCount)
+        assertNull(vm.state.value.error) // 角标失败不打扰主流程。
+    }
+
+    @Test
+    fun `logout transition clears unread count`() = runTest {
+        val loginFlow = MutableStateFlow(true)
+        val vm = ProfileViewModel(authRepo(loginFlow), profileRepo(unread = DomainResult.Success(3)))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(3, vm.state.value.unreadCount)
+
+        loginFlow.value = false
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, vm.state.value.unreadCount)
+    }
+
+    @Test
+    fun `refreshUnreadCount is noop when logged out`() = runTest {
+        val vm = ProfileViewModel(authRepo(loggedIn = false), profileRepo(unread = DomainResult.Success(9)))
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.refreshUnreadCount()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, vm.state.value.unreadCount)
     }
 }

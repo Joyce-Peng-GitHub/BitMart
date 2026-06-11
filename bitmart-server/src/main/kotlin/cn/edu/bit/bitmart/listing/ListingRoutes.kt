@@ -67,12 +67,14 @@ fun Route.listingRoutes(
             post {
                 val principal = call.principal<UserPrincipal>()!!
                 val req = call.receive<CreateListingRequest>()
+                // 映射与校验共用同一时间基准，否则最小有效期会因时钟重取恒判过早。
+                val now = OffsetDateTime.now()
                 val input = try {
-                    mapper.toCreateInput(req, principal.userId, OffsetDateTime.now())
+                    mapper.toCreateInput(req, principal.userId, now)
                 } catch (e: RequestMappingException) {
                     return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, e.message ?: "请求非法")
                 }
-                when (val r = service.publish(input)) {
+                when (val r = service.publish(input, now.toInstant())) {
                     is PublishResult.Success -> call.respond(HttpStatusCode.Created, CreatedResponse(r.listingId))
                     is PublishResult.ValidationFailed -> call.respondValidation(r.errors)
                 }
@@ -88,7 +90,7 @@ fun Route.listingRoutes(
                 } catch (e: RequestMappingException) {
                     return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, e.message ?: "请求非法")
                 }
-                when (val r = service.publishBatch(inputs)) {
+                when (val r = service.publishBatch(inputs, now.toInstant())) {
                     is BatchPublishResult.Success -> call.respond(HttpStatusCode.Created, BatchCreatedResponse(r.listingIds))
                     is BatchPublishResult.ValidationFailed -> {
                         val flat = r.errorsByIndex.flatMap { (i, errs) -> errs.map { it.copy(field = "items[$i].${it.field}") } }
@@ -104,8 +106,9 @@ fun Route.listingRoutes(
                     HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "id 非法",
                 )
                 val req = call.receive<UpdateListingRequest>()
-                val input = mapper.toUpdateInput(req, OffsetDateTime.now())
-                when (val r = service.update(id, principal.userId, principal.role, input)) {
+                val now = OffsetDateTime.now()
+                val input = mapper.toUpdateInput(req, now)
+                when (val r = service.update(id, principal.userId, principal.role, input, now.toInstant())) {
                     is UpdateResult.Success -> call.respond(HttpStatusCode.OK, mapOf("status" to "ok"))
                     is UpdateResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
                     is UpdateResult.Forbidden -> call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "无权修改")

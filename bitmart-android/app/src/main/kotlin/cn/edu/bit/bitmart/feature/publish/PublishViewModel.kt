@@ -34,6 +34,8 @@ data class DraftItem(
     val description: String = "",
     val unitPrice: String = "",
     val quantityTotal: String = "1",
+    // 有效期（天）。留空 → 由服务端取默认值（30 天）。
+    val expiresInDays: String = "",
     val pickupLocation: String = "",
     val contact: String = "",
     val tags: List<String> = emptyList(),
@@ -110,6 +112,7 @@ class PublishViewModel @Inject constructor(
     fun onDescription(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(description = v)) }
     fun onUnitPrice(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(unitPrice = v)) }
     fun onQuantity(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(quantityTotal = v)) }
+    fun onExpiresInDays(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(expiresInDays = v), error = null) }
     fun onPickup(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(pickupLocation = v)) }
     fun onContact(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contact = v)) }
 
@@ -267,6 +270,15 @@ class PublishViewModel @Inject constructor(
         if (draft.contact.isBlank()) { _state.update { it.copy(error = "请填写联系方式") }; return }
         val qty = draft.quantityTotal.toIntOrNull()
         if (qty == null || qty < 1) { _state.update { it.copy(error = "件数必须为正整数") }; return }
+        // 有效期可留空（服务端默认 30 天）；填写则须落在允许窗口内。
+        val expiryRaw = draft.expiresInDays.trim()
+        if (expiryRaw.isNotEmpty()) {
+            val days = expiryRaw.toIntOrNull()
+            if (days == null || days !in PublishConfig.EXPIRY_MIN_DAYS..PublishConfig.EXPIRY_MAX_DAYS) {
+                _state.update { it.copy(error = "有效期必须为 ${PublishConfig.EXPIRY_MIN_DAYS}-${PublishConfig.EXPIRY_MAX_DAYS} 的整数天数") }
+                return
+            }
+        }
 
         _state.update { st ->
             st.copy(
@@ -321,6 +333,7 @@ class PublishViewModel @Inject constructor(
         description = description.trim(),
         unitPrice = unitPrice.trim().ifBlank { null },
         quantityTotal = quantityTotal.toInt(),
+        expiresInDays = expiresInDays.trim().toIntOrNull(),
         pickupLocation = pickupLocation.trim().ifBlank { null },
         contacts = listOf(Contact("", contact.trim())),
         tags = tags,

@@ -104,4 +104,40 @@ class MeRoutesTest : FunSpec({
             client.post("/api/v1/me/notifications/$announceId/read") { bearerAuth(token) }.status shouldBe HttpStatusCode.NotFound
         }
     }
+
+    test("未读计数需登录") {
+        app { client, _ ->
+            client.get("/api/v1/me/notifications/unread-count").status shouldBe HttpStatusCode.Unauthorized
+        }
+    }
+
+    test("未读计数仅含个人未读，不含已读与公告") {
+        app { client, components ->
+            val (token, userId) = client.register()
+            transaction(components.database) {
+                components.notificationRepository.create(userId, 1, "未读1", "x", null)
+                components.notificationRepository.create(userId, 1, "未读2", "x", null)
+                val readId = components.notificationRepository.create(userId, 1, "已读", "x", null)
+                components.notificationRepository.create(null, 0, "公告", "y", null)
+                components.notificationRepository.markRead(userId, readId)
+            }
+            val resp = client.get("/api/v1/me/notifications/unread-count") { bearerAuth(token) }
+            resp.status shouldBe HttpStatusCode.OK
+            resp.body<UnreadCountDto>().count shouldBe 2L
+        }
+    }
+
+    test("标记已读后未读计数随之减少") {
+        app { client, components ->
+            val (token, userId) = client.register()
+            val id = transaction(components.database) {
+                components.notificationRepository.create(userId, 1, "提醒", "x", null)
+            }
+            client.get("/api/v1/me/notifications/unread-count") { bearerAuth(token) }
+                .body<UnreadCountDto>().count shouldBe 1L
+            client.post("/api/v1/me/notifications/$id/read") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
+            client.get("/api/v1/me/notifications/unread-count") { bearerAuth(token) }
+                .body<UnreadCountDto>().count shouldBe 0L
+        }
+    }
 })

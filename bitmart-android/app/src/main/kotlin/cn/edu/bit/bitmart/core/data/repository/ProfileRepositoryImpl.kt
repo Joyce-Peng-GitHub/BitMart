@@ -28,6 +28,9 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override suspend fun markNotificationRead(id: Long): DomainResult<Unit> =
         api.markNotificationRead(id)
+
+    override suspend fun unreadNotificationCount(): DomainResult<Int> =
+        api.unreadNotificationCount().map { it.count.toInt() }
 }
 
 private fun NotificationPageDto.toDomain() =

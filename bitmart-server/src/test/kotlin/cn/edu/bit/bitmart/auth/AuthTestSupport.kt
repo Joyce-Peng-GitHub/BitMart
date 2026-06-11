@@ -35,6 +35,7 @@ object AuthTestSupport {
               pagination { defaultPageSize = 20, maxPageSize = 50 }
               upload { maxFileBytes = 5242880, maxFilesPerListing = 9, allowedMimeTypes = ["image/jpeg"] }
               storage { root = "./storage", publicBaseUrl = "/static" }
+              notification { expiryWarnWindowHours = 24, expiryWarnIntervalMinutes = 60 }
               bit101 { baseUrl = "https://bit101.test", requestTimeoutMs = 15000 }
               showapi { baseUrl = "https://showapi.test", appKey = "k", requestTimeoutMs = 15000 }
             }

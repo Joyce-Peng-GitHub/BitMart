@@ -60,6 +60,7 @@ class AccountSettingsViewModelTest {
         override suspend fun updateNickname(nickname: String?): DomainResult<User> { lastNickname = nickname; return update }
         override suspend fun notifications(cursor: String?, limit: Int) = DomainResult.Success(NotificationPage(emptyList(), null))
         override suspend fun markNotificationRead(id: Long) = DomainResult.Success(Unit)
+        override suspend fun unreadNotificationCount() = DomainResult.Success(0)
     }
 
     @Test
