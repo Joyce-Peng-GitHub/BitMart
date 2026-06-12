@@ -38,3 +38,9 @@ Only report back to the user after the loop exits cleanly (tests passed, no issu
 1. A summary of what was implemented/changed.
 2. Test results (number of tests run, all passed).
 3. A brief review summary confirming each dimension was checked.
+
+---
+
+## Workflow constraint
+
+Unless explicitly asked, do NOT create worktrees. Edit the working copy directly on the main branch, and do not auto-commit or push. Let the user decide when and what to commit.
