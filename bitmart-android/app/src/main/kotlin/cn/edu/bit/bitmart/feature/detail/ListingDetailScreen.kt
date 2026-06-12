@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,20 +51,32 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
 import coil3.compose.AsyncImage
 
-/** 详情屏。展示卖家昵称、联系方式、完整描述、书籍信息；含防诈骗提示、图片轮播、编辑/删除按钮。 */
+/** 详情屏。展示卖家昵称、联系方式、完整描述、书籍信息；含防诈骗提示、图片轮播、调整数量/编辑/删除按钮。 */
 @Composable
 fun ListingDetailScreen(
     listingId: Long,
     onEditClick: (Long) -> Unit = {},
     onDeleteSuccess: () -> Unit = {},
+    refreshSignal: Boolean = false,
+    onRefreshConsumed: () -> Unit = {},
     viewModel: ListingDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showAdjustDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(listingId) { viewModel.load(listingId) }
+
+    // 编辑保存返回后重新加载（标题/价格等可能已变），并通知上层（“我的”列表）刷新。
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal) {
+            viewModel.load(listingId)
+            onRefreshConsumed()
+        }
+    }
 
     LaunchedEffect(state.deleteSuccess) {
         if (state.deleteSuccess) {
@@ -100,6 +113,13 @@ fun ListingDetailScreen(
                 ) {
                     Text(d.title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                     if (state.isOwner) {
+                        if (state.adjusting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            IconButton(onClick = { showAdjustDialog = true }) {
+                                Icon(Icons.Default.Numbers, contentDescription = "调整数量")
+                            }
+                        }
                         IconButton(onClick = { onEditClick(d.id) }) {
                             Icon(Icons.Default.Edit, contentDescription = "编辑")
                         }
@@ -110,9 +130,11 @@ fun ListingDetailScreen(
                 }
 
                 Spacer(Modifier.height(8.dp))
-                val priceLabel = if (d.type == ListingType.BUY) "期望价" else "售价"
+                val isBuy = d.type == ListingType.BUY
+                val priceLabel = if (isBuy) "期望价" else "售价"
                 Text("$priceLabel：${d.unitPrice?.let { "￥$it" } ?: "面议"}")
-                Text("数量：${d.quantitySold}/${d.quantityTotal} 已售")
+                val soldVerb = if (isBuy) "已收" else "已售"
+                Text("数量：${d.quantitySold}/${d.quantityTotal} $soldVerb")
                 d.pickupLocation?.let { Text("取货地点：$it") }
                 Text("发布者：${d.nickname ?: "匿名"}")
                 Spacer(Modifier.height(8.dp))
@@ -146,10 +168,12 @@ fun ListingDetailScreen(
 
     // 删除确认对话框
     if (showDeleteDialog) {
+        val isBuy = state.detail?.type == ListingType.BUY
+        val noun = if (isBuy) "收购" else "商品"
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("确认删除") },
-            text = { Text("删除后无法恢复，确定要删除这条商品吗？") },
+            text = { Text("删除后无法恢复，确定要删除这条${noun}吗？") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -171,6 +195,22 @@ fun ListingDetailScreen(
                 }
             },
         )
+    }
+
+    // 调整数量对话框（仅本人）
+    state.detail?.let { d ->
+        if (showAdjustDialog) {
+            AdjustQuantityDialog(
+                quantityTotal = d.quantityTotal,
+                currentQuantitySold = d.quantitySold,
+                buy = d.type == ListingType.BUY,
+                onDismiss = { showAdjustDialog = false },
+                onConfirm = { qty ->
+                    viewModel.adjustSold(qty)
+                    showAdjustDialog = false
+                },
+            )
+        }
     }
 }
 

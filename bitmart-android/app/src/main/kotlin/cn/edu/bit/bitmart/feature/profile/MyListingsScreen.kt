@@ -18,19 +18,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,30 +41,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
 import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
 import coil3.compose.AsyncImage
 
 /**
  * “我的商品 / 我的收购”管理页（架构 §6.2，GET /me/listings）。
  * 列出当前用户自己发布的项（含已售罄/已过期），可点进详情（详情页提供本人删/改），
- * 并在行内直接删除或调整已售出数量。
+ * 并在行内直接调整数量、编辑或删除。
  * @param buy true 表示“我的收购”（BUY），false 表示“我的商品”（SELL）。
  * @param onItemClick 点击条目进入详情（使用外层导航控制器，详情为全屏同级页）。
+ * @param onEditClick 点击编辑进入编辑页。
  * @param onBack 返回上一页。
+ * @param refreshSignal 编辑/删除返回后置 true，触发列表刷新。
+ * @param onRefreshConsumed 刷新触发后回调，由上层清除标记避免重复刷新。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyListingsScreen(
     buy: Boolean,
     onItemClick: (Long) -> Unit,
+    onEditClick: (Long) -> Unit,
     onBack: () -> Unit,
+    refreshSignal: Boolean = false,
+    onRefreshConsumed: () -> Unit = {},
     viewModel: MyListingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -76,6 +79,14 @@ fun MyListingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(buy) { viewModel.setType(if (buy) ListingType.BUY else ListingType.SELL) }
+
+    // 从编辑/删除返回后刷新列表（标题/价格等可能已变），随后清除标记。
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal) {
+            viewModel.refresh()
+            onRefreshConsumed()
+        }
+    }
 
     // 列表非空时的操作错误（调整已售/删除/409 冲突）通过 Snackbar 展示，
     // 避免被仅在空列表时渲染的内联错误吞掉；展示后清空。空列表的加载错误见下方内联分支。
@@ -126,6 +137,7 @@ fun MyListingsScreen(
                             adjusting = state.adjustingId == item.id,
                             onClick = { onItemClick(item.id) },
                             onAdjustClick = { adjustTarget = item },
+                            onEditClick = { onEditClick(item.id) },
                             onDeleteClick = { viewModel.delete(item.id) },
                         )
                     }
@@ -142,8 +154,10 @@ fun MyListingsScreen(
     }
 
     adjustTarget?.let { target ->
-        AdjustSoldDialog(
-            item = target,
+        AdjustQuantityDialog(
+            quantityTotal = target.quantityTotal,
+            currentQuantitySold = target.quantitySold,
+            buy = buy,
             onDismiss = { adjustTarget = null },
             onConfirm = { qty ->
                 viewModel.adjustSold(target.id, qty)
@@ -153,7 +167,7 @@ fun MyListingsScreen(
     }
 }
 
-/** 我的列表行：首图缩略图 + 标题/价格/已售状态，行尾“调整已售”与“删除”按钮，点击进入详情。 */
+/** 我的列表行：首图缩略图 + 标题/价格/已成交状态，行尾“调整数量/编辑/删除”按钮，点击进入详情。 */
 @Composable
 private fun MyListingRow(
     item: ListingSummary,
@@ -161,6 +175,7 @@ private fun MyListingRow(
     adjusting: Boolean,
     onClick: () -> Unit,
     onAdjustClick: () -> Unit,
+    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     val soldOut = item.quantitySold >= item.quantityTotal
@@ -181,7 +196,9 @@ private fun MyListingRow(
                 val priceLabel = if (buy) "期望价" else "售价"
                 val price = item.unitPrice?.let { "￥$it" } ?: "面议"
                 Text("$priceLabel：$price", style = MaterialTheme.typography.bodyMedium)
-                val soldText = "已售 ${item.quantitySold}/${item.quantityTotal}" + if (soldOut) "（售罄）" else ""
+                val soldVerb = if (buy) "已收" else "已售"
+                val fullLabel = if (buy) "（已收满）" else "（售罄）"
+                val soldText = "$soldVerb ${item.quantitySold}/${item.quantityTotal}" + if (soldOut) fullLabel else ""
                 Text(
                     soldText,
                     style = MaterialTheme.typography.bodySmall,
@@ -192,8 +209,11 @@ private fun MyListingRow(
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
                 IconButton(onClick = onAdjustClick) {
-                    Icon(Icons.Default.Edit, contentDescription = "调整已售出数量")
+                    Icon(Icons.Default.Numbers, contentDescription = "调整数量")
                 }
+            }
+            IconButton(onClick = onEditClick) {
+                Icon(Icons.Default.Edit, contentDescription = "编辑")
             }
             IconButton(onClick = onDeleteClick) {
                 Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
@@ -202,41 +222,3 @@ private fun MyListingRow(
     }
 }
 
-/** 调整已售出数量对话框：输入 0..quantityTotal 之间的整数。 */
-@Composable
-private fun AdjustSoldDialog(
-    item: ListingSummary,
-    onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit,
-) {
-    var text by remember { mutableStateOf(item.quantitySold.toString()) }
-    val parsed = text.toIntOrNull()
-    val valid = parsed != null && parsed in 0..item.quantityTotal
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("调整已售出数量") },
-        text = {
-            Column {
-                Text("总数：${item.quantityTotal}", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.size(8.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text("已售出数量") },
-                    singleLine = true,
-                    isError = !valid,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-                if (!valid) {
-                    Text("请输入 0 到 ${item.quantityTotal} 之间的整数", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { parsed?.let(onConfirm) }, enabled = valid) { Text("确认") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
-}

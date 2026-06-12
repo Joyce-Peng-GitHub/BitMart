@@ -6,6 +6,7 @@ import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,7 @@ data class DetailUiState(
     val isOwner: Boolean = false,
     val deleteInProgress: Boolean = false,
     val deleteSuccess: Boolean = false,
+    val adjusting: Boolean = false,
 )
 
 /** 详情 ViewModel。未登录时后端返回 401 → 提示需登录（需求"不对未登录客户端显示详情"）。 */
@@ -62,6 +64,24 @@ class ListingDetailViewModel @Inject constructor(
                     if (r.httpStatus == 401) _state.update { it.copy(loading = false, needLogin = true) }
                     else _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+            }
+        }
+    }
+
+    /**
+     * 调整已成交数量（出售为已售出，收购为已收购）。成功后本地更新 detail，避免整页刷新。
+     * 仅本人可见入口（UI 层用 isOwner 控制）。
+     */
+    fun adjustSold(quantitySold: Int) {
+        val id = _state.value.detail?.id ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(adjusting = true, error = null) }
+            when (val r = listingRepository.update(id, UpdateDraft(quantitySold = quantitySold))) {
+                is DomainResult.Success -> _state.update { st ->
+                    st.copy(adjusting = false, detail = st.detail?.copy(quantitySold = quantitySold))
+                }
+                is DomainResult.Failure -> _state.update { it.copy(adjusting = false, error = "调整失败：${r.message}") }
+                is DomainResult.NetworkError -> _state.update { it.copy(adjusting = false, error = "网络异常：${r.message}") }
             }
         }
     }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -37,6 +38,27 @@ class ListingDetailViewModelTest {
         override suspend fun uploadImage(bytes: ByteArray, filename: String) = DomainResult.Success("blob-key")
         override suspend fun lookupBook(isbn: String) = DomainResult.Success(null)
         override suspend fun update(id: Long, update: UpdateDraft) = DomainResult.Success(Unit)
+        override suspend fun delete(id: Long) = DomainResult.Success(Unit)
+        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<cn.edu.bit.bitmart.core.domain.repository.TagInfo>())
+    }
+
+    /** 可捕获 update 调用并配置其结果的仓储，用于 adjustSold 测试。 */
+    private class CapturingRepo(
+        private val detail: ListingDetail,
+        var updateResult: DomainResult<Unit> = DomainResult.Success(Unit),
+    ) : ListingRepository {
+        var lastUpdateId: Long? = null
+        var lastUpdate: UpdateDraft? = null
+        override suspend fun list(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
+        override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
+        override suspend fun detail(id: Long) = DomainResult.Success(detail)
+        override suspend fun publish(draft: PublishDraft) = DomainResult.Success(1L)
+        override suspend fun publishBatch(drafts: List<PublishDraft>) = DomainResult.Success(listOf(1L))
+        override suspend fun uploadImage(bytes: ByteArray, filename: String) = DomainResult.Success("blob-key")
+        override suspend fun lookupBook(isbn: String) = DomainResult.Success(null)
+        override suspend fun update(id: Long, update: UpdateDraft): DomainResult<Unit> {
+            lastUpdateId = id; lastUpdate = update; return updateResult
+        }
         override suspend fun delete(id: Long) = DomainResult.Success(Unit)
         override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<cn.edu.bit.bitmart.core.domain.repository.TagInfo>())
     }
@@ -86,5 +108,32 @@ class ListingDetailViewModelTest {
         val vm = ListingDetailViewModel(listingRepo(DomainResult.Success(detail)), profileRepo(userId = 5))
         vm.load(1); dispatcher.scheduler.advanceUntilIdle()
         assertTrue(vm.state.value.isOwner)
+    }
+
+    @Test
+    fun `adjustSold success updates local detail and sends quantitySold`() = runTest {
+        val repo = CapturingRepo(detail)
+        val vm = ListingDetailViewModel(repo, profileRepo(userId = 5))
+        vm.load(1); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.adjustSold(2); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2, vm.state.value.detail?.quantitySold)
+        assertEquals(1L, repo.lastUpdateId)
+        assertEquals(2, repo.lastUpdate?.quantitySold)
+        assertFalse(vm.state.value.adjusting)
+    }
+
+    @Test
+    fun `adjustSold failure surfaces error and keeps original quantity`() = runTest {
+        val repo = CapturingRepo(detail, updateResult = DomainResult.Failure("X", "服务器错误", 500))
+        val vm = ListingDetailViewModel(repo, profileRepo(userId = 5))
+        vm.load(1); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.adjustSold(2); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, vm.state.value.detail?.quantitySold) // 原值不变。
+        assertTrue(vm.state.value.error!!.contains("调整失败"))
+        assertFalse(vm.state.value.adjusting)
     }
 }

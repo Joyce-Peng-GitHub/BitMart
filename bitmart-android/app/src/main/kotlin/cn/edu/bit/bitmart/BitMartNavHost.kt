@@ -16,6 +16,7 @@ import cn.edu.bit.bitmart.feature.about.AboutScreen
 import cn.edu.bit.bitmart.feature.auth.AuthScreen
 import cn.edu.bit.bitmart.feature.bookscan.BookScanScreen
 import cn.edu.bit.bitmart.feature.detail.ListingDetailScreen
+import cn.edu.bit.bitmart.feature.edit.EditListingScreen
 import cn.edu.bit.bitmart.feature.notifications.NotificationsScreen
 import cn.edu.bit.bitmart.feature.profile.ContactsScreen
 import cn.edu.bit.bitmart.feature.profile.MyListingsScreen
@@ -32,6 +33,8 @@ object Routes {
     const val BOOK_SCAN = "book_scan"
     const val DETAIL = "detail"
     const val DETAIL_ARG = "id"
+    const val EDIT = "edit"
+    const val EDIT_ARG = "id"
     const val NOTIFICATIONS = "notifications"
     const val CONTACTS = "contacts"
     const val SETTINGS = "settings"
@@ -40,7 +43,10 @@ object Routes {
     const val ABOUT = "about"
     const val MY_LISTINGS = "my_listings"
     const val MY_LISTINGS_ARG = "buy"
+    /** 编辑保存成功后写入上一页 savedStateHandle 的标记键，供“我的”列表刷新。 */
+    const val LISTING_CHANGED_KEY = "listing_changed"
     fun detail(id: Long) = "$DETAIL/$id"
+    fun edit(id: Long) = "$EDIT/$id"
     fun myListings(buy: Boolean) = "$MY_LISTINGS/$buy"
 }
 
@@ -119,7 +125,42 @@ fun BitMartNavHost(
             arguments = listOf(navArgument(Routes.DETAIL_ARG) { type = NavType.LongType }),
         ) { entry ->
             val id = entry.arguments?.getLong(Routes.DETAIL_ARG) ?: return@composable
-            ListingDetailScreen(listingId = id)
+            // 编辑保存后 onSaved 把标记写到详情页 entry；详情据此 reload，
+            // 并把标记前递给更上一层（“我的”列表），保证返回列表时也刷新。
+            val changed by entry.savedStateHandle
+                .getStateFlow(Routes.LISTING_CHANGED_KEY, false)
+                .collectAsStateWithLifecycle()
+            ListingDetailScreen(
+                listingId = id,
+                onEditClick = { editId -> navController.navigate(Routes.edit(editId)) },
+                onDeleteSuccess = {
+                    // 通知上一页（“我的”列表）刷新，然后返回。
+                    navController.previousBackStackEntry?.savedStateHandle?.set(Routes.LISTING_CHANGED_KEY, true)
+                    navController.popBackStack()
+                },
+                refreshSignal = changed,
+                onRefreshConsumed = {
+                    entry.savedStateHandle[Routes.LISTING_CHANGED_KEY] = false
+                    // 前递给列表：返回时触发列表刷新。
+                    navController.previousBackStackEntry?.savedStateHandle?.set(Routes.LISTING_CHANGED_KEY, true)
+                },
+            )
+        }
+        composable(
+            route = "${Routes.EDIT}/{${Routes.EDIT_ARG}}",
+            arguments = listOf(navArgument(Routes.EDIT_ARG) { type = NavType.LongType }),
+        ) { entry ->
+            val id = entry.arguments?.getLong(Routes.EDIT_ARG) ?: return@composable
+            EditListingScreen(
+                listingId = id,
+                onSaved = {
+                    // 标记上一页需要刷新。上一页若是详情，详情会 reload 并把标记前递给列表；
+                    // 若直接从列表进入编辑，则上一页即列表，直接刷新。
+                    navController.previousBackStackEntry?.savedStateHandle?.set(Routes.LISTING_CHANGED_KEY, true)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(Routes.NOTIFICATIONS) {
             NotificationsScreen(onBack = { navController.popBackStack() })
@@ -158,11 +199,18 @@ fun BitMartNavHost(
             arguments = listOf(navArgument(Routes.MY_LISTINGS_ARG) { type = NavType.BoolType }),
         ) { entry ->
             val buy = entry.arguments?.getBoolean(Routes.MY_LISTINGS_ARG) ?: false
+            // 编辑/删除返回后通过 savedStateHandle 标记触发刷新。
+            val changed by entry.savedStateHandle
+                .getStateFlow(Routes.LISTING_CHANGED_KEY, false)
+                .collectAsStateWithLifecycle()
             MyListingsScreen(
                 buy = buy,
-                // 详情为全屏同级页，使用外层导航控制器。
+                // 详情/编辑为全屏同级页，使用外层导航控制器。
                 onItemClick = { id -> navController.navigate(Routes.detail(id)) },
+                onEditClick = { id -> navController.navigate(Routes.edit(id)) },
                 onBack = { navController.popBackStack() },
+                refreshSignal = changed,
+                onRefreshConsumed = { entry.savedStateHandle[Routes.LISTING_CHANGED_KEY] = false },
             )
         }
     }
