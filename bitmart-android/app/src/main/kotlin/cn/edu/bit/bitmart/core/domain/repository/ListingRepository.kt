@@ -18,6 +18,7 @@ data class ListingQuery(
     val maxPrice: String? = null,
     val includeNoPrice: Boolean = true,
     val includeSold: Boolean = false,
+    val includeExpired: Boolean = false,
     val cursor: String? = null,
     val limit: Int? = null,
 )

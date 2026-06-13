@@ -101,6 +101,7 @@ private fun ListingQuery.toParams(): Map<String, String?> = buildMap {
     maxPrice?.let { put("maxPrice", it) }
     put("includeNoPrice", includeNoPrice.toString())
     put("includeSold", includeSold.toString())
+    put("includeExpired", includeExpired.toString())
     cursor?.let { put("cursor", it) }
     limit?.let { put("limit", it.toString()) }
 }

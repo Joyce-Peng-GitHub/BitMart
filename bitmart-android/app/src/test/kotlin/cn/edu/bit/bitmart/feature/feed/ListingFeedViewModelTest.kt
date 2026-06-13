@@ -7,6 +7,7 @@ import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
+import cn.edu.bit.bitmart.core.ui.FilterState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -86,7 +87,7 @@ class ListingFeedViewModelTest {
     fun `applyFilter wires price and flags into query and refreshes`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = ListingFeedViewModel(repo)
-        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L, 2L))
+        vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L, 2L)))
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals("10", vm.state.value.minPrice)
         assertEquals("50", vm.state.value.maxPrice)
@@ -97,14 +98,26 @@ class ListingFeedViewModelTest {
         assertEquals("50", repo.lastQuery?.maxPrice)
         assertEquals(false, repo.lastQuery?.includeNoPrice)
         assertEquals(true, repo.lastQuery?.includeSold)
+        // 公开列表恒不含过期项。
+        assertEquals(false, repo.lastQuery?.includeExpired)
         assertEquals(listOf(1L, 2L), repo.lastQuery?.tagIds)
+    }
+
+    @Test
+    fun `applyFilter never includes expired even if FilterState says so`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = ListingFeedViewModel(repo)
+        // 即便 FilterState.includeExpired=true（公开页弹窗本不展示该开关），查询也不应包含过期项。
+        vm.applyFilter(FilterState(includeExpired = true))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, repo.lastQuery?.includeExpired)
     }
 
     @Test
     fun `blank price filters map to null in query`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = ListingFeedViewModel(repo)
-        vm.applyFilter(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTagIds = emptyList())
+        vm.applyFilter(FilterState(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTagIds = emptyList()))
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(repo.lastQuery?.minPrice)
         assertNull(repo.lastQuery?.maxPrice)
@@ -114,7 +127,7 @@ class ListingFeedViewModelTest {
     fun `clearFilter resets filter state and reloads with defaults`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = ListingFeedViewModel(repo)
-        vm.applyFilter(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L))
+        vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L)))
         dispatcher.scheduler.advanceUntilIdle()
         vm.clearFilter()
         dispatcher.scheduler.advanceUntilIdle()

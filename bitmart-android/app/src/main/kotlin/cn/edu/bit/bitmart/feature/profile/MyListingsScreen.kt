@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +48,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
+import cn.edu.bit.bitmart.core.ui.FilterState
+import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.ListingTimeInfo
 import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
 import coil3.compose.AsyncImage
@@ -77,6 +80,7 @@ fun MyListingsScreen(
     val listState = rememberLazyListState()
     val title = if (buy) "我的收购" else "我的商品"
     var adjustTarget by remember { mutableStateOf<ListingSummary?>(null) }
+    var showFilter by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(buy) { viewModel.setType(if (buy) ListingType.BUY else ListingType.SELL) }
@@ -113,6 +117,11 @@ fun MyListingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showFilter = true }) {
+                        Icon(Icons.Default.FilterList, contentDescription = "筛选")
                     }
                 },
             )
@@ -166,9 +175,24 @@ fun MyListingsScreen(
             },
         )
     }
-}
 
-/** 我的列表行：首图缩略图 + 标题/价格/已成交状态，行尾“调整数量/编辑/删除”按钮，点击进入详情。 */
+    if (showFilter) {
+        ListingFilterDialog(
+            initial = FilterState(
+                minPrice = state.minPrice,
+                maxPrice = state.maxPrice,
+                includeNoPrice = state.includeNoPrice,
+                includeSold = state.includeSold,
+                includeExpired = state.includeExpired,
+                selectedTagIds = state.selectedTagIds,
+            ),
+            loadTags = { viewModel.loadPopularTags() },
+            onDismiss = { showFilter = false },
+            onClear = { viewModel.clearFilter() },
+            onConfirm = { viewModel.applyFilter(it) },
+        )
+    }
+}
 @Composable
 private fun MyListingRow(
     item: ListingSummary,

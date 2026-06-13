@@ -8,6 +8,7 @@ import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
+import cn.edu.bit.bitmart.core.ui.FilterState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,20 +62,15 @@ class ListingFeedViewModel @Inject constructor(
         refresh()
     }
 
-    fun applyFilter(
-        minPrice: String,
-        maxPrice: String,
-        includeNoPrice: Boolean,
-        includeSold: Boolean,
-        selectedTagIds: List<Long>,
-    ) {
+    // 公开列表不展示过期项：忽略 filter.includeExpired，恒按默认（不含过期）查询。
+    fun applyFilter(filter: FilterState) {
         _state.update {
             it.copy(
-                minPrice = minPrice.trim(),
-                maxPrice = maxPrice.trim(),
-                includeNoPrice = includeNoPrice,
-                includeSold = includeSold,
-                selectedTagIds = selectedTagIds,
+                minPrice = filter.minPrice.trim(),
+                maxPrice = filter.maxPrice.trim(),
+                includeNoPrice = filter.includeNoPrice,
+                includeSold = filter.includeSold,
+                selectedTagIds = filter.selectedTagIds,
             )
         }
         refresh()

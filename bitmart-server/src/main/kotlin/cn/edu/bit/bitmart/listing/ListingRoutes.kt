@@ -7,6 +7,7 @@ import cn.edu.bit.bitmart.domain.ListingCategory
 import cn.edu.bit.bitmart.domain.ListingCursor
 import cn.edu.bit.bitmart.domain.ListingFilter
 import cn.edu.bit.bitmart.domain.ListingType
+import cn.edu.bit.bitmart.domain.UserRole
 import cn.edu.bit.bitmart.domain.ValidationError
 import cn.edu.bit.bitmart.shared.ApiError
 import cn.edu.bit.bitmart.shared.ErrorCode
@@ -37,10 +38,11 @@ fun Route.listingRoutes(
     pagination: PaginationConfig,
 ) {
     route("/listings") {
-        // 列表（公开）。
+        // 列表（公开）。过期项不公开展示：无论客户端传何值，公开列表强制不含已过期项。
         get {
-            val filter = call.parseListingFilter(pagination)
+            val parsed = call.parseListingFilter(pagination)
                 ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "查询参数非法")
+            val filter = parsed.copy(includeExpired = false)
             val items = service.list(filter)
             val next = if (items.size >= filter.limit) {
                 items.lastOrNull()?.let { "${it.createdAt}|${it.id}" }
@@ -52,13 +54,23 @@ fun Route.listingRoutes(
         // 注：放在 listing 资源之外更合适，这里同时提供 /tags/popular（见下）。
 
         authenticate(cn.edu.bit.bitmart.auth.AUTH_BEARER) {
-            // 详情（需登录）。
+            // 详情（需登录）。过期项仅发布者本人/管理员可见，他人按"未找到"处理（不泄露存在性）。
             get("/{id}") {
+                val principal = call.principal<UserPrincipal>()!!
                 val id = call.pathId() ?: return@get call.fail(
                     HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "id 非法",
                 )
                 when (val r = service.detail(id)) {
-                    is DetailResult.Found -> call.respond(ListingDetailDto.from(r.detail))
+                    is DetailResult.Found -> {
+                        val d = r.detail
+                        val isOwner = d.userId == principal.userId || principal.role == UserRole.ADMIN
+                        val expired = !d.expiresAt.isAfter(OffsetDateTime.now())
+                        if (expired && !isOwner) {
+                            call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
+                        } else {
+                            call.respond(ListingDetailDto.from(d))
+                        }
+                    }
                     is DetailResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
                 }
             }
@@ -137,8 +149,13 @@ fun Route.listingRoutes(
     authenticate(cn.edu.bit.bitmart.auth.AUTH_BEARER) {
         get("/me/listings") {
             val principal = call.principal<UserPrincipal>()!!
-            val filter = call.parseListingFilter(pagination, defaultType = null)
-                ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "查询参数非法")
+            // 我的列表默认含已售罄/已过期（供管理）；客户端可经 includeSold/includeExpired 收窄。
+            val filter = call.parseListingFilter(
+                pagination,
+                defaultType = null,
+                defaultIncludeSold = true,
+                defaultIncludeExpired = true,
+            ) ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "查询参数非法")
             val items = service.myListings(principal.userId, filter)
             val next = if (items.size >= filter.limit) {
                 items.lastOrNull()?.let { "${it.createdAt}|${it.id}" }
@@ -186,6 +203,8 @@ private suspend fun ApplicationCall.respondValidation(errors: List<ValidationErr
 private fun ApplicationCall.parseListingFilter(
     pagination: PaginationConfig,
     defaultType: ListingType? = ListingType.SELL,
+    defaultIncludeSold: Boolean = false,
+    defaultIncludeExpired: Boolean = false,
 ): ListingFilter? {
     val q = request.queryParameters
     val type = q["type"]?.let { raw -> ListingType.entries.firstOrNull { it.name.equals(raw, true) } } ?: defaultType
@@ -194,13 +213,14 @@ private fun ApplicationCall.parseListingFilter(
     val minPrice = q["minPrice"]?.toBigDecimalOrNull()
     val maxPrice = q["maxPrice"]?.toBigDecimalOrNull()
     val includeNoPrice = q["includeNoPrice"]?.toBooleanStrictOrNull() ?: true
-    val includeSold = q["includeSold"]?.toBooleanStrictOrNull() ?: false
+    val includeSold = q["includeSold"]?.toBooleanStrictOrNull() ?: defaultIncludeSold
+    val includeExpired = q["includeExpired"]?.toBooleanStrictOrNull() ?: defaultIncludeExpired
     val limit = (q["limit"]?.toIntOrNull() ?: pagination.defaultPageSize).coerceIn(1, pagination.maxPageSize)
     val cursor = q["cursor"]?.let { parseCursor(it) ?: return null }
     return ListingFilter(
         type = type, category = category, query = q["q"], tagIds = tagIds,
         minPrice = minPrice, maxPrice = maxPrice, includeNoPrice = includeNoPrice,
-        includeSold = includeSold, cursor = cursor, limit = limit,
+        includeSold = includeSold, includeExpired = includeExpired, cursor = cursor, limit = limit,
     )
 }
 

@@ -31,7 +31,7 @@ class ListingRepositoryImplTest {
         val repo = ListingRepositoryImpl(api)
 
         val result = repo.list(
-            ListingQuery(type = ListingType.SELL, text = "代数", minPrice = "10", includeSold = true),
+            ListingQuery(type = ListingType.SELL, text = "代数", minPrice = "10", includeSold = true, includeExpired = true),
         )
 
         assertTrue(result is DomainResult.Success)
@@ -44,6 +44,7 @@ class ListingRepositoryImplTest {
         assertEquals("代数", params["q"])
         assertEquals("10", params["minPrice"])
         assertEquals("true", params["includeSold"])
+        assertEquals("true", params["includeExpired"])
     }
 
     @Test

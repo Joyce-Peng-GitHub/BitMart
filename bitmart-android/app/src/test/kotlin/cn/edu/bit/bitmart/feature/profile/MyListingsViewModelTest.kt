@@ -9,6 +9,7 @@ import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
+import cn.edu.bit.bitmart.core.ui.FilterState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -68,6 +69,44 @@ class MyListingsViewModelTest {
         assertEquals(ListingType.BUY, repo.lastMyQuery?.type)
         assertEquals(2, vm.state.value.items.size)
         assertEquals("c1", vm.state.value.nextCursor)
+    }
+
+    @Test
+    fun `my-listings defaults to including sold and expired`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = MyListingsViewModel(repo)
+        vm.setType(ListingType.SELL)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, repo.lastMyQuery?.includeSold)
+        assertEquals(true, repo.lastMyQuery?.includeExpired)
+    }
+
+    @Test
+    fun `applyFilter can hide expired and sold`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = MyListingsViewModel(repo)
+        vm.setType(ListingType.SELL)
+        vm.applyFilter(FilterState(includeSold = false, includeExpired = false, selectedTagIds = listOf(3L)))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.state.value.includeExpired)
+        assertEquals(false, repo.lastMyQuery?.includeSold)
+        assertEquals(false, repo.lastMyQuery?.includeExpired)
+        assertEquals(listOf(3L), repo.lastMyQuery?.tagIds)
+    }
+
+    @Test
+    fun `clearFilter restores owner defaults (sold and expired on)`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = MyListingsViewModel(repo)
+        vm.setType(ListingType.SELL)
+        vm.applyFilter(FilterState(includeSold = false, includeExpired = false))
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.clearFilter()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.state.value.includeSold)
+        assertEquals(true, vm.state.value.includeExpired)
+        assertEquals(true, repo.lastMyQuery?.includeSold)
+        assertEquals(true, repo.lastMyQuery?.includeExpired)
     }
 
     @Test

@@ -80,11 +80,11 @@ class ListingService(
     }
 
     /**
-     * 我的列表（架构 §6.2）：返回 ownerId 用户自己发布的项，包含已售罄与已过期
-     * （但排除软删除），供"我的商品/我的收购"管理。复用 list() 的标签填充。
+     * 我的列表（架构 §6.2）：返回 ownerId 用户自己发布的项（排除软删除），供"我的商品/我的收购"管理。
+     * 是否含已售罄/已过期由 [filter] 决定（路由层默认 true，客户端可经筛选收窄）。复用 list() 的标签填充。
      */
     fun myListings(ownerId: Long, filter: ListingFilter): List<ListingSummary> =
-        list(filter.copy(ownerId = ownerId, includeExpired = true, includeSold = true))
+        list(filter.copy(ownerId = ownerId))
 
     /** 热门标签。 */
     fun popularTags(limit: Int): List<PopularTag> = transaction(database) {

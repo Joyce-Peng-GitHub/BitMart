@@ -7,7 +7,9 @@ import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
+import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
+import cn.edu.bit.bitmart.core.ui.FilterState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,8 +27,15 @@ data class MyListingsUiState(
     val error: String? = null,
     val nextCursor: String? = null,
     val endReached: Boolean = false,
-    /** 正在提交“调整已售出数量”的条目 id，用于行内禁用/转圈。 */
+    /** 正在提交”调整已售出数量”的条目 id，用于行内禁用/转圈。 */
     val adjustingId: Long? = null,
+    // 筛选条件（由筛选弹窗设置）。我的列表默认含售罄与过期项（供管理），可经弹窗收窄。
+    val minPrice: String = "",
+    val maxPrice: String = "",
+    val includeNoPrice: Boolean = true,
+    val includeSold: Boolean = true,
+    val includeExpired: Boolean = true,
+    val selectedTagIds: List<Long> = emptyList(),
 )
 
 /**
@@ -112,7 +121,53 @@ class MyListingsViewModel @Inject constructor(
         }
     }
 
-    private fun MyListingsUiState.toQuery(cursor: String?) = ListingQuery(type = type, cursor = cursor)
+    private fun MyListingsUiState.toQuery(cursor: String?) = ListingQuery(
+        type = type,
+        minPrice = minPrice.ifBlank { null },
+        maxPrice = maxPrice.ifBlank { null },
+        includeNoPrice = includeNoPrice,
+        includeSold = includeSold,
+        includeExpired = includeExpired,
+        tagIds = selectedTagIds,
+        cursor = cursor,
+    )
+
+    /** 应用筛选条件并重新加载。 */
+    fun applyFilter(filter: FilterState) {
+        _state.update {
+            it.copy(
+                minPrice = filter.minPrice.trim(),
+                maxPrice = filter.maxPrice.trim(),
+                includeNoPrice = filter.includeNoPrice,
+                includeSold = filter.includeSold,
+                includeExpired = filter.includeExpired,
+                selectedTagIds = filter.selectedTagIds,
+            )
+        }
+        refresh()
+    }
+
+    /** 清空筛选条件，回到"我的列表"默认（含售罄与过期项）并重新查询。 */
+    fun clearFilter() {
+        _state.update {
+            it.copy(
+                minPrice = "",
+                maxPrice = "",
+                includeNoPrice = true,
+                includeSold = true,
+                includeExpired = true,
+                selectedTagIds = emptyList(),
+            )
+        }
+        refresh()
+    }
+
+    /** 拉取热门标签供筛选弹窗展示（失败则返回空列表，弹窗自行降级）。 */
+    suspend fun loadPopularTags(limit: Int = 20): List<TagInfo> =
+        when (val r = listingRepository.popularTags(limit)) {
+            is DomainResult.Success -> r.data
+            else -> emptyList()
+        }
 
     /** UI 通过 Snackbar 展示 error 后调用，避免重复弹出。 */
     fun consumeError() = _state.update { it.copy(error = null) }

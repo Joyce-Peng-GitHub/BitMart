@@ -365,7 +365,7 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
-    test("已过期项：我的列表可见，公开列表不可见") {
+    test("已过期项：仅本人可见（列表与详情），公开列表/他人详情不可访问") {
         val components = AuthTestSupport.components()
         testApplication {
             application { configureApp(components) }
@@ -388,10 +388,23 @@ class ListingRoutesTest : FunSpec({
             val publicPage = client.get("/api/v1/listings?type=SELL&q=过期商品qqq").body<ListingPageDto>()
             (publicPage.items.none { it.title == "过期商品qqq" }) shouldBe true
 
-            // 我的列表（includeExpired）仍含该项，过期时间已在过去。
+            // 过期项不可公开展示：即便显式 includeExpired=true，公开列表仍不含该项。
+            val publicWithExpired = client.get("/api/v1/listings?type=SELL&q=过期商品qqq&includeExpired=true").body<ListingPageDto>()
+            (publicWithExpired.items.none { it.title == "过期商品qqq" }) shouldBe true
+
+            // 过期项详情：他人访问按"未找到"处理，发布者本人仍可访问。
+            val otherToken = client.registerToken()
+            client.get("/api/v1/listings/$id") { bearerAuth(otherToken) }.status shouldBe HttpStatusCode.NotFound
+            client.get("/api/v1/listings/$id") { bearerAuth(token) }.status shouldBe HttpStatusCode.OK
+
+            // 我的列表（默认 includeExpired）仍含该项，过期时间已在过去。
             val mine = client.get("/api/v1/me/listings") { bearerAuth(token) }.body<ListingPageDto>()
             val mineItem = mine.items.first { it.title == "过期商品qqq" }
             OffsetDateTime.parse(mineItem.expiresAt).isBefore(OffsetDateTime.now()) shouldBe true
+
+            // 我的列表显式 includeExpired=false 时排除该项。
+            val mineNoExpired = client.get("/api/v1/me/listings?includeExpired=false") { bearerAuth(token) }.body<ListingPageDto>()
+            (mineNoExpired.items.none { it.title == "过期商品qqq" }) shouldBe true
         }
     }
 

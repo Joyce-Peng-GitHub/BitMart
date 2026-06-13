@@ -42,6 +42,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.ui.FilterState
+import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
 import coil3.compose.AsyncImage
 
@@ -119,14 +121,20 @@ fun ListingFeedScreen(
     }
 
     if (showFilter) {
-        FilterDialog(
-            initial = state,
+        ListingFilterDialog(
+            initial = FilterState(
+                minPrice = state.minPrice,
+                maxPrice = state.maxPrice,
+                includeNoPrice = state.includeNoPrice,
+                includeSold = state.includeSold,
+                selectedTagIds = state.selectedTagIds,
+            ),
             loadTags = { viewModel.loadPopularTags() },
             onDismiss = { showFilter = false },
             onClear = { viewModel.clearFilter() },
-            onConfirm = { min, max, noPrice, sold, tags ->
-                viewModel.applyFilter(min, max, noPrice, sold, tags)
-            },
+            onConfirm = { viewModel.applyFilter(it) },
+            // 过期项不公开展示：买卖页筛选不提供"显示过期项"开关。
+            showExpiredToggle = false,
         )
     }
 }
