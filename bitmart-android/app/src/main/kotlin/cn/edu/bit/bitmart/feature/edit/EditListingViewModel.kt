@@ -89,6 +89,12 @@ class EditListingViewModel @Inject constructor(
         if (priceRaw.isNotEmpty() && priceRaw.toBigDecimalOrNull() == null) {
             _state.update { it.copy(formError = "价格格式不正确") }; return
         }
+        // 上界对齐服务端 NUMERIC(10,2)，避免入库时溢出（服务端亦有同等校验）。
+        priceRaw.toBigDecimalOrNull()?.let { price ->
+            if (price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal()) {
+                _state.update { it.copy(formError = "价格不能超过 ${PublishConfig.MAX_UNIT_PRICE}") }; return
+            }
+        }
         val expiryRaw = s.expiresInDays.trim()
         if (expiryRaw.isNotEmpty()) {
             val days = expiryRaw.toIntOrNull()

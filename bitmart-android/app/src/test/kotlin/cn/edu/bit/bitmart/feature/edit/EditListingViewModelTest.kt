@@ -5,6 +5,7 @@ import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.model.ListingPage
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.domain.model.PublishConfig
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
@@ -146,6 +147,25 @@ class EditListingViewModelTest {
 
         assertTrue(vm.state.value.formError!!.contains("价格"))
         assertNull(repo.lastUpdate)
+    }
+
+    @Test
+    fun `too-large price blocks save`() = runTest {
+        val repo = FakeRepo(DomainResult.Success(sellDetail))
+        val vm = EditListingViewModel(repo)
+        vm.load(7); dispatcher.scheduler.advanceUntilIdle()
+
+        // 超出 NUMERIC(10,2) 上限被拒绝（入库前拦截）。
+        vm.onUnitPrice("100000000")
+        vm.save(); dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.formError!!.contains("价格"))
+        assertNull(repo.lastUpdate)
+
+        // 恰好等于上限合法，可保存。
+        vm.onUnitPrice(PublishConfig.MAX_UNIT_PRICE)
+        vm.save(); dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.saved)
+        assertEquals(PublishConfig.MAX_UNIT_PRICE, repo.lastUpdate!!.unitPrice)
     }
 
     @Test

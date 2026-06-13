@@ -119,11 +119,13 @@ class ListingService(
                 return@transaction UpdateResult.ValidationFailed(r.errors)
             }
         }
-        // 价格校验（若显式改价）。
-        if (input.unitPrice != null && input.unitPrice.signum() < 0) {
-            return@transaction UpdateResult.ValidationFailed(
-                listOf(cn.edu.bit.bitmart.domain.ValidationError("unitPrice", "PRICE_NEGATIVE", "价格不能为负")),
-            )
+        // 价格校验（若显式改价）：与发布同规则（非负且不超过 NUMERIC(10,2) 上限）。
+        if (input.unitPrice != null) {
+            val r = validator.validatePriceField(input.unitPrice)
+            if (!r.isValid) {
+                log.warn("Update listing price invalid id={} errors={}", id, r.errors)
+                return@transaction UpdateResult.ValidationFailed(r.errors)
+            }
         }
 
         // 普通字段更新。

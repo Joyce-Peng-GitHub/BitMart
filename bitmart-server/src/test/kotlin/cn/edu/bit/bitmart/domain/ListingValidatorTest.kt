@@ -43,6 +43,24 @@ class ListingValidatorTest : FunSpec({
         codes(r) shouldContain "PRICE_NEGATIVE"
     }
 
+    test("价格恰好等于上限 99999999.99 合法") {
+        validator.validateCreate(validInput(unitPrice = BigDecimal("99999999.99")), now).isValid.shouldBeTrue()
+    }
+
+    test("价格超过 NUMERIC(10,2) 上限被拒绝（入库前拦截，不触发 DB 溢出）") {
+        codes(validator.validateCreate(validInput(unitPrice = BigDecimal("100000000")), now)) shouldContain "PRICE_TOO_LARGE"
+        // 99999999.999 按 scale=2 四舍五入会进位为 100000000.00（9 位整数）而溢出，须同样在入库前拒绝。
+        codes(validator.validateCreate(validInput(unitPrice = BigDecimal("99999999.999")), now)) shouldContain "PRICE_TOO_LARGE"
+    }
+
+    test("单独价格校验：合法/空通过，负价与超限分别拒绝") {
+        validator.validatePriceField(BigDecimal("100.00")).isValid.shouldBeTrue()
+        validator.validatePriceField(null).isValid.shouldBeTrue()
+        validator.validatePriceField(BigDecimal("99999999.99")).isValid.shouldBeTrue()
+        codes(validator.validatePriceField(BigDecimal("-1"))) shouldContain "PRICE_NEGATIVE"
+        codes(validator.validatePriceField(BigDecimal("100000000"))) shouldContain "PRICE_TOO_LARGE"
+    }
+
     test("空标题被拒绝") {
         codes(validator.validateCreate(validInput(title = "   "), now)) shouldContain "TITLE_BLANK"
     }

@@ -134,6 +134,29 @@ class PublishViewModelTest {
     }
 
     @Test
+    fun `addDraftToBatch blocks invalid or too-large price`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        vm.onTitle("台灯"); vm.onContact("x")
+
+        // 非法格式被拒绝。
+        vm.onUnitPrice("abc")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.error!!.contains("价格"))
+        assertTrue(vm.state.value.draftBatch.isEmpty())
+
+        // 超出 NUMERIC(10,2) 上限被拒绝（入库前拦截）。
+        vm.onUnitPrice("100000000")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.error!!.contains("价格"))
+        assertTrue(vm.state.value.draftBatch.isEmpty())
+
+        // 恰好等于上限合法。
+        vm.onUnitPrice(PublishConfig.MAX_UNIT_PRICE)
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.draftBatch.size)
+    }
+
+    @Test
     fun `submitBatch maps drafts with book and imageKeys`() = runTest {
         val repo = FakeRepo()
         val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())

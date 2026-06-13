@@ -148,6 +148,40 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
+    test("发布：价格超出 NUMERIC(10,2) 上限 → 400（入库前拦截，不触发 DB 溢出）") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "天价商品", unitPrice = "100000000"))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
+    test("发布：价格恰好等于上限 99999999.99 → 成功") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "上限价商品", unitPrice = "99999999.99"))
+            }.status shouldBe HttpStatusCode.Created
+        }
+    }
+
+    test("修改：价格超出上限 → 400") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq())
+            }.body<CreatedResponse>().id
+
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(unitPrice = "100000000"))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
     test("文字搜索命中标题") {
         app { client ->
             val token = client.registerToken()

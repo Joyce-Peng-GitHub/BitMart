@@ -270,6 +270,15 @@ class PublishViewModel @Inject constructor(
         if (draft.contact.isBlank()) { _state.update { it.copy(error = "请填写联系方式") }; return }
         val qty = draft.quantityTotal.toIntOrNull()
         if (qty == null || qty < 1) { _state.update { it.copy(error = "件数必须为正整数") }; return }
+        // 价格可留空（面议）；填写则须为合法数字且不超过 DB 列上限（避免入库时 NUMERIC 溢出）。
+        val priceRaw = draft.unitPrice.trim()
+        if (priceRaw.isNotEmpty()) {
+            val price = priceRaw.toBigDecimalOrNull()
+            if (price == null) { _state.update { it.copy(error = "价格格式不正确") }; return }
+            if (price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal()) {
+                _state.update { it.copy(error = "价格不能超过 ${PublishConfig.MAX_UNIT_PRICE}") }; return
+            }
+        }
         // 有效期可留空（服务端默认 30 天）；填写则须落在允许窗口内。
         val expiryRaw = draft.expiresInDays.trim()
         if (expiryRaw.isNotEmpty()) {

@@ -15,6 +15,14 @@ class ListingValidator(
     private val tagConfig: TagConfig,
 ) {
 
+    companion object {
+        /**
+         * 单价上限，对齐 DB 列 unit_price NUMERIC(10,2)（最大 99999999.99）。
+         * 超出会触发 PostgreSQL numeric field overflow，故须在入库前于此拦截。
+         */
+        val MAX_UNIT_PRICE: BigDecimal = BigDecimal("99999999.99")
+    }
+
     /**
      * 校验一条待发布的列表。
      * @param now 当前时刻（注入以便测试）。
@@ -64,6 +72,17 @@ class ListingValidator(
         return errors.build()
     }
 
+    /**
+     * 单独校验价格字段（用于修改时仅改价的场景），与发布走同一规则：
+     * 非负且不超过 [MAX_UNIT_PRICE]（对齐 DB 列上限，避免入库时 numeric overflow）。
+     * null 视为面议，合法。
+     */
+    fun validatePriceField(unitPrice: BigDecimal?): ValidationResult {
+        val errors = ValidationErrors()
+        validatePrice(unitPrice, errors)
+        return errors.build()
+    }
+
     private fun validateTitle(title: String, errors: ValidationErrors) {
         errors.check(title.isNotBlank(), "title", "TITLE_BLANK", "标题不能为空")
     }
@@ -73,13 +92,20 @@ class ListingValidator(
     }
 
     private fun validatePrice(unitPrice: BigDecimal?, errors: ValidationErrors) {
-        // 价格允许留空（面议/带价联系）；若填写则不可为负。
+        // 价格允许留空（面议/带价联系）；若填写则须非负，且不超过 DB 列上限。
         if (unitPrice != null) {
             errors.check(
                 unitPrice.signum() >= 0,
                 field = "unitPrice",
                 code = "PRICE_NEGATIVE",
                 message = "价格不能为负",
+            )
+            // 上界对齐 DB 列 unit_price NUMERIC(10,2)，超出会触发 numeric field overflow，须在入库前拦截。
+            errors.check(
+                unitPrice <= MAX_UNIT_PRICE,
+                field = "unitPrice",
+                code = "PRICE_TOO_LARGE",
+                message = "价格不能超过 $MAX_UNIT_PRICE",
             )
         }
     }
