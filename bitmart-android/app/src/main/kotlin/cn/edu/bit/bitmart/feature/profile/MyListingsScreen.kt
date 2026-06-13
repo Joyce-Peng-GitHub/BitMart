@@ -39,7 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -179,6 +181,9 @@ private fun MyListingRow(
     onDeleteClick: () -> Unit,
 ) {
     val soldOut = item.quantitySold >= item.quantityTotal
+    val expired = item.expired
+    // 已过期项整体灰显：文字用次要色、缩略图降透明度。操作按钮保持可用（仍可编辑延期/删除）。
+    val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             val imageUrl = absoluteMediaUrl(item.firstImageUrl)
@@ -186,23 +191,39 @@ private fun MyListingRow(
                 AsyncImage(
                     model = imageUrl,
                     contentDescription = item.title,
-                    modifier = Modifier.size(56.dp).clip(MaterialTheme.shapes.small),
+                    modifier = Modifier.size(56.dp).clip(MaterialTheme.shapes.small).alpha(if (expired) 0.45f else 1f),
                     contentScale = ContentScale.Crop,
                 )
                 Spacer(Modifier.width(12.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (expired) mutedColor else Color.Unspecified,
+                )
                 val priceLabel = if (buy) "期望价" else "售价"
                 val price = item.unitPrice?.let { "￥$it" } ?: "面议"
-                Text("$priceLabel：$price", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "$priceLabel：$price",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (expired) mutedColor else Color.Unspecified,
+                )
                 val soldVerb = if (buy) "已收" else "已售"
                 val fullLabel = if (buy) "（已收满）" else "（售罄）"
-                val soldText = "$soldVerb ${item.quantitySold}/${item.quantityTotal}" + if (soldOut) fullLabel else ""
+                val soldText = buildString {
+                    if (expired) append("已过期 · ")
+                    append("$soldVerb ${item.quantitySold}/${item.quantityTotal}")
+                    if (soldOut) append(fullLabel)
+                }
                 Text(
                     soldText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (soldOut) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = when {
+                        expired -> mutedColor
+                        soldOut -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
             }
             if (adjusting) {

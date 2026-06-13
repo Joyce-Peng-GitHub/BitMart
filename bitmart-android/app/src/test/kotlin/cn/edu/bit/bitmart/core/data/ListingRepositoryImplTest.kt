@@ -94,4 +94,23 @@ class ListingRepositoryImplTest {
         assertTrue(result is DomainResult.Success)
         assertEquals("/static/2026/06/02/x.jpg", (result as DomainResult.Success).data.items.first().firstImageUrl)
     }
+
+    @Test
+    fun `summary maps expired flag (defaults false when absent)`() = runTest {
+        val body = """
+            {"items":[
+              {"id":1,"type":"SELL","category":"GENERAL","title":"过期项","unitPrice":null,
+               "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z","expired":true},
+              {"id":2,"type":"SELL","category":"GENERAL","title":"在售项","unitPrice":null,
+               "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z"}
+            ],"nextCursor":null}
+        """.trimIndent()
+        val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
+        val repo = ListingRepositoryImpl(api)
+
+        val items = (repo.myListings(ListingQuery(type = ListingType.SELL)) as DomainResult.Success).data.items
+
+        assertTrue(items.first { it.id == 1L }.expired)        // 显式 expired=true。
+        assertEquals(false, items.first { it.id == 2L }.expired) // 缺省字段 → false。
+    }
 }

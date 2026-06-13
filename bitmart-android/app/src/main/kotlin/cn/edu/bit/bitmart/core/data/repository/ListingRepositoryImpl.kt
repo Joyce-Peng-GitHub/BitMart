@@ -110,7 +110,7 @@ private fun ListingSummaryDto.toDomain() = ListingSummary(
     type = enumValueOf<ListingType>(type),
     category = enumValueOf<ListingCategory>(category),
     title = title, unitPrice = unitPrice, quantityTotal = quantityTotal, quantitySold = quantitySold,
-    firstImageUrl = firstImageUrl, nickname = nickname, tags = tags, createdAt = createdAt,
+    firstImageUrl = firstImageUrl, nickname = nickname, tags = tags, createdAt = createdAt, expired = expired,
 )
 
 private fun ListingDetailDto.toDomain() = ListingDetail(

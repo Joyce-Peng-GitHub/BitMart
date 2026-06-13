@@ -336,6 +336,8 @@ class ListingRoutesTest : FunSpec({
             val titles = mine.items.map { it.title }
             titles shouldContain "我的售罄商品A"
             (titles.none { it == "B的商品" }) shouldBe true
+            // 未过期项 expired=false。
+            mine.items.first { it.title == "我的售罄商品A" }.expired shouldBe false
         }
     }
 
@@ -385,9 +387,10 @@ class ListingRoutesTest : FunSpec({
             val publicPage = client.get("/api/v1/listings?type=SELL&q=过期商品qqq").body<ListingPageDto>()
             (publicPage.items.none { it.title == "过期商品qqq" }) shouldBe true
 
-            // 我的列表（includeExpired）仍含该项。
+            // 我的列表（includeExpired）仍含该项，且标记为已过期。
             val mine = client.get("/api/v1/me/listings") { bearerAuth(token) }.body<ListingPageDto>()
-            mine.items.map { it.title } shouldContain "过期商品qqq"
+            val mineItem = mine.items.first { it.title == "过期商品qqq" }
+            mineItem.expired shouldBe true
         }
     }
 

@@ -67,6 +67,7 @@ data class ListingSummaryDto(
     val firstImageUrl: String? = null,
     val tags: List<String> = emptyList(),
     val createdAt: String,
+    val expired: Boolean = false,
 )
 
 @Serializable

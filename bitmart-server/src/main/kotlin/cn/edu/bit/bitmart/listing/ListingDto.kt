@@ -71,6 +71,7 @@ data class ListingSummaryDto(
     val firstImageUrl: String? = null,
     val tags: List<String>,
     val createdAt: String,
+    val expired: Boolean = false,
 ) {
     companion object {
         fun from(s: ListingSummary) = ListingSummaryDto(
@@ -85,6 +86,7 @@ data class ListingSummaryDto(
             firstImageUrl = s.firstImageUrl,
             tags = s.tags,
             createdAt = s.createdAt.toString(),
+            expired = s.expired,
         )
     }
 }
