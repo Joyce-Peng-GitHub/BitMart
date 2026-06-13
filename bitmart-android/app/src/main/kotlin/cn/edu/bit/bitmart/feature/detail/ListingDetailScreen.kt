@@ -52,6 +52,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
+import cn.edu.bit.bitmart.core.ui.ListingTimeInfo
 import coil3.compose.AsyncImage
 
 /** 详情屏。展示卖家昵称、联系方式、完整描述、书籍信息；含防诈骗提示、图片轮播、调整数量/编辑/删除按钮。 */
@@ -137,6 +138,12 @@ fun ListingDetailScreen(
                 Text("数量：${d.quantitySold}/${d.quantityTotal} $soldVerb")
                 d.pickupLocation?.let { Text("取货地点：$it") }
                 Text("发布者：${d.nickname ?: "匿名"}")
+                Spacer(Modifier.height(4.dp))
+                ListingTimeInfo(
+                    createdAtIso = d.createdAt,
+                    expiresAtIso = d.expiresAt,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(d.description, style = MaterialTheme.typography.bodyMedium)
 

@@ -15,4 +15,10 @@ object PublishConfig {
     const val EXPIRY_MIN_DAYS = 1
     const val EXPIRY_MAX_DAYS = 365
     const val EXPIRY_DEFAULT_DAYS = 30
+
+    /**
+     * 临期提醒窗口（小时）：进入该窗口即视为“临近过期”（UI 橙色）。
+     * 与服务端 BITMART_EXPIRY_WARN_WINDOW_HOURS 默认值一致——服务端在此窗口内发过期提醒通知。
+     */
+    const val EXPIRY_WARN_WINDOW_HOURS = 24L
 }

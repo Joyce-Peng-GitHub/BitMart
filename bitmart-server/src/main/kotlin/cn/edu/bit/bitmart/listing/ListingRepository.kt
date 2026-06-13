@@ -152,8 +152,7 @@ class ListingRepository {
         val sql = StringBuilder(
             """
             SELECT l.id, l.type, l.category, l.title, l.unit_price,
-                   l.quantity_total, l.quantity_sold, u.nickname, l.created_at,
-                   (l.expires_at <= now()) AS expired,
+                   l.quantity_total, l.quantity_sold, u.nickname, l.created_at, l.expires_at,
                    (SELECT '/static/' || li.blob_key FROM listing_image li
                      WHERE li.listing_id = l.id ORDER BY li.ord LIMIT 1) AS first_image
             FROM listing l
@@ -243,7 +242,7 @@ class ListingRepository {
                     firstImageUrl = rs.getString("first_image"),
                     tags = emptyList(),    // 由 Service 批量填充
                     createdAt = rs.getTimestamp("created_at").toInstant().atOffset(ZoneOffset.UTC),
-                    expired = rs.getBoolean("expired"),
+                    expiresAt = rs.getTimestamp("expires_at").toInstant().atOffset(ZoneOffset.UTC),
                 )
             }
             out

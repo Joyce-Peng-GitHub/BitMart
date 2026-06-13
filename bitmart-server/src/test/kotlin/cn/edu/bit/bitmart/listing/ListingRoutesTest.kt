@@ -336,8 +336,9 @@ class ListingRoutesTest : FunSpec({
             val titles = mine.items.map { it.title }
             titles shouldContain "我的售罄商品A"
             (titles.none { it == "B的商品" }) shouldBe true
-            // 未过期项 expired=false。
-            mine.items.first { it.title == "我的售罄商品A" }.expired shouldBe false
+            // 摘要携带 expiresAt，未过期项的过期时间在未来。
+            val item = mine.items.first { it.title == "我的售罄商品A" }
+            OffsetDateTime.parse(item.expiresAt).isAfter(OffsetDateTime.now()) shouldBe true
         }
     }
 
@@ -387,10 +388,10 @@ class ListingRoutesTest : FunSpec({
             val publicPage = client.get("/api/v1/listings?type=SELL&q=过期商品qqq").body<ListingPageDto>()
             (publicPage.items.none { it.title == "过期商品qqq" }) shouldBe true
 
-            // 我的列表（includeExpired）仍含该项，且标记为已过期。
+            // 我的列表（includeExpired）仍含该项，过期时间已在过去。
             val mine = client.get("/api/v1/me/listings") { bearerAuth(token) }.body<ListingPageDto>()
             val mineItem = mine.items.first { it.title == "过期商品qqq" }
-            mineItem.expired shouldBe true
+            OffsetDateTime.parse(mineItem.expiresAt).isBefore(OffsetDateTime.now()) shouldBe true
         }
     }
 

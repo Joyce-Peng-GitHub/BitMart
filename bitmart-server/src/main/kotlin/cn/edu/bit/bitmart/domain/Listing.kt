@@ -16,8 +16,8 @@ data class ListingSummary(
     val firstImageUrl: String?,
     val tags: List<String>,
     val createdAt: OffsetDateTime,
-    /** 是否已过期（expires_at <= 服务端当前时刻）。我的列表用于灰显，公开列表恒为 false。 */
-    val expired: Boolean,
+    /** 过期时间。客户端据此在列表/详情显示并按临期/已过期着色。 */
+    val expiresAt: OffsetDateTime,
 )
 
 /** 列表详情（含 contact、完整描述、书籍信息；仅登录可见）。 */

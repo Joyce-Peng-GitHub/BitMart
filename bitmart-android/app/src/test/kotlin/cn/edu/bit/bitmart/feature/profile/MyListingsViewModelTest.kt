@@ -28,7 +28,7 @@ class MyListingsViewModelTest {
     @After fun teardown() = Dispatchers.resetMain()
 
     private fun summary(id: Long, total: Int = 2, sold: Int = 0) = ListingSummary(
-        id, ListingType.SELL, ListingCategory.GENERAL, "商品$id", "10.00", total, sold, null, null, emptyList(), "2026-06-02T00:00:00Z",
+        id, ListingType.SELL, ListingCategory.GENERAL, "商品$id", "10.00", total, sold, null, null, emptyList(), "2026-06-02T00:00:00Z", "2026-07-02T00:00:00Z",
     )
 
     /** 记录 my-listings 的查询脚本与 update/delete 调用；update/delete 结果可配置以测失败路径。 */

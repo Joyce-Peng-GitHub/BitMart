@@ -37,8 +37,8 @@ data class ListingSummary(
     val nickname: String?,
     val tags: List<String>,
     val createdAt: String,
-    /** 是否已过期（服务端按 expires_at 计算）。我的列表据此灰显。 */
-    val expired: Boolean = false,
+    /** 过期时间（ISO 字符串）。列表据此显示并按临期/已过期着色。 */
+    val expiresAt: String,
 )
 
 /** 列表详情（详情页，含联系方式）。 */

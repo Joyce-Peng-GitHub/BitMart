@@ -16,7 +16,8 @@ class ListingRepositoryImplTest {
 
     private val pageBody = """
         {"items":[{"id":5,"type":"SELL","category":"GENERAL","title":"线性代数","unitPrice":"30.00",
-          "quantityTotal":2,"quantitySold":0,"tags":["教材"],"createdAt":"2026-06-02T00:00:00Z"}],
+          "quantityTotal":2,"quantitySold":0,"tags":["教材"],"createdAt":"2026-06-02T00:00:00Z",
+          "expiresAt":"2026-07-02T00:00:00Z"}],
          "nextCursor":null}
     """.trimIndent()
 
@@ -84,7 +85,7 @@ class ListingRepositoryImplTest {
         val body = """
             {"items":[{"id":7,"type":"SELL","category":"GENERAL","title":"图书","unitPrice":null,
               "quantityTotal":1,"quantitySold":0,"firstImageUrl":"/static/2026/06/02/x.jpg",
-              "tags":[],"createdAt":"2026-06-02T00:00:00Z"}],"nextCursor":null}
+              "tags":[],"createdAt":"2026-06-02T00:00:00Z","expiresAt":"2026-07-02T00:00:00Z"}],"nextCursor":null}
         """.trimIndent()
         val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
         val repo = ListingRepositoryImpl(api)
@@ -96,21 +97,16 @@ class ListingRepositoryImplTest {
     }
 
     @Test
-    fun `summary maps expired flag (defaults false when absent)`() = runTest {
+    fun `summary maps expiresAt through`() = runTest {
         val body = """
-            {"items":[
-              {"id":1,"type":"SELL","category":"GENERAL","title":"过期项","unitPrice":null,
-               "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z","expired":true},
-              {"id":2,"type":"SELL","category":"GENERAL","title":"在售项","unitPrice":null,
-               "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z"}
-            ],"nextCursor":null}
+            {"items":[{"id":8,"type":"SELL","category":"GENERAL","title":"将过期","unitPrice":null,
+              "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z",
+              "expiresAt":"2026-06-13T08:00:00Z"}],"nextCursor":null}
         """.trimIndent()
         val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
         val repo = ListingRepositoryImpl(api)
 
         val items = (repo.myListings(ListingQuery(type = ListingType.SELL)) as DomainResult.Success).data.items
-
-        assertTrue(items.first { it.id == 1L }.expired)        // 显式 expired=true。
-        assertEquals(false, items.first { it.id == 2L }.expired) // 缺省字段 → false。
+        assertEquals("2026-06-13T08:00:00Z", items.first().expiresAt)
     }
 }

@@ -26,7 +26,7 @@ class ListingFeedViewModelTest {
     @After fun teardown() = Dispatchers.resetMain()
 
     private fun summary(id: Long) = ListingSummary(
-        id, ListingType.SELL, ListingCategory.GENERAL, "商品$id", "10.00", 1, 0, null, null, emptyList(), "2026-06-02T00:00:00Z",
+        id, ListingType.SELL, ListingCategory.GENERAL, "商品$id", "10.00", 1, 0, null, null, emptyList(), "2026-06-02T00:00:00Z", "2026-07-02T00:00:00Z",
     )
 
     /** 记录最近一次查询并按脚本返回页。 */
