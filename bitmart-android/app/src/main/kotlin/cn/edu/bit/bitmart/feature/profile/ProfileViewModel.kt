@@ -20,6 +20,8 @@ data class ProfileUiState(
     val user: User? = null,
     val unreadCount: Int = 0,
     val loading: Boolean = false,
+    /** 下拉刷新进行中（驱动下拉指示器）。 */
+    val refreshing: Boolean = false,
     val error: String? = null,
 )
 
@@ -61,11 +63,35 @@ class ProfileViewModel @Inject constructor(
         if (!_state.value.loggedIn) return
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            when (val r = profileRepository.getMe()) {
-                is DomainResult.Success -> _state.update { it.copy(loading = false, user = r.data) }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+            applyMeResult(profileRepository.getMe())
+            _state.update { it.copy(loading = false) }
+        }
+    }
+
+    /** 将 /me 结果落到状态：成功更新 user，失败/网络错误置 error（前缀统一）。 */
+    private fun applyMeResult(r: DomainResult<User>) = _state.update {
+        when (r) {
+            is DomainResult.Success -> it.copy(user = r.data)
+            is DomainResult.Failure -> it.copy(error = r.message)
+            is DomainResult.NetworkError -> it.copy(error = "网络异常：${r.message}")
+        }
+    }
+
+    /**
+     * 下拉刷新：重新校验登录态并拉取最新用户信息与未读数（仅已登录时有内容可刷）。
+     * 网络不佳导致 /me 之前失败时，用户可据此主动重试。登录态本身由 [authRepository] 响应式维护。
+     */
+    fun refresh() {
+        viewModelScope.launch {
+            _state.update { it.copy(refreshing = true, error = null) }
+            if (_state.value.loggedIn) {
+                applyMeResult(profileRepository.getMe())
+                when (val c = profileRepository.unreadNotificationCount()) {
+                    is DomainResult.Success -> _state.update { it.copy(unreadCount = c.data) }
+                    else -> {} // 角标失败静默保持原值。
+                }
             }
+            _state.update { it.copy(refreshing = false) }
         }
     }
 

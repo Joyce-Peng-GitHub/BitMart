@@ -155,4 +155,41 @@ class ProfileViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(0, vm.state.value.unreadCount)
     }
+
+    @Test
+    fun `refresh re-fetches me and unread when logged in and clears refreshing`() = runTest {
+        // 模拟网络不佳：首拉 /me 失败；恢复后下拉刷新重试成功。
+        var meResult: DomainResult<User> = DomainResult.Failure("X", "首拉失败", 500)
+        var unreadResult: DomainResult<Int> = DomainResult.Success(1)
+        val repo = object : ProfileRepository {
+            override suspend fun getMe() = meResult
+            override suspend fun updateNickname(nickname: String?) = DomainResult.Success(user)
+            override suspend fun notifications(cursor: String?, limit: Int) =
+                DomainResult.Success(cn.edu.bit.bitmart.core.domain.model.NotificationPage(emptyList(), null))
+            override suspend fun markNotificationRead(id: Long) = DomainResult.Success(Unit)
+            override suspend fun unreadNotificationCount() = unreadResult
+        }
+        val vm = ProfileViewModel(authRepo(loggedIn = true), repo)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.state.value.user)
+        assertEquals("首拉失败", vm.state.value.error)
+
+        meResult = DomainResult.Success(user)
+        unreadResult = DomainResult.Success(7)
+        vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(7L, vm.state.value.user?.id)
+        assertEquals(7, vm.state.value.unreadCount)
+        assertNull(vm.state.value.error)
+        assertFalse(vm.state.value.refreshing)
+    }
+
+    @Test
+    fun `refresh is noop when logged out`() = runTest {
+        val vm = ProfileViewModel(authRepo(loggedIn = false), profileRepo(unread = DomainResult.Success(9)))
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.state.value.user)
+        assertEquals(0, vm.state.value.unreadCount)
+        assertFalse(vm.state.value.refreshing)
+    }
 }

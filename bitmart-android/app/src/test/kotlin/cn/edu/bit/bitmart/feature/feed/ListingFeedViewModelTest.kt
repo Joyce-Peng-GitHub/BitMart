@@ -74,6 +74,23 @@ class ListingFeedViewModelTest {
     }
 
     @Test
+    fun `pull refresh reloads first page and clears refreshing`() = runTest {
+        val repo = FakeRepo(listOf(
+            ListingPage(listOf(summary(1)), nextCursor = null),
+            ListingPage(listOf(summary(2), summary(3)), nextCursor = null),
+        ))
+        val vm = ListingFeedViewModel(repo)
+        vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.items.size)
+
+        // 下拉刷新（showSpinner=false）：重新拉首屏，结束后 refreshing/loading 均为 false。
+        vm.refresh(showSpinner = false); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, vm.state.value.items.size)
+        assertEquals(false, vm.state.value.refreshing)
+        assertEquals(false, vm.state.value.loading)
+    }
+
+    @Test
     fun `setType switches type and reloads`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = ListingFeedViewModel(repo)

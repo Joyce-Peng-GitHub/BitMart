@@ -24,6 +24,8 @@ data class MyListingsUiState(
     val items: List<ListingSummary> = emptyList(),
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
+    /** 下拉刷新进行中（保留当前列表，仅驱动下拉指示器）。 */
+    val refreshing: Boolean = false,
     val error: String? = null,
     val nextCursor: String? = null,
     val endReached: Boolean = false,
@@ -57,19 +59,26 @@ class MyListingsViewModel @Inject constructor(
         refresh()
     }
 
-    /** 重新加载首屏（清空游标）。 */
-    fun refresh() {
+    /**
+     * 重新加载首屏（清空游标）。
+     * @param showSpinner true（默认）走整页加载：置 loading 并清空列表。
+     *   false 为下拉刷新：保留当前列表，仅置 refreshing。
+     */
+    fun refresh(showSpinner: Boolean = true) {
         val s = _state.value
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, items = emptyList(), nextCursor = null, endReached = false) }
+            _state.update {
+                if (showSpinner) it.copy(loading = true, error = null, items = emptyList(), nextCursor = null, endReached = false)
+                else it.copy(refreshing = true, error = null)
+            }
             when (val r = listingRepository.myListings(s.toQuery(cursor = null))) {
                 is DomainResult.Success -> _state.update {
-                    it.copy(loading = false, items = r.data.items, nextCursor = r.data.nextCursor, endReached = r.data.nextCursor == null)
+                    it.copy(loading = false, refreshing = false, items = r.data.items, nextCursor = r.data.nextCursor, endReached = r.data.nextCursor == null)
                 }
                 is DomainResult.Failure ->
-                    if (r.httpStatus == 401) _state.update { it.copy(loading = false, error = "请登录后查看") }
-                    else _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                    if (r.httpStatus == 401) _state.update { it.copy(loading = false, refreshing = false, error = "请登录后查看") }
+                    else _state.update { it.copy(loading = false, refreshing = false, error = r.message) }
+                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, refreshing = false, error = "网络异常：${r.message}") }
             }
         }
     }
@@ -77,7 +86,7 @@ class MyListingsViewModel @Inject constructor(
     /** 加载下一页（keyset）。 */
     fun loadMore() {
         val s = _state.value
-        if (s.loadingMore || s.endReached || s.nextCursor == null) return
+        if (s.loadingMore || s.refreshing || s.endReached || s.nextCursor == null) return
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true) }
             when (val r = listingRepository.myListings(s.toQuery(cursor = s.nextCursor))) {

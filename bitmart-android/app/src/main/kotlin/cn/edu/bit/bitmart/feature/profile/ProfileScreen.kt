@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,16 +81,23 @@ fun ProfileScreen(
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
+        // 下拉刷新：重新校验登录态并拉取最新用户信息（网络不佳时主动重试）。
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            ProfileHeader(state = state, onLoginClick = onLoginClick)
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            ) {
+                ProfileHeader(state = state, onLoginClick = onLoginClick)
 
-            SectionRow("常用联系方式", onClick = onContactsClick)
-            SectionRow("我的商品", onClick = { onMyListingsClick(false) })
-            SectionRow("我的收购", onClick = { onMyListingsClick(true) })
-            SectionRow("设置", onClick = onSettingsClick)
-            SectionRow("关于", onClick = onAboutClick)
+                SectionRow("常用联系方式", onClick = onContactsClick)
+                SectionRow("我的商品", onClick = { onMyListingsClick(false) })
+                SectionRow("我的收购", onClick = { onMyListingsClick(true) })
+                SectionRow("设置", onClick = onSettingsClick)
+                SectionRow("关于", onClick = onAboutClick)
+            }
         }
     }
 }

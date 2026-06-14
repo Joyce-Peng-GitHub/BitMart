@@ -33,6 +33,8 @@ data class FeedUiState(
     val selectedTagIds: List<Long> = emptyList(),
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
+    /** 下拉刷新进行中（保留当前列表，仅驱动下拉指示器）。 */
+    val refreshing: Boolean = false,
     val error: String? = null,
     val nextCursor: String? = null,
     val endReached: Boolean = false,
@@ -90,17 +92,24 @@ class ListingFeedViewModel @Inject constructor(
         refresh()
     }
 
-    /** 首屏/条件变化时重新加载（清空游标）。 */
-    fun refresh() {
+    /**
+     * 首屏/条件变化时重新加载（清空游标）。
+     * @param showSpinner true（默认）走整页加载：置 loading 并清空列表（用于切换类型/筛选/首屏）。
+     *   false 为下拉刷新：保留当前列表，仅置 refreshing 驱动下拉指示器。
+     */
+    fun refresh(showSpinner: Boolean = true) {
         val s = _state.value
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null, items = emptyList(), nextCursor = null, endReached = false) }
+            _state.update {
+                if (showSpinner) it.copy(loading = true, error = null, items = emptyList(), nextCursor = null, endReached = false)
+                else it.copy(refreshing = true, error = null)
+            }
             when (val r = listingRepository.list(s.toQuery(cursor = null))) {
                 is DomainResult.Success -> _state.update {
-                    it.copy(loading = false, items = r.data.items, nextCursor = r.data.nextCursor, endReached = r.data.nextCursor == null)
+                    it.copy(loading = false, refreshing = false, items = r.data.items, nextCursor = r.data.nextCursor, endReached = r.data.nextCursor == null)
                 }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                is DomainResult.Failure -> _state.update { it.copy(loading = false, refreshing = false, error = r.message) }
+                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, refreshing = false, error = "网络异常：${r.message}") }
             }
         }
     }
@@ -108,7 +117,7 @@ class ListingFeedViewModel @Inject constructor(
     /** 加载下一页（keyset）。 */
     fun loadMore() {
         val s = _state.value
-        if (s.loadingMore || s.endReached || s.nextCursor == null) return
+        if (s.loadingMore || s.refreshing || s.endReached || s.nextCursor == null) return
         viewModelScope.launch {
             _state.update { it.copy(loadingMore = true) }
             when (val r = listingRepository.list(s.toQuery(cursor = s.nextCursor))) {

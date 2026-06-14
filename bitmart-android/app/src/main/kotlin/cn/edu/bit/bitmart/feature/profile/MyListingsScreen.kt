@@ -31,6 +31,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -128,13 +129,31 @@ fun MyListingsScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // 下拉刷新：保留列表重新拉取首屏，便于网络不佳时主动重试（空/错误态也可下拉）。
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = { viewModel.refresh(showSpinner = false) },
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
             when {
                 state.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 state.error != null && state.items.isEmpty() ->
-                    Text(state.error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center).padding(24.dp))
+                    // 包成可滚动列表，使错误态也能下拉重试。
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        item {
+                            Box(Modifier.fillParentMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                                Text(state.error!!, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
                 state.items.isEmpty() ->
-                    Text("还没有$title", modifier = Modifier.align(Alignment.Center))
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        item {
+                            Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("还没有$title")
+                            }
+                        }
+                    }
                 else -> LazyColumn(
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
