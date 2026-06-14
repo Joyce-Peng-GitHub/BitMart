@@ -72,6 +72,30 @@ class ListingRepositoryBatchTest {
     }
 
     @Test
+    fun `publishBatch sends absolute expiresAt when set`() = runTest {
+        var captured: HttpRequestData? = null
+        val api = TestApiSupport.api(token = "tok") { req ->
+            captured = req
+            respond("""{"ids":[1]}""", HttpStatusCode.OK, TestApiSupport.jsonHeaders())
+        }
+        val repo = ListingRepositoryImpl(api)
+        val iso = "2026-07-01T00:00+08:00"
+
+        repo.publishBatch(listOf(
+            PublishDraft(
+                type = ListingType.SELL,
+                title = "按日期过期",
+                contacts = listOf(Contact("", "x")),
+                expiresAtIso = iso,
+            ),
+        ))
+
+        val bodyText = (captured!!.body as io.ktor.http.content.TextContent).text
+        assertTrue(bodyText.contains("\"expiresAt\""))
+        assertTrue(bodyText.contains(iso))
+    }
+
+    @Test
     fun `publishBatch 400 failure surfaces combined message`() = runTest {
         val errorBody = """{"error":{"code":"VALIDATION_FAILED","message":"第1项标题不能为空；第2项联系方式无效"}}"""
         val api = TestApiSupport.fixedApi(HttpStatusCode.BadRequest, errorBody, token = "tok")

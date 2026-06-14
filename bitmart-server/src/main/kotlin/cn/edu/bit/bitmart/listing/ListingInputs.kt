@@ -16,6 +16,8 @@ data class CreateListingInput(
     val pickupLocation: String?,
     val contacts: List<Contact>,
     val expiresAt: OffsetDateTime,
+    /** 过期时间是否来自客户端指定的绝对日期（true）而非天数换算（false）。影响校验下界。 */
+    val expiryIsAbsolute: Boolean = false,
     val tags: List<String>,
     val book: BookInput?,
     val imageKeys: List<String> = emptyList(),   // 由 /uploads/images 返回的 blobKey，按顺序入库

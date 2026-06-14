@@ -192,6 +192,42 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
+    test("发布：指定绝对过期时间（expiresAt）被采用并存储") {
+        app { client ->
+            val token = client.registerToken()
+            // 客户端按"过期日"换算出的绝对瞬时（这里取 3 天后）。截断到秒，与 PG 存储精度一致。
+            val expires = OffsetDateTime.now().plusDays(3).truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "按日期过期商品").copy(expiresAt = expires.toString()))
+            }.body<CreatedResponse>().id
+
+            val detail = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>()
+            // 存储为 TIMESTAMPTZ，比较瞬时而非字符串表示。
+            OffsetDateTime.parse(detail.expiresAt).toInstant() shouldBe expires.toInstant()
+        }
+    }
+
+    test("发布：绝对过期时间在过去 → 400") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "过去过期商品").copy(expiresAt = OffsetDateTime.now().minusDays(1).toString()))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
+    test("发布：绝对过期时间格式非法 → 400") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "过期格式非法").copy(expiresAt = "not-a-date"))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
     test("文字搜索命中标题") {
         app { client ->
             val token = client.registerToken()

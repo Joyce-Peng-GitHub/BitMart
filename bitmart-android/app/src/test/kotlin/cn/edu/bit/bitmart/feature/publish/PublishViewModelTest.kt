@@ -28,6 +28,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 class PublishViewModelTest {
 
@@ -197,6 +199,51 @@ class PublishViewModelTest {
 
         // 恰好等于上限合法。
         vm.onUnitPrice(PublishConfig.MAX_UNIT_PRICE)
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.draftBatch.size)
+    }
+
+    @Test
+    fun `date expiry mode sends absolute expiresAt and clears days`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
+        val date = LocalDate.now().plusDays(10)
+        vm.onTitle("台灯"); vm.onContact("x")
+        vm.onExpiryMode(ExpiryMode.DATE); vm.onExpiresOn(date.toString())
+        vm.addDraftToBatch()
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        val d = repo.lastBatchDrafts!![0]
+        // 绝对过期：该日 00:00（设备时区），且天数被清空。
+        assertNull(d.expiresInDays)
+        val expected = date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime().toString()
+        assertEquals(expected, d.expiresAtIso)
+    }
+
+    @Test
+    fun `date expiry mode requires a valid in-range date`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("台灯"); vm.onContact("x"); vm.onExpiryMode(ExpiryMode.DATE)
+
+        // 未选日期 → 拒绝。
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("请选择过期日期", vm.state.value.error)
+        assertTrue(vm.state.value.draftBatch.isEmpty())
+
+        // 今天（不晚于今天）→ 拒绝。
+        vm.onExpiresOn(LocalDate.now().toString())
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.error!!.contains("过期日期"))
+        assertTrue(vm.state.value.draftBatch.isEmpty())
+
+        // 超过一年 → 拒绝。
+        vm.onExpiresOn(LocalDate.now().plusDays((PublishConfig.EXPIRY_MAX_DAYS + 1).toLong()).toString())
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.error!!.contains("过期日期"))
+        assertTrue(vm.state.value.draftBatch.isEmpty())
+
+        // 合法（明天）→ 通过。
+        vm.onExpiresOn(LocalDate.now().plusDays(1).toString())
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vm.state.value.draftBatch.size)
     }

@@ -114,6 +114,8 @@ data class CreateListingRequest(
     val contacts: List<ContactDto>,
     val tags: List<String> = emptyList(),
     val expiresInDays: Int? = null,
+    /** 绝对过期时间（ISO-8601）。非空时后端优先采用，语义为商品在 [今天, 过期日) 内有效。 */
+    val expiresAt: String? = null,
     val book: BookDto? = null,
     val imageKeys: List<String> = emptyList(),
 )

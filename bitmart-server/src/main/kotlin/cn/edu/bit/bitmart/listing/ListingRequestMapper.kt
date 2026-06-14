@@ -19,6 +19,8 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
     fun toCreateInput(req: CreateListingRequest, userId: Long, now: OffsetDateTime): CreateListingInput {
         val type = parseEnum<ListingType>(req.type, "type")
         val category = parseEnum<ListingCategory>(req.category, "category")
+        // 优先用客户端指定的绝对过期时间（按"过期日"换算的瞬时）；否则按天数换算。
+        val absoluteExpiry = req.expiresAt?.let { parseExpiresAt(it) }
         val days = req.expiresInDays ?: expiryConfig.defaultDays
         return CreateListingInput(
             type = type.ordinal,
@@ -30,7 +32,8 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
             quantityTotal = req.quantityTotal,
             pickupLocation = req.pickupLocation,
             contacts = req.contacts.map { it.toContact() },
-            expiresAt = now.plusDays(days.toLong()),
+            expiresAt = absoluteExpiry ?: now.plusDays(days.toLong()),
+            expiryIsAbsolute = absoluteExpiry != null,
             tags = req.tags,
             book = req.book?.let { BookInput(it.isbn, it.title, it.authors, it.publisher, it.edition) },
             imageKeys = req.imageKeys,
@@ -54,6 +57,11 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
         if (raw.isNullOrBlank()) return null
         return raw.toBigDecimalOrNull() ?: throw RequestMappingException("价格格式非法: $raw")
     }
+
+    private fun parseExpiresAt(raw: String): OffsetDateTime =
+        runCatching { OffsetDateTime.parse(raw) }.getOrElse {
+            throw RequestMappingException("过期时间格式非法: $raw")
+        }
 
     private inline fun <reified T : Enum<T>> parseEnum(raw: String, field: String): T =
         enumValues<T>().firstOrNull { it.name.equals(raw, ignoreCase = true) }

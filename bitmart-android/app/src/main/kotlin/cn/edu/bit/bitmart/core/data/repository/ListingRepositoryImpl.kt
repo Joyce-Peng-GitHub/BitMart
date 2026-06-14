@@ -81,6 +81,7 @@ private fun PublishDraft.toCreateRequest() = CreateListingRequest(
     contacts = contacts.map { ContactDto(it.channel, it.value) },
     tags = tags,
     expiresInDays = expiresInDays,
+    expiresAt = expiresAtIso,
     book = book?.toDto(),
     imageKeys = imageKeys,
 )

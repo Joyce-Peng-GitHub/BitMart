@@ -25,7 +25,8 @@ class ListingValidatorTest : FunSpec({
         contacts: List<Contact> = listOf(Contact("WECHAT", "wxid_abc")),
         tagList: List<String> = listOf("教材"),
         expiresAt: Instant = now.plus(Duration.ofDays(30)),
-    ) = ListingInput(title, quantityTotal, unitPrice, contacts, tagList, expiresAt)
+        expiryIsAbsolute: Boolean = false,
+    ) = ListingInput(title, quantityTotal, unitPrice, contacts, tagList, expiresAt, expiryIsAbsolute)
 
     fun codes(r: ValidationResult) = r.errors.map { it.code }
 
@@ -121,6 +122,28 @@ class ListingValidatorTest : FunSpec({
     test("过期时间恰好等于 maxDays 边界合法") {
         val exactly = now.plus(Duration.ofDays(365))
         validator.validateCreate(validInput(expiresAt = exactly), now).isValid.shouldBeTrue()
+    }
+
+    // —— 绝对过期日期（expiryIsAbsolute=true）：仅要求晚于此刻，允许"明天零点"这类不足一天的情形 ——
+    test("绝对过期：明天零点（距今不足一天）合法") {
+        val tomorrowStart = now.plus(Duration.ofHours(8))   // < 1 天，但晚于此刻
+        validator.validateCreate(validInput(expiresAt = tomorrowStart, expiryIsAbsolute = true), now).isValid.shouldBeTrue()
+    }
+
+    test("绝对过期：不晚于此刻被拒绝") {
+        codes(validator.validateCreate(validInput(expiresAt = now, expiryIsAbsolute = true), now)) shouldContain "EXPIRY_TOO_SOON"
+        val past = now.minus(Duration.ofSeconds(1))
+        codes(validator.validateCreate(validInput(expiresAt = past, expiryIsAbsolute = true), now)) shouldContain "EXPIRY_TOO_SOON"
+    }
+
+    test("绝对过期：超过 maxDays 仍被拒绝") {
+        val tooLate = now.plus(Duration.ofDays(366))
+        codes(validator.validateCreate(validInput(expiresAt = tooLate, expiryIsAbsolute = true), now)) shouldContain "EXPIRY_TOO_LATE"
+    }
+
+    test("绝对过期：恰好等于 maxDays 边界合法") {
+        val exactly = now.plus(Duration.ofDays(365))
+        validator.validateCreate(validInput(expiresAt = exactly, expiryIsAbsolute = true), now).isValid.shouldBeTrue()
     }
 
     test("多个错误一次性累积返回") {

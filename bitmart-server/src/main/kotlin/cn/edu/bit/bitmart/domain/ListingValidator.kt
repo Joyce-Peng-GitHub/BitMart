@@ -40,7 +40,7 @@ class ListingValidator(
         validatePrice(input.unitPrice, errors)
         validateContacts(input.contacts, errors)
         validateTags(input.tags, errors)
-        validateExpiry(input.expiresAt, now, errors)
+        validateExpiry(input.expiresAt, now, errors, absolute = input.expiryIsAbsolute)
         return errors.build()
     }
 
@@ -160,15 +160,25 @@ class ListingValidator(
         }
     }
 
-    private fun validateExpiry(expiresAt: Instant, now: Instant, errors: ValidationErrors) {
-        val earliest = now.plus(Duration.ofDays(expiryConfig.minDays.toLong()))
+    private fun validateExpiry(expiresAt: Instant, now: Instant, errors: ValidationErrors, absolute: Boolean = false) {
         val latest = now.plus(Duration.ofDays(expiryConfig.maxDays.toLong()))
-        errors.check(
-            !expiresAt.isBefore(earliest),
-            field = "expiresAt",
-            code = "EXPIRY_TOO_SOON",
-            message = "过期时间不得早于 ${expiryConfig.minDays} 天后",
-        )
+        if (absolute) {
+            // 绝对过期日期：仅要求严格晚于此刻（允许"明天"——其零点距今可能不足一天）。
+            errors.check(
+                expiresAt.isAfter(now),
+                field = "expiresAt",
+                code = "EXPIRY_TOO_SOON",
+                message = "过期日期必须晚于当前时间",
+            )
+        } else {
+            val earliest = now.plus(Duration.ofDays(expiryConfig.minDays.toLong()))
+            errors.check(
+                !expiresAt.isBefore(earliest),
+                field = "expiresAt",
+                code = "EXPIRY_TOO_SOON",
+                message = "过期时间不得早于 ${expiryConfig.minDays} 天后",
+            )
+        }
         errors.check(
             !expiresAt.isAfter(latest),
             field = "expiresAt",
@@ -186,4 +196,6 @@ data class ListingInput(
     val contacts: List<Contact>,
     val tags: List<String>,
     val expiresAt: Instant,
+    /** 过期时间是否为客户端指定的绝对日期；为 true 时仅校验"晚于当前时间"，否则用最小天数下界。 */
+    val expiryIsAbsolute: Boolean = false,
 )

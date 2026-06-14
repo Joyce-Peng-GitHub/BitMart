@@ -205,5 +205,6 @@ class ListingService(
         contacts = contacts,
         tags = tags,
         expiresAt = expiresAt.toInstant(),
+        expiryIsAbsolute = expiryIsAbsolute,
     )
 }

@@ -33,6 +33,11 @@ data class CreateListingRequest(
     val contacts: List<ContactDto>,
     val tags: List<String> = emptyList(),
     val expiresInDays: Int? = null,
+    /**
+     * 绝对过期时间（ISO-8601）。客户端按"过期日"换算为该日 00:00（设备时区）的瞬时；
+     * 提供时优先于 [expiresInDays]，语义为商品在 [今天, 过期日) 内有效。
+     */
+    val expiresAt: String? = null,
     val book: BookDto? = null,
     val imageKeys: List<String> = emptyList(),   // /uploads/images 返回的 blobKey，按顺序展示
 )

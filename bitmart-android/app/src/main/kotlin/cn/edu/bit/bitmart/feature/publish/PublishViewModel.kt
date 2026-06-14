@@ -23,7 +23,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
+
+/** 有效期输入方式：按天数（从今天起 N 天）或按绝对过期日期（[今天, 过期日) 内有效）。 */
+enum class ExpiryMode { DAYS, DATE }
 
 /**
  * 当前编辑的单条草稿（尚未加入批次列表）。
@@ -35,8 +40,11 @@ data class DraftItem(
     val description: String = "",
     val unitPrice: String = "",
     val quantityTotal: String = "1",
-    // 有效期（天）。留空 → 由服务端取默认值（30 天）。
+    // 有效期（天）。留空 → 由服务端取默认值（30 天）。仅 expiryMode=DAYS 时使用。
     val expiresInDays: String = "",
+    // 有效期输入方式与按日期模式下选定的过期日（ISO yyyy-MM-dd）。
+    val expiryMode: ExpiryMode = ExpiryMode.DAYS,
+    val expiresOn: String? = null,
     val pickupLocation: String = "",
     val contact: String = "",
     val tags: List<String> = emptyList(),
@@ -123,6 +131,8 @@ class PublishViewModel @Inject constructor(
     fun onUnitPrice(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(unitPrice = v)) }
     fun onQuantity(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(quantityTotal = v)) }
     fun onExpiresInDays(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(expiresInDays = v), error = null) }
+    fun onExpiryMode(mode: ExpiryMode) = _state.update { it.copy(currentDraft = it.currentDraft.copy(expiryMode = mode), error = null) }
+    fun onExpiresOn(localDateIso: String?) = _state.update { it.copy(currentDraft = it.currentDraft.copy(expiresOn = localDateIso), error = null) }
     fun onPickup(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(pickupLocation = v)) }
     fun onContact(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(contact = v)) }
 
@@ -327,13 +337,27 @@ class PublishViewModel @Inject constructor(
                 _state.update { it.copy(error = "价格不能超过 ${PublishConfig.MAX_UNIT_PRICE}") }; return
             }
         }
-        // 有效期可留空（服务端默认 30 天）；填写则须落在允许窗口内。
-        val expiryRaw = draft.expiresInDays.trim()
-        if (expiryRaw.isNotEmpty()) {
-            val days = expiryRaw.toIntOrNull()
-            if (days == null || days !in PublishConfig.EXPIRY_MIN_DAYS..PublishConfig.EXPIRY_MAX_DAYS) {
-                _state.update { it.copy(error = "有效期必须为 ${PublishConfig.EXPIRY_MIN_DAYS}-${PublishConfig.EXPIRY_MAX_DAYS} 的整数天数") }
-                return
+        // 有效期：按天数（留空=服务端默认）或按绝对过期日期（[今天, 过期日) 内有效）。
+        when (draft.expiryMode) {
+            ExpiryMode.DAYS -> {
+                val expiryRaw = draft.expiresInDays.trim()
+                if (expiryRaw.isNotEmpty()) {
+                    val days = expiryRaw.toIntOrNull()
+                    if (days == null || days !in PublishConfig.EXPIRY_MIN_DAYS..PublishConfig.EXPIRY_MAX_DAYS) {
+                        _state.update { it.copy(error = "有效期必须为 ${PublishConfig.EXPIRY_MIN_DAYS}-${PublishConfig.EXPIRY_MAX_DAYS} 的整数天数") }
+                        return
+                    }
+                }
+            }
+            ExpiryMode.DATE -> {
+                val date = draft.expiresOn?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                if (date == null) { _state.update { it.copy(error = "请选择过期日期") }; return }
+                val today = LocalDate.now()
+                // 过期日须晚于今天且不超过一年（与 EXPIRY_MAX_DAYS 一致）；[今天, 过期日) 内有效。
+                if (!date.isAfter(today) || date.isAfter(today.plusDays(PublishConfig.EXPIRY_MAX_DAYS.toLong()))) {
+                    _state.update { it.copy(error = "过期日期须晚于今天且不超过 ${PublishConfig.EXPIRY_MAX_DAYS} 天后") }
+                    return
+                }
             }
         }
 
@@ -388,24 +412,33 @@ class PublishViewModel @Inject constructor(
         }
     }
 
-    private fun DraftItem.toPublishDraft(type: ListingType) = PublishDraft(
-        type = type,
-        category = category,
-        title = title.trim(),
-        description = description.trim(),
-        unitPrice = unitPrice.trim().ifBlank { null },
-        quantityTotal = quantityTotal.toInt(),
-        expiresInDays = expiresInDays.trim().toIntOrNull(),
-        pickupLocation = pickupLocation.trim().ifBlank { null },
-        contacts = listOf(Contact("", contact.trim())),
-        tags = tags,
-        book = if (category == ListingCategory.BOOK) BookInfo(
-            isbn = isbn?.trim()?.ifBlank { null },
-            title = title.trim().ifBlank { null },
-            authors = author?.trim()?.ifBlank { null },
-            publisher = publisher?.trim()?.ifBlank { null },
-            edition = edition?.trim()?.ifBlank { null },
-        ) else null,
-        imageKeys = imageKeys,
-    )
+    private fun DraftItem.toPublishDraft(type: ListingType): PublishDraft {
+        // 按过期日期发布时，换算为该日 00:00（设备时区）的绝对瞬时，优先于天数。
+        val absoluteExpiry = if (expiryMode == ExpiryMode.DATE && expiresOn != null) {
+            runCatching {
+                LocalDate.parse(expiresOn).atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime().toString()
+            }.getOrNull()
+        } else null
+        return PublishDraft(
+            type = type,
+            category = category,
+            title = title.trim(),
+            description = description.trim(),
+            unitPrice = unitPrice.trim().ifBlank { null },
+            quantityTotal = quantityTotal.toInt(),
+            expiresInDays = if (absoluteExpiry != null) null else expiresInDays.trim().toIntOrNull(),
+            expiresAtIso = absoluteExpiry,
+            pickupLocation = pickupLocation.trim().ifBlank { null },
+            contacts = listOf(Contact("", contact.trim())),
+            tags = tags,
+            book = if (category == ListingCategory.BOOK) BookInfo(
+                isbn = isbn?.trim()?.ifBlank { null },
+                title = title.trim().ifBlank { null },
+                authors = author?.trim()?.ifBlank { null },
+                publisher = publisher?.trim()?.ifBlank { null },
+                edition = edition?.trim()?.ifBlank { null },
+            ) else null,
+            imageKeys = imageKeys,
+        )
+    }
 }

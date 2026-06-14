@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -37,12 +38,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -72,6 +80,9 @@ import cn.edu.bit.bitmart.core.domain.model.PublishConfig
 import cn.edu.bit.bitmart.core.ui.blobKeyToMediaUrl
 import coil3.compose.AsyncImage
 import java.io.ByteArrayOutputStream
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * 发布屏（多草稿批量模型）：先选书籍/一般商品，填写字段后加入批次，最后一并提交。
@@ -80,7 +91,7 @@ import java.io.ByteArrayOutputStream
  * @param onNavigateToLlmSettings LLM 未配置时跳转 LLM 设置页。
  * @param onNavigateToBookScan 打开书籍条码扫描页。
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PublishScreen(
     onPublished: () -> Unit,
@@ -207,12 +218,64 @@ fun PublishScreen(
         val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
         OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(
-            draft.expiresInDays,
-            viewModel::onExpiresInDays,
-            label = { Text("有效期（天，留空默认${PublishConfig.EXPIRY_DEFAULT_DAYS}天）") },
-            modifier = Modifier.fillMaxWidth(),
-        )
+
+        // 有效期：下拉选择"有效天数 / 过期日期"，右侧输入随之切换（天数框 / 日期选择）。
+        var expiryModeMenu by remember { mutableStateOf(false) }
+        var showDatePicker by remember { mutableStateOf(false) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box {
+                OutlinedButton(onClick = { expiryModeMenu = true }) {
+                    Text(if (draft.expiryMode == ExpiryMode.DAYS) "有效天数" else "过期日期")
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "切换有效期方式")
+                }
+                DropdownMenu(expanded = expiryModeMenu, onDismissRequest = { expiryModeMenu = false }) {
+                    DropdownMenuItem(text = { Text("有效天数") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DAYS); expiryModeMenu = false })
+                    DropdownMenuItem(text = { Text("过期日期") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DATE); expiryModeMenu = false })
+                }
+            }
+            when (draft.expiryMode) {
+                ExpiryMode.DAYS -> OutlinedTextField(
+                    draft.expiresInDays,
+                    viewModel::onExpiresInDays,
+                    label = { Text("默认${PublishConfig.EXPIRY_DEFAULT_DAYS}天") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                ExpiryMode.DATE -> OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
+                    Text(draft.expiresOn ?: "选择过期日期")
+                }
+            }
+        }
+        if (showDatePicker) {
+            val today = remember { LocalDate.now() }
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = draft.expiresOn?.let {
+                    runCatching { LocalDate.parse(it).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull()
+                },
+                // DatePicker 的毫秒按 UTC 解读，故此处用 UTC 还原日期再做边界判断。
+                selectableDates = object : SelectableDates {
+                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                        val d = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                        return d.isAfter(today) && !d.isAfter(today.plusDays(PublishConfig.EXPIRY_MAX_DAYS.toLong()))
+                    }
+                },
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val picked = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                            viewModel.onExpiresOn(picked.toString())
+                        }
+                        showDatePicker = false
+                    }) { Text("确定") }
+                },
+                dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
         OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
 
         // 常用联系方式快速填入（来自"我的-常用联系方式"，仅本机）。空列表时不展示。显示在输入框上方。

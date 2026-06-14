@@ -35,6 +35,8 @@ data class PublishDraft(
     val contacts: List<Contact>,
     val tags: List<String> = emptyList(),
     val expiresInDays: Int? = null,
+    /** 绝对过期时间（ISO-8601）。非空时优先于 [expiresInDays]，用于"按过期日"发布。 */
+    val expiresAtIso: String? = null,
     val book: BookInfo? = null,
     val imageKeys: List<String> = emptyList(),
 )
