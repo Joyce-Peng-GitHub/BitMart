@@ -121,6 +121,12 @@ class PublishViewModel @Inject constructor(
     fun onPublisher(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(publisher = v)) }
     fun onEdition(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(edition = v)) }
 
+    /**
+     * 消费一次性错误提示：UI 以 Toast 展示后调用，将 error 置空，
+     * 以便相同的错误（如再次提交仍为空标题）能再次触发 Toast。
+     */
+    fun consumeError() = _state.update { it.copy(error = null) }
+
     fun toggleTag(tag: String) {
         _state.update { st ->
             val current = st.currentDraft.tags

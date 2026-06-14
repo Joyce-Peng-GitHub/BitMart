@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart.feature.edit
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,9 +51,18 @@ fun EditListingScreen(
     viewModel: EditListingViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     LaunchedEffect(listingId) { viewModel.load(listingId) }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
+
+    // 校验/保存失败等瞬时错误用 Toast 展示（不再固定在输入区上方，避免被忽略）。
+    LaunchedEffect(state.formError) {
+        state.formError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.consumeFormError()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -77,8 +88,6 @@ fun EditListingScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    state.formError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
                     OutlinedTextField(state.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(state.description, viewModel::onDescription, label = { Text("描述") }, minLines = 2, modifier = Modifier.fillMaxWidth())
 

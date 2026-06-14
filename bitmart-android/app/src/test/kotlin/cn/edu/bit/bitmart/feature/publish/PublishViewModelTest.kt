@@ -90,6 +90,22 @@ class PublishViewModelTest {
     }
 
     @Test
+    fun `consumeError clears error so the same message can fire again`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        // 触发一次校验错误（空标题）→ Toast 由 UI 据此弹出。
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("请填写标题", vm.state.value.error)
+
+        // UI 展示后消费置空。
+        vm.consumeError()
+        assertNull(vm.state.value.error)
+
+        // 同样的错误能再次被置位（从而再次弹 Toast）。
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("请填写标题", vm.state.value.error)
+    }
+
+    @Test
     fun `expiresInDays passes through to PublishDraft`() = runTest {
         val repo = FakeRepo()
         val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())

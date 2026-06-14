@@ -81,6 +81,12 @@ class EditListingViewModel @Inject constructor(
     fun onPickup(v: String) = _state.update { it.copy(pickupLocation = v) }
     fun onExpiresInDays(v: String) = _state.update { it.copy(expiresInDays = v, formError = null) }
 
+    /**
+     * 消费一次性表单错误：UI 以 Toast 展示后调用，将 formError 置空，
+     * 以便相同的错误能再次触发 Toast。
+     */
+    fun consumeFormError() = _state.update { it.copy(formError = null) }
+
     /** 校验并保存。成功后标记 saved（UI 监听后 popBackStack）。 */
     fun save() {
         val s = _state.value

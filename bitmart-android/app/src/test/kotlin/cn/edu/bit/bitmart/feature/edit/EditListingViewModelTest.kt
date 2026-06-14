@@ -183,6 +183,25 @@ class EditListingViewModelTest {
     }
 
     @Test
+    fun `consumeFormError clears formError`() = runTest {
+        val repo = FakeRepo(DomainResult.Success(sellDetail))
+        val vm = EditListingViewModel(repo)
+        vm.load(7); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onTitle("   ")
+        vm.save(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("请填写标题", vm.state.value.formError)
+
+        // UI 以 Toast 展示后消费置空。
+        vm.consumeFormError()
+        assertNull(vm.state.value.formError)
+
+        // 相同错误能再次被置位（从而再次弹 Toast）。
+        vm.save(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("请填写标题", vm.state.value.formError)
+    }
+
+    @Test
     fun `save failure surfaces error and not saved`() = runTest {
         val repo = FakeRepo(DomainResult.Success(sellDetail), updateResult = DomainResult.Failure("X", "标题重复", 400))
         val vm = EditListingViewModel(repo)

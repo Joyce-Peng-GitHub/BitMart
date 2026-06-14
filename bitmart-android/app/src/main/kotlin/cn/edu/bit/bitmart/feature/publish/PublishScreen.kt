@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -113,6 +114,14 @@ fun PublishScreen(
         }
     }
 
+    // 校验/暂存/提交等瞬时错误用 Toast 展示：本页较长且提交按钮在底部，输入区上方的提示在提交时常已滚出视野。
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.consumeError()
+        }
+    }
+
     // 仅上传图片（加入当前草稿的 imageKeys）。
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
@@ -164,8 +173,6 @@ fun PublishScreen(
                 { Text("书籍") },
             )
         }
-
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         // 当前编辑的草稿字段。
         val draft = state.currentDraft
