@@ -2,6 +2,7 @@ package cn.edu.bit.bitmart.feature.publish
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.edu.bit.bitmart.core.data.local.ContactPrefsStore
 import cn.edu.bit.bitmart.core.data.local.LlmConfigStore
 import cn.edu.bit.bitmart.core.data.local.current
 import cn.edu.bit.bitmart.core.domain.DomainResult
@@ -58,6 +59,10 @@ data class PublishUiState(
     val currentDraft: DraftItem = DraftItem(ListingCategory.GENERAL),
     val draftBatch: List<DraftItem> = emptyList(),
     val popularTags: List<String> = emptyList(),
+    /** 本地保存的常用联系方式，供发布页快速选择填入（来自 ContactPrefsStore）。 */
+    val commonContacts: List<String> = emptyList(),
+    /** 待询问"是否保存到常用联系方式"的新联系方式；非空时 UI 弹确认框。 */
+    val pendingSaveContact: String? = null,
     val loading: Boolean = false,
     val llmRecognizing: Boolean = false,
     val uploadingImage: Boolean = false,
@@ -85,6 +90,7 @@ class PublishViewModel @Inject constructor(
     private val listingRepository: ListingRepository,
     private val llmClient: LlmClient,
     private val llmConfigStore: LlmConfigStore,
+    private val contactPrefsStore: ContactPrefsStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PublishUiState())
@@ -93,8 +99,12 @@ class PublishViewModel @Inject constructor(
     private val _events = MutableSharedFlow<PublishEvent>()
     val events = _events.asSharedFlow()
 
+    // 本会话内已就"是否保存为常用联系方式"询问过的值（无论保存或拒绝），避免重复打扰。
+    private val askedContacts = mutableSetOf<String>()
+
     init {
         loadPopularTags()
+        loadCommonContacts()
     }
 
     fun setType(t: ListingType) = _state.update { it.copy(type = t) }
@@ -154,6 +164,32 @@ class PublishViewModel @Inject constructor(
                 else -> {} // 失败降级为空列表，不阻塞发布流程。
             }
         }
+    }
+
+    /** 载入本地常用联系方式（进入发布页时读取一次）。 */
+    private fun loadCommonContacts() {
+        viewModelScope.launch {
+            _state.update { it.copy(commonContacts = contactPrefsStore.current()) }
+        }
+    }
+
+    /** 确认将待保存联系方式加入常用联系方式（去重由存储层保证），并即时反映到可选 chips。 */
+    fun savePendingContact() {
+        val value = _state.value.pendingSaveContact ?: return
+        askedContacts += value
+        viewModelScope.launch { contactPrefsStore.add(value) }
+        _state.update {
+            it.copy(
+                pendingSaveContact = null,
+                commonContacts = if (value in it.commonContacts) it.commonContacts else it.commonContacts + value,
+            )
+        }
+    }
+
+    /** 放弃保存：记下已询问，避免同一会话内重复弹窗。 */
+    fun dismissPendingContact() {
+        _state.value.pendingSaveContact?.let { askedContacts += it }
+        _state.update { it.copy(pendingSaveContact = null) }
     }
 
     /**
@@ -301,11 +337,16 @@ class PublishViewModel @Inject constructor(
             }
         }
 
+        val contact = draft.contact.trim()
         _state.update { st ->
             st.copy(
                 draftBatch = st.draftBatch + draft,
                 currentDraft = DraftItem(st.selectedCategory), // 重置编辑器，类型保持。
                 error = null,
+                // 输入了尚未保存且本会话未询问过的新联系方式 → 提示是否加入常用联系方式。
+                pendingSaveContact =
+                    if (contact.isNotEmpty() && contact !in st.commonContacts && contact !in askedContacts) contact
+                    else null,
             )
         }
     }

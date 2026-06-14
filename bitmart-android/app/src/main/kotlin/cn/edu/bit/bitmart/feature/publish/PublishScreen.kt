@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -214,6 +215,19 @@ fun PublishScreen(
         )
         OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
 
+        // 常用联系方式快速填入（来自"我的-常用联系方式"，仅本机）。空列表时不展示。显示在输入框上方。
+        if (state.commonContacts.isNotEmpty()) {
+            Text("常用联系方式（点击填入）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.commonContacts.forEach { c ->
+                    FilterChip(
+                        selected = draft.contact.trim() == c,
+                        onClick = { viewModel.onContact(c) },
+                        label = { Text(c) },
+                    )
+                }
+            }
+        }
         OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式（微信/QQ/手机号等）") }, modifier = Modifier.fillMaxWidth())
 
         // 标签（热门 + 自定义）。
@@ -325,6 +339,17 @@ fun PublishScreen(
                     )
                 }
             }
+        }
+
+        // 输入了未保存的新联系方式时，询问是否加入常用联系方式。
+        state.pendingSaveContact?.let { pending ->
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissPendingContact() },
+                title = { Text("保存到常用联系方式？") },
+                text = { Text("将“$pending”加入常用联系方式，方便下次直接选择。") },
+                confirmButton = { TextButton(onClick = { viewModel.savePendingContact() }) { Text("保存") } },
+                dismissButton = { TextButton(onClick = { viewModel.dismissPendingContact() }) { Text("暂不") } },
+            )
         }
 
         if (state.uploadingImage || state.llmRecognizing || state.lookingUpBook) {

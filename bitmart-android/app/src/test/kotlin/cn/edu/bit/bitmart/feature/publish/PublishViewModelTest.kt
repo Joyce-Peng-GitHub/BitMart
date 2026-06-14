@@ -1,6 +1,7 @@
 package cn.edu.bit.bitmart.feature.publish
 
 import app.cash.turbine.test
+import cn.edu.bit.bitmart.core.data.FakeContactPrefsStore
 import cn.edu.bit.bitmart.core.data.FakeLlmConfigStore
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
@@ -70,7 +71,7 @@ class PublishViewModelTest {
 
     @Test
     fun `addDraftToBatch validates and adds to batch list`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("二手书"); vm.onContact("wxid_x"); vm.onQuantity("2")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
 
@@ -81,7 +82,7 @@ class PublishViewModelTest {
 
     @Test
     fun `addDraftToBatch blocks blank title`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onContact("x")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
 
@@ -91,7 +92,7 @@ class PublishViewModelTest {
 
     @Test
     fun `consumeError clears error so the same message can fire again`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         // 触发一次校验错误（空标题）→ Toast 由 UI 据此弹出。
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals("请填写标题", vm.state.value.error)
@@ -108,7 +109,7 @@ class PublishViewModelTest {
     @Test
     fun `expiresInDays passes through to PublishDraft`() = runTest {
         val repo = FakeRepo()
-        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("台灯"); vm.onContact("x"); vm.onExpiresInDays("60")
         vm.addDraftToBatch()
         vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
@@ -119,7 +120,7 @@ class PublishViewModelTest {
     @Test
     fun `blank expiresInDays maps to null for server default`() = runTest {
         val repo = FakeRepo()
-        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("台灯"); vm.onContact("x")
         vm.addDraftToBatch()
         vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
@@ -129,7 +130,7 @@ class PublishViewModelTest {
 
     @Test
     fun `addDraftToBatch blocks out-of-range or invalid expiresInDays`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("台灯"); vm.onContact("x")
 
         for (bad in listOf("0", "${PublishConfig.EXPIRY_MAX_DAYS + 1}", "abc", "1.5")) {
@@ -151,7 +152,7 @@ class PublishViewModelTest {
 
     @Test
     fun `addDraftToBatch distinguishes non-integer from over-limit quantity`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("台灯"); vm.onContact("x")
 
         // 非正整数（含 0、负数、非数字）→ "必须为正整数"。
@@ -179,7 +180,7 @@ class PublishViewModelTest {
 
     @Test
     fun `addDraftToBatch blocks invalid or too-large price`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("台灯"); vm.onContact("x")
 
         // 非法格式被拒绝。
@@ -203,7 +204,7 @@ class PublishViewModelTest {
     @Test
     fun `submitBatch maps drafts with book and imageKeys`() = runTest {
         val repo = FakeRepo()
-        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.setCategory(ListingCategory.BOOK)
         vm.onTitle("深入理解计算机系统"); vm.onIsbn("9787111544937"); vm.onAuthor("Bryant")
         vm.onContact("wxid_x"); vm.onQuantity("1")
@@ -221,7 +222,7 @@ class PublishViewModelTest {
 
     @Test
     fun `submitBatch empty list shows error`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals("请至少添加一项到待发布列表", vm.state.value.error)
@@ -234,6 +235,7 @@ class PublishViewModelTest {
             FakeRepo(batchResult = DomainResult.Failure("VALIDATION", "第1项标题不能为空", 400)),
             FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
             FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
         )
         vm.onTitle("x"); vm.onContact("y")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
@@ -250,6 +252,7 @@ class PublishViewModelTest {
             FakeRepo(uploadResult = DomainResult.Success("2026/06/02/uuid.jpg")),
             FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
             FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
         )
         vm.uploadImage(byteArrayOf(1, 2, 3), "test.jpg"); dispatcher.scheduler.advanceUntilIdle()
 
@@ -260,7 +263,7 @@ class PublishViewModelTest {
     @Test
     fun `uploadImage rejects when MAX_IMAGES reached`() = runTest {
         val repo = FakeRepo()
-        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         repeat(PublishConfig.MAX_IMAGES) {
             repo.uploadResult = DomainResult.Success("key-$it")
             vm.uploadImage(byteArrayOf(1), "img.jpg"); dispatcher.scheduler.advanceUntilIdle()
@@ -277,7 +280,7 @@ class PublishViewModelTest {
     @Test
     fun `uploadImage concurrent uploads clamp at MAX_IMAGES with error`() = runTest {
         val repo = FakeRepo()
-        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         repeat(PublishConfig.MAX_IMAGES - 1) {
             repo.uploadResult = DomainResult.Success("key-$it")
             vm.uploadImage(byteArrayOf(1), "img.jpg"); dispatcher.scheduler.advanceUntilIdle()
@@ -296,7 +299,7 @@ class PublishViewModelTest {
     @Test
     fun `removeImage removes by index`() = runTest {
         val repo = FakeRepo()
-        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         repo.uploadResult = DomainResult.Success("key-a")
         vm.uploadImage(byteArrayOf(1), "a.jpg"); dispatcher.scheduler.advanceUntilIdle()
         repo.uploadResult = DomainResult.Success("key-b")
@@ -310,7 +313,7 @@ class PublishViewModelTest {
     @Test
     fun `recognizeWithLlm not configured emits navigate event`() = runTest {
         val store = FakeLlmConfigStore(LlmConfig())
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), store)
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), store, FakeContactPrefsStore())
 
         vm.events.test {
             vm.recognizeWithLlm(byteArrayOf(1, 2)); dispatcher.scheduler.advanceUntilIdle()
@@ -324,7 +327,7 @@ class PublishViewModelTest {
         val llm = FakeLlmClient(DomainResult.Success(
             LlmRecognition.Book("深入理解计算机系统", "Bryant", "机械工业", "第3版", "9787111544937"),
         ))
-        val vm = PublishViewModel(FakeRepo(), llm, store)
+        val vm = PublishViewModel(FakeRepo(), llm, store, FakeContactPrefsStore())
         vm.setCategory(ListingCategory.BOOK)
 
         vm.recognizeWithLlm(byteArrayOf(1, 2, 3)); dispatcher.scheduler.advanceUntilIdle()
@@ -340,7 +343,7 @@ class PublishViewModelTest {
         val llm = FakeLlmClient(DomainResult.Success(
             LlmRecognition.General("二手台灯", "九成新", "35", listOf("家居", "照明", "电器")),
         ))
-        val vm = PublishViewModel(FakeRepo(), llm, store)
+        val vm = PublishViewModel(FakeRepo(), llm, store, FakeContactPrefsStore())
         vm.setCategory(ListingCategory.GENERAL)
         repeat(PublishConfig.MAX_TAGS - 1) { vm.addCustomTag("tag$it") }
 
@@ -360,6 +363,7 @@ class PublishViewModelTest {
             )),
             FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
             FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
         )
         vm.setCategory(ListingCategory.BOOK)
 
@@ -376,6 +380,7 @@ class PublishViewModelTest {
             FakeRepo(lookupResult = DomainResult.Success(null)),
             FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
             FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
         )
         vm.setCategory(ListingCategory.BOOK)
 
@@ -387,7 +392,7 @@ class PublishViewModelTest {
 
     @Test
     fun `toggleTag enforces MAX_TAGS`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         repeat(PublishConfig.MAX_TAGS) { vm.toggleTag("tag$it") }
 
         assertEquals(PublishConfig.MAX_TAGS, vm.state.value.currentDraft.tags.size)
@@ -399,7 +404,7 @@ class PublishViewModelTest {
 
     @Test
     fun `removeDraft removes by index`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
         vm.onTitle("B"); vm.onContact("x"); vm.addDraftToBatch()
         dispatcher.scheduler.advanceUntilIdle()
@@ -411,7 +416,7 @@ class PublishViewModelTest {
 
     @Test
     fun `editDraft loads into currentDraft and removes from batch`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
         dispatcher.scheduler.advanceUntilIdle()
 
@@ -422,7 +427,7 @@ class PublishViewModelTest {
 
     @Test
     fun `openBookScan emits navigate event`() = runTest {
-        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
 
         vm.events.test {
             vm.openBookScan(); dispatcher.scheduler.advanceUntilIdle()
@@ -439,9 +444,78 @@ class PublishViewModelTest {
             ))),
             FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
             FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
         )
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(listOf("热门1", "热门2"), vm.state.value.popularTags)
+    }
+
+    // —— 常用联系方式 ——
+
+    @Test
+    fun `commonContacts reflects the store`() = runTest {
+        val store = FakeContactPrefsStore(listOf("wxid_a", "qq_b"))
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("wxid_a", "qq_b"), vm.state.value.commonContacts)
+    }
+
+    @Test
+    fun `addDraftToBatch prompts to save a new contact but not an existing one`() = runTest {
+        val store = FakeContactPrefsStore(listOf("wxid_existing"))
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // 已在常用列表中的联系方式 → 不询问。
+        vm.onTitle("A"); vm.onContact("wxid_existing")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.state.value.pendingSaveContact)
+
+        // 新联系方式 → 询问是否保存。
+        vm.onTitle("B"); vm.onContact("new_contact")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("new_contact", vm.state.value.pendingSaveContact)
+    }
+
+    @Test
+    fun `savePendingContact stores it, updates chips, and stops re-prompting`() = runTest {
+        val store = FakeContactPrefsStore()
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onTitle("A"); vm.onContact("wx_new")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("wx_new", vm.state.value.pendingSaveContact)
+
+        vm.savePendingContact(); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.state.value.pendingSaveContact)
+        assertTrue(vm.state.value.commonContacts.contains("wx_new")) // chips 即时反映
+
+        // 同一会话再次使用该联系方式 → 已保存，不再询问。
+        vm.onTitle("B"); vm.onContact("wx_new")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.state.value.pendingSaveContact)
+    }
+
+    @Test
+    fun `dismissPendingContact clears without saving and does not re-prompt in session`() = runTest {
+        val store = FakeContactPrefsStore()
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onTitle("A"); vm.onContact("wx_decline")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("wx_decline", vm.state.value.pendingSaveContact)
+
+        vm.dismissPendingContact()
+        assertNull(vm.state.value.pendingSaveContact)
+        assertTrue(vm.state.value.commonContacts.isEmpty()) // 未保存
+
+        // 同一会话再次使用该联系方式 → 已询问过，不再打扰。
+        vm.onTitle("B"); vm.onContact("wx_decline")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.state.value.pendingSaveContact)
     }
 }
