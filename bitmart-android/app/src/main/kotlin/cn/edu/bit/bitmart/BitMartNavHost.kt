@@ -15,6 +15,7 @@ import androidx.navigation.navArgument
 import cn.edu.bit.bitmart.feature.about.AboutScreen
 import cn.edu.bit.bitmart.feature.auth.AuthScreen
 import cn.edu.bit.bitmart.feature.bookscan.BookScanScreen
+import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.feature.detail.ListingDetailScreen
 import cn.edu.bit.bitmart.feature.edit.EditListingScreen
 import cn.edu.bit.bitmart.feature.notifications.NotificationsScreen
@@ -30,6 +31,7 @@ object Routes {
     const val SHELL = "shell"
     const val AUTH = "auth"
     const val PUBLISH = "publish"
+    const val PUBLISH_ARG = "type"
     const val BOOK_SCAN = "book_scan"
     const val DETAIL = "detail"
     const val DETAIL_ARG = "id"
@@ -47,6 +49,7 @@ object Routes {
     const val LISTING_CHANGED_KEY = "listing_changed"
     fun detail(id: Long) = "$DETAIL/$id"
     fun edit(id: Long) = "$EDIT/$id"
+    fun publish(type: ListingType) = "$PUBLISH/${type.name}"
     fun myListings(buy: Boolean) = "$MY_LISTINGS/$buy"
 }
 
@@ -75,9 +78,9 @@ fun BitMartNavHost(
                     Log.i(NAV_TAG, "click: listing id=$id")
                     navController.navigate(Routes.detail(id))
                 },
-                onPublishClick = {
-                    Log.i(NAV_TAG, "click: publish")
-                    navController.navigate(Routes.PUBLISH)
+                onPublishClick = { type ->
+                    Log.i(NAV_TAG, "click: publish type=$type")
+                    navController.navigate(Routes.publish(type))
                 },
                 onLoginClick = {
                     Log.i(NAV_TAG, "click: login")
@@ -96,10 +99,18 @@ fun BitMartNavHost(
                 navController.popBackStack(Routes.SHELL, inclusive = false)
             })
         }
-        composable(Routes.PUBLISH) { entry ->
+        composable(
+            route = "${Routes.PUBLISH}/{${Routes.PUBLISH_ARG}}",
+            arguments = listOf(navArgument(Routes.PUBLISH_ARG) { type = NavType.StringType }),
+        ) { entry ->
+            // 发布类型由入口决定（商品→SELL，收购→BUY）；解析失败兜底 SELL。
+            val publishType = runCatching {
+                ListingType.valueOf(entry.arguments?.getString(Routes.PUBLISH_ARG) ?: "")
+            }.getOrDefault(ListingType.SELL)
             val scannedIsbn by entry.savedStateHandle.getStateFlow<String?>("isbn_result", null)
                 .collectAsStateWithLifecycle()
             PublishScreen(
+                initialType = publishType,
                 onPublished = {
                     Log.i(NAV_TAG, "action: listing published")
                     navController.popBackStack()

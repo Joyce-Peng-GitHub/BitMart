@@ -87,6 +87,7 @@ import java.time.ZoneOffset
 /**
  * 发布屏（多草稿批量模型）：先选书籍/一般商品，填写字段后加入批次，最后一并提交。
  * 书籍可扫码 ISBN → lookupBook 预填；可拍照/上传图片 → uploadImage / LLM 识别。
+ * @param initialType 发布类型，由入口决定（商品 tab→SELL，收购 tab→BUY），页内不再切换。
  * @param onPublished 批次提交成功后回调（pop back）。
  * @param onNavigateToLlmSettings LLM 未配置时跳转 LLM 设置页。
  * @param onNavigateToBookScan 打开书籍条码扫描页。
@@ -94,6 +95,7 @@ import java.time.ZoneOffset
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PublishScreen(
+    initialType: ListingType,
     onPublished: () -> Unit,
     onNavigateToLlmSettings: () -> Unit,
     onNavigateToBookScan: () -> Unit,
@@ -104,6 +106,9 @@ fun PublishScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // 发布类型由入口决定，进入时设置一次。
+    LaunchedEffect(Unit) { viewModel.setType(initialType) }
 
     // 从条码扫描页收到 ISBN → 预填书籍草稿。
     LaunchedEffect(scannedIsbn) {
@@ -164,13 +169,11 @@ fun PublishScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("发布新项（批量）", style = MaterialTheme.typography.headlineSmall)
-
-        // 卖/买 类型选择。
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(state.type == ListingType.SELL, { viewModel.setType(ListingType.SELL) }, { Text("我要卖") })
-            FilterChip(state.type == ListingType.BUY, { viewModel.setType(ListingType.BUY) }, { Text("我要买") })
-        }
+        // 类型由入口决定（商品/收购），标题随之；页内不再提供卖/买切换。
+        Text(
+            if (state.type == ListingType.BUY) "发布收购（批量）" else "发布商品（批量）",
+            style = MaterialTheme.typography.headlineSmall,
+        )
 
         // 书籍/一般商品 类别选择。
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

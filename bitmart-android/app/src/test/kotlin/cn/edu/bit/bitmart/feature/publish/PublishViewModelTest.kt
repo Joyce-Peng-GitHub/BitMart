@@ -268,6 +268,19 @@ class PublishViewModelTest {
     }
 
     @Test
+    fun `setType makes published drafts carry that type`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
+        // 入口决定类型：收购入口 → BUY，所有提交草稿均为该类型。
+        vm.setType(ListingType.BUY)
+        vm.onTitle("求购台灯"); vm.onContact("x")
+        vm.addDraftToBatch()
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(ListingType.BUY, repo.lastBatchDrafts!![0].type)
+    }
+
+    @Test
     fun `submitBatch empty list shows error`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()

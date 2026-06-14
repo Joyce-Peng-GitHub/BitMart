@@ -22,7 +22,7 @@ import cn.edu.bit.bitmart.feature.feed.ListingFeedViewModel
 @Composable
 fun TradeScreen(
     onItemClick: (Long) -> Unit,
-    onPublishClick: () -> Unit,
+    onPublishClick: (ListingType) -> Unit,
     viewModel: ListingFeedViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -43,7 +43,8 @@ fun TradeScreen(
         }
         ListingFeedScreen(
             onItemClick = onItemClick,
-            onPublishClick = onPublishClick,
+            // 发布类型由当前 tab 决定：商品→SELL，收购→BUY。
+            onPublishClick = { onPublishClick(state.type) },
             viewModel = viewModel,
         )
     }

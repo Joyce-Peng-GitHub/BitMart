@@ -21,6 +21,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import cn.edu.bit.bitmart.feature.profile.ProfileScreen
 import cn.edu.bit.bitmart.feature.trade.TradeScreen
+import cn.edu.bit.bitmart.core.domain.model.ListingType
 
 /** 底部导航的两个顶层目的地。 */
 private enum class ShellTab(val route: String, val label: String, val icon: ImageVector) {
@@ -43,7 +44,7 @@ private enum class ShellTab(val route: String, val label: String, val icon: Imag
 @Composable
 fun BitMartShell(
     onItemClick: (Long) -> Unit,
-    onPublishClick: () -> Unit,
+    onPublishClick: (ListingType) -> Unit,
     onLoginClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onContactsClick: () -> Unit,
