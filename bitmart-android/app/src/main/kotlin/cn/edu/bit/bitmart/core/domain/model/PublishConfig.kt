@@ -12,6 +12,12 @@ object PublishConfig {
     const val MAX_IMAGES = 9
 
     /**
+     * 单条发布的件数上限，与服务端 ListingValidator.MAX_QUANTITY 保持一致。
+     * 面向校园二手场景的合理上界；客户端据此拦截，服务端有独立的同等校验。
+     */
+    const val MAX_QUANTITY = 9999
+
+    /**
      * 单价上限，对齐服务端 DB 列 unit_price NUMERIC(10,2)（最大 99999999.99）。
      * 客户端提交前据此拦截，避免无谓的 400 往返；服务端有独立的同等校验。
      */

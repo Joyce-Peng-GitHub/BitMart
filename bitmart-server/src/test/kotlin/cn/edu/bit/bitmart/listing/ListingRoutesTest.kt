@@ -148,6 +148,16 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
+    test("发布：件数超出上限 → 400") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "海量件数商品", quantityTotal = 10000))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
     test("发布：价格超出 NUMERIC(10,2) 上限 → 400（入库前拦截，不触发 DB 溢出）") {
         app { client ->
             val token = client.registerToken()

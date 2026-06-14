@@ -21,6 +21,12 @@ class ListingValidator(
          * 超出会触发 PostgreSQL numeric field overflow，故须在入库前于此拦截。
          */
         val MAX_UNIT_PRICE: BigDecimal = BigDecimal("99999999.99")
+
+        /**
+         * 单条件数上限。面向校园二手场景的合理上界，避免误填超大值
+         * （DB 列 quantity_total 为 INT，仅约束 >= 1，无业务上界）。
+         */
+        const val MAX_QUANTITY: Int = 9999
     }
 
     /**
@@ -89,6 +95,12 @@ class ListingValidator(
 
     private fun validateQuantity(quantityTotal: Int, errors: ValidationErrors) {
         errors.check(quantityTotal >= 1, "quantityTotal", "QUANTITY_TOTAL_INVALID", "件数必须 >= 1")
+        errors.check(
+            quantityTotal <= MAX_QUANTITY,
+            field = "quantityTotal",
+            code = "QUANTITY_TOTAL_TOO_LARGE",
+            message = "件数不能超过 $MAX_QUANTITY",
+        )
     }
 
     private fun validatePrice(unitPrice: BigDecimal?, errors: ValidationErrors) {

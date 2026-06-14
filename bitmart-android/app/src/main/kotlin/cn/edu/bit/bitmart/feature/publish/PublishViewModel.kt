@@ -268,8 +268,14 @@ class PublishViewModel @Inject constructor(
         // 客户端基础校验。
         if (draft.title.isBlank()) { _state.update { it.copy(error = "请填写标题") }; return }
         if (draft.contact.isBlank()) { _state.update { it.copy(error = "请填写联系方式") }; return }
-        val qty = draft.quantityTotal.toIntOrNull()
+        // 件数须为正整数且不超过上界。用 Long 解析，以便把"过大的整数"正确归类为超上界
+        // （toInt 对超 Int.MAX 的输入会返回 null，从而被误判为"非正整数"）。
+        // 超 Long 范围（约 20 位以上）的极端输入仍回落到"非正整数"提示，属可接受的边缘情形。
+        val qty = draft.quantityTotal.toLongOrNull()
         if (qty == null || qty < 1) { _state.update { it.copy(error = "件数必须为正整数") }; return }
+        if (qty > PublishConfig.MAX_QUANTITY) {
+            _state.update { it.copy(error = "件数不能超过 ${PublishConfig.MAX_QUANTITY}") }; return
+        }
         // 价格可留空（面议）；填写则须为合法数字且不超过 DB 列上限（避免入库时 NUMERIC 溢出）。
         val priceRaw = draft.unitPrice.trim()
         if (priceRaw.isNotEmpty()) {

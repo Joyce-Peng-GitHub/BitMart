@@ -134,6 +134,34 @@ class PublishViewModelTest {
     }
 
     @Test
+    fun `addDraftToBatch distinguishes non-integer from over-limit quantity`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
+        vm.onTitle("台灯"); vm.onContact("x")
+
+        // 非正整数（含 0、负数、非数字）→ "必须为正整数"。
+        for (bad in listOf("0", "-3", "abc", "1.5")) {
+            vm.onQuantity(bad)
+            vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+            assertEquals("应判为非正整数: $bad", "件数必须为正整数", vm.state.value.error)
+            assertTrue(vm.state.value.draftBatch.isEmpty())
+        }
+
+        // 超过上限（含超出 Int 范围的"过大整数"）→ 明确提示上界，而非"必须为正整数"。
+        for (tooLarge in listOf("${PublishConfig.MAX_QUANTITY + 1}", "100000000000")) {
+            vm.onQuantity(tooLarge)
+            vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+            assertEquals("应提示上界: $tooLarge", "件数不能超过 ${PublishConfig.MAX_QUANTITY}", vm.state.value.error)
+            assertTrue(vm.state.value.draftBatch.isEmpty())
+        }
+
+        // 恰好等于上限合法。
+        vm.onQuantity("${PublishConfig.MAX_QUANTITY}")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.draftBatch.size)
+        assertEquals(PublishConfig.MAX_QUANTITY, vm.state.value.draftBatch[0].quantityTotal.toInt())
+    }
+
+    @Test
     fun `addDraftToBatch blocks invalid or too-large price`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))), FakeLlmConfigStore())
         vm.onTitle("台灯"); vm.onContact("x")

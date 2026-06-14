@@ -69,6 +69,14 @@ class ListingValidatorTest : FunSpec({
         codes(validator.validateCreate(validInput(quantityTotal = 0), now)) shouldContain "QUANTITY_TOTAL_INVALID"
     }
 
+    test("件数恰好等于上限 9999 合法") {
+        validator.validateCreate(validInput(quantityTotal = 9999), now).isValid.shouldBeTrue()
+    }
+
+    test("件数超过上限被拒绝") {
+        codes(validator.validateCreate(validInput(quantityTotal = 10000), now)) shouldContain "QUANTITY_TOTAL_TOO_LARGE"
+    }
+
     test("无联系方式被拒绝") {
         codes(validator.validateCreate(validInput(contacts = emptyList()), now)) shouldContain "CONTACT_REQUIRED"
     }
