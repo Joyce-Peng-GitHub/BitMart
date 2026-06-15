@@ -8,6 +8,9 @@ import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
+import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
+import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
 import cn.edu.bit.bitmart.core.ui.FilterState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +41,10 @@ data class FeedUiState(
     val error: String? = null,
     val nextCursor: String? = null,
     val endReached: Boolean = false,
+    /** 当前登录用户 id（未登录为 null）。列表项 ownerId 与之相等者为本人项，启用左滑操作。 */
+    val currentUserId: Long? = null,
+    /** 正在提交"调整已售出数量"的本人条目 id，用于左滑动作区行内转圈。 */
+    val adjustingId: Long? = null,
 )
 
 /**
@@ -46,10 +53,37 @@ data class FeedUiState(
 @HiltViewModel
 class ListingFeedViewModel @Inject constructor(
     private val listingRepository: ListingRepository,
+    private val profileRepository: ProfileRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FeedUiState())
     val state: StateFlow<FeedUiState> = _state.asStateFlow()
+
+    /** 最近一次登录态。供 refresh 时按需补解析本人 id（首启离线导致 init 取不到的情形）。 */
+    private var loggedIn = false
+
+    init {
+        // 跟随登录态解析当前用户 id：登录后取一次 /me 用于"本人项"判定；登出即清空。
+        viewModelScope.launch {
+            authRepository.isLoggedIn.collect { isLoggedIn ->
+                loggedIn = isLoggedIn
+                if (!isLoggedIn) _state.update { it.copy(currentUserId = null) }
+                else ensureCurrentUser()
+            }
+        }
+    }
+
+    /**
+     * 已登录但本人 id 未知时取一次 /me 解析；已知或未登录则空操作。
+     * 取不到（如离线）保持 null，下次 refresh 会再次尝试，避免首启离线后永久失去左滑能力。
+     */
+    private suspend fun ensureCurrentUser() {
+        if (!loggedIn || _state.value.currentUserId != null) return
+        (profileRepository.getMe() as? DomainResult.Success)?.let { me ->
+            _state.update { it.copy(currentUserId = me.data.id) }
+        }
+    }
 
     /** 设置当前类型（SELL/BUY）并重新加载。 */
     fun setType(type: ListingType) {
@@ -65,6 +99,37 @@ class ListingFeedViewModel @Inject constructor(
 
     /** 消费一次性错误提示（UI 以 Toast 展示后调用，置空以便相同错误可再次触发）。 */
     fun consumeError() = _state.update { it.copy(error = null) }
+
+    /**
+     * 调整本人某条目的已售出数量（公开列表中对本人项左滑可用）。
+     * 成功后本地更新 quantitySold，避免整页刷新。失败置 error 供 Toast 展示。
+     */
+    fun adjustSold(id: Long, quantitySold: Int) {
+        viewModelScope.launch {
+            _state.update { it.copy(adjustingId = id, error = null) }
+            when (val r = listingRepository.update(id, UpdateDraft(quantitySold = quantitySold))) {
+                is DomainResult.Success -> _state.update { st ->
+                    st.copy(
+                        adjustingId = null,
+                        items = st.items.map { if (it.id == id) it.copy(quantitySold = quantitySold) else it },
+                    )
+                }
+                is DomainResult.Failure -> _state.update { it.copy(adjustingId = null, error = "调整失败：${r.message}") }
+                is DomainResult.NetworkError -> _state.update { it.copy(adjustingId = null, error = "网络异常：${r.message}") }
+            }
+        }
+    }
+
+    /** 删除本人某条目，成功后从本地列表移除。失败置 error 供 Toast 展示。 */
+    fun delete(id: Long) {
+        viewModelScope.launch {
+            when (val r = listingRepository.delete(id)) {
+                is DomainResult.Success -> _state.update { st -> st.copy(items = st.items.filterNot { it.id == id }) }
+                is DomainResult.Failure -> _state.update { it.copy(error = "删除失败：${r.message}") }
+                is DomainResult.NetworkError -> _state.update { it.copy(error = "网络异常：${r.message}") }
+            }
+        }
+    }
 
     fun toggleIncludeSold() {
         _state.update { it.copy(includeSold = !it.includeSold) }
@@ -106,6 +171,8 @@ class ListingFeedViewModel @Inject constructor(
      */
     fun refresh(showSpinner: Boolean = true) {
         val s = _state.value
+        // 并发补解析本人 id（不阻塞列表加载）：覆盖首启离线、稍后联网后下拉刷新的情形。
+        viewModelScope.launch { ensureCurrentUser() }
         viewModelScope.launch {
             _state.update {
                 if (showSpinner) it.copy(loading = true, error = null, items = emptyList(), nextCursor = null, endReached = false)

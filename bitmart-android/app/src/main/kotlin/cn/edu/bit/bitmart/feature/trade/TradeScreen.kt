@@ -18,11 +18,18 @@ import cn.edu.bit.bitmart.feature.feed.ListingFeedViewModel
  * “买卖”页：顶部 “商品”/“收购” 两个 tab，界面基本相同，复用 [ListingFeedScreen]。
  * 两 tab 分别对应 [ListingType.SELL]（商品）与 [ListingType.BUY]（收购），
  * 切换 tab 时驱动 [ListingFeedViewModel.setType]。共享同一 ViewModel 使 tab 与列表类型保持一致。
+ *
+ * @param onEditClick 在列表中左滑“编辑”本人项时进入编辑页。
+ * @param listingChanged 本人项编辑返回后置 true，向下透传触发列表刷新。
+ * @param onListingChangeConsumed 刷新触发后回调，由上层清除标记。
  */
 @Composable
 fun TradeScreen(
     onItemClick: (Long) -> Unit,
     onPublishClick: (ListingType) -> Unit,
+    onEditClick: (Long) -> Unit = {},
+    listingChanged: Boolean = false,
+    onListingChangeConsumed: () -> Unit = {},
     viewModel: ListingFeedViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -45,6 +52,9 @@ fun TradeScreen(
             onItemClick = onItemClick,
             // 发布类型由当前 tab 决定：商品→SELL，收购→BUY。
             onPublishClick = { onPublishClick(state.type) },
+            onEditClick = onEditClick,
+            refreshSignal = listingChanged,
+            onRefreshConsumed = onListingChangeConsumed,
             viewModel = viewModel,
         )
     }

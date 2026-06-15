@@ -27,6 +27,8 @@ data class Contact(val channel: String = "", val value: String)
  */
 data class ListingSummary(
     val id: Long,
+    /** 发布者用户 id。客户端据此判断"是否本人"，在公开列表中对本人项启用左滑操作。 */
+    val ownerId: Long,
     val type: ListingType,
     val category: ListingCategory,
     val title: String,

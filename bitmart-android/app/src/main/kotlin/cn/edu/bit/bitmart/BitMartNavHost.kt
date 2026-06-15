@@ -71,7 +71,11 @@ fun BitMartNavHost(
     }
 
     NavHost(navController = navController, startDestination = Routes.SHELL) {
-        composable(Routes.SHELL) {
+        composable(Routes.SHELL) { entry ->
+            // 本人项从买卖列表左滑编辑后，编辑页把 LISTING_CHANGED_KEY 写到 SHELL entry；据此刷新买卖列表。
+            val listingChanged by entry.savedStateHandle
+                .getStateFlow(Routes.LISTING_CHANGED_KEY, false)
+                .collectAsStateWithLifecycle()
             BitMartShell(
                 onItemClick = { id ->
                     Log.i(NAV_TAG, "click: listing id=$id")
@@ -80,6 +84,10 @@ fun BitMartNavHost(
                 onPublishClick = { type ->
                     Log.i(NAV_TAG, "click: publish type=$type")
                     navController.navigate(Routes.publish(type))
+                },
+                onEditClick = { id ->
+                    Log.i(NAV_TAG, "click: edit listing id=$id")
+                    navController.navigate(Routes.edit(id))
                 },
                 onLoginClick = {
                     Log.i(NAV_TAG, "click: login")
@@ -90,6 +98,8 @@ fun BitMartNavHost(
                 onMyListingsClick = { buy -> navController.navigate(Routes.myListings(buy)) },
                 onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                 onAboutClick = { navController.navigate(Routes.ABOUT) },
+                listingChanged = listingChanged,
+                onListingChangeConsumed = { entry.savedStateHandle[Routes.LISTING_CHANGED_KEY] = false },
             )
         }
         composable(Routes.AUTH) {

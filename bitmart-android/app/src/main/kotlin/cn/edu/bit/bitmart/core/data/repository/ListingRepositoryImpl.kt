@@ -116,6 +116,7 @@ private fun ListingQuery.toParams(): Map<String, String?> = buildMap {
 
 private fun ListingSummaryDto.toDomain() = ListingSummary(
     id = id,
+    ownerId = ownerId,
     type = enumValueOf<ListingType>(type),
     category = enumValueOf<ListingCategory>(category),
     title = title, unitPrice = unitPrice, quantityTotal = quantityTotal, quantitySold = quantitySold,

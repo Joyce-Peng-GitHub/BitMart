@@ -187,7 +187,7 @@ class ListingRepository {
     fun list(filter: ListingFilter): List<ListingSummary> {
         val sql = StringBuilder(
             """
-            SELECT l.id, l.type, l.category, l.title, l.unit_price,
+            SELECT l.id, l.user_id, l.type, l.category, l.title, l.unit_price,
                    l.quantity_total, l.quantity_sold, u.nickname, l.created_at, l.expires_at,
                    (SELECT '/static/' || li.blob_key FROM listing_image li
                      WHERE li.listing_id = l.id ORDER BY li.ord LIMIT 1) AS first_image
@@ -268,6 +268,7 @@ class ListingRepository {
             while (rs.next()) {
                 out += ListingSummary(
                     id = rs.getLong("id"),
+                    ownerId = rs.getLong("user_id"),
                     type = ListingType.entries[rs.getInt("type")],
                     category = ListingCategory.entries[rs.getInt("category")],
                     title = rs.getString("title"),

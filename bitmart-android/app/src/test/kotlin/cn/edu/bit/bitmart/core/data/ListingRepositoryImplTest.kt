@@ -15,7 +15,7 @@ import org.junit.Test
 class ListingRepositoryImplTest {
 
     private val pageBody = """
-        {"items":[{"id":5,"type":"SELL","category":"GENERAL","title":"线性代数","unitPrice":"30.00",
+        {"items":[{"id":5,"ownerId":1,"type":"SELL","category":"GENERAL","title":"线性代数","unitPrice":"30.00",
           "quantityTotal":2,"quantitySold":0,"tags":["教材"],"createdAt":"2026-06-02T00:00:00Z",
           "expiresAt":"2026-07-02T00:00:00Z"}],
          "nextCursor":null}
@@ -84,7 +84,7 @@ class ListingRepositoryImplTest {
     @Test
     fun `summary maps firstImageUrl through`() = runTest {
         val body = """
-            {"items":[{"id":7,"type":"SELL","category":"GENERAL","title":"图书","unitPrice":null,
+            {"items":[{"id":7,"ownerId":1,"type":"SELL","category":"GENERAL","title":"图书","unitPrice":null,
               "quantityTotal":1,"quantitySold":0,"firstImageUrl":"/static/2026/06/02/x.jpg",
               "tags":[],"createdAt":"2026-06-02T00:00:00Z","expiresAt":"2026-07-02T00:00:00Z"}],"nextCursor":null}
         """.trimIndent()
@@ -100,7 +100,7 @@ class ListingRepositoryImplTest {
     @Test
     fun `summary maps expiresAt through`() = runTest {
         val body = """
-            {"items":[{"id":8,"type":"SELL","category":"GENERAL","title":"将过期","unitPrice":null,
+            {"items":[{"id":8,"ownerId":1,"type":"SELL","category":"GENERAL","title":"将过期","unitPrice":null,
               "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z",
               "expiresAt":"2026-06-13T08:00:00Z"}],"nextCursor":null}
         """.trimIndent()

@@ -1,26 +1,17 @@
 package cn.edu.bit.bitmart.feature.profile
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Numbers
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,8 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,14 +40,12 @@ import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
 import cn.edu.bit.bitmart.core.ui.FilterState
 import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
-import cn.edu.bit.bitmart.core.ui.ListingTimeInfo
-import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
-import coil3.compose.AsyncImage
+import cn.edu.bit.bitmart.core.ui.OwnedListingRow
 
 /**
  * “我的商品 / 我的收购”管理页（架构 §6.2，GET /me/listings）。
- * 列出当前用户自己发布的项（含已售罄/已过期），可点进详情（详情页提供本人删/改），
- * 并在行内直接调整数量、编辑或删除。
+ * 列表卡片与“买卖”页完全一致（[OwnedListingRow] 复用统一卡片）；区别仅在于顶部保留返回键与
+ * 标题、无买卖 tab 切换条。调整数量 / 编辑 / 删除改为左滑卡片显露（不再常驻图标按钮）。
  * @param buy true 表示“我的收购”（BUY），false 表示“我的商品”（SELL）。
  * @param onItemClick 点击条目进入详情（使用外层导航控制器，详情为全屏同级页）。
  * @param onEditClick 点击编辑进入编辑页。
@@ -86,10 +73,10 @@ fun MyListingsScreen(
 
     LaunchedEffect(buy) { viewModel.setType(if (buy) ListingType.BUY else ListingType.SELL) }
 
-    // 从编辑/删除返回后刷新列表（标题/价格等可能已变），随后清除标记。
+    // 从编辑/删除返回后刷新列表（标题/价格等可能已变），随后清除标记。保留列表（不闪全屏转圈）。
     LaunchedEffect(refreshSignal) {
         if (refreshSignal) {
-            viewModel.refresh()
+            viewModel.refresh(showSpinner = false)
             onRefreshConsumed()
         }
     }
@@ -160,9 +147,9 @@ fun MyListingsScreen(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     items(state.items, key = { it.id }) { item ->
-                        MyListingRow(
+                        OwnedListingRow(
                             item = item,
-                            buy = buy,
+                            type = if (buy) ListingType.BUY else ListingType.SELL,
                             adjusting = state.adjustingId == item.id,
                             onClick = { onItemClick(item.id) },
                             onAdjustClick = { adjustTarget = item },
@@ -212,58 +199,3 @@ fun MyListingsScreen(
         )
     }
 }
-@Composable
-private fun MyListingRow(
-    item: ListingSummary,
-    buy: Boolean,
-    adjusting: Boolean,
-    onClick: () -> Unit,
-    onAdjustClick: () -> Unit,
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-) {
-    val soldOut = item.quantitySold >= item.quantityTotal
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            val imageUrl = absoluteMediaUrl(item.firstImageUrl)
-            if (imageUrl != null) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = item.title,
-                    modifier = Modifier.size(56.dp).clip(MaterialTheme.shapes.small),
-                    contentScale = ContentScale.Crop,
-                )
-                Spacer(Modifier.width(12.dp))
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(item.title, style = MaterialTheme.typography.titleMedium)
-                val priceLabel = if (buy) "期望价" else "售价"
-                val price = item.unitPrice?.let { "￥$it" } ?: "面议"
-                Text("$priceLabel：$price", style = MaterialTheme.typography.bodyMedium)
-                val soldVerb = if (buy) "已收" else "已售"
-                val fullLabel = if (buy) "（已收满）" else "（售罄）"
-                val soldText = "$soldVerb ${item.quantitySold}/${item.quantityTotal}" + if (soldOut) fullLabel else ""
-                Text(
-                    soldText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (soldOut) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ListingTimeInfo(createdAtIso = item.createdAt, expiresAtIso = item.expiresAt)
-            }
-            if (adjusting) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                IconButton(onClick = onAdjustClick) {
-                    Icon(Icons.Default.Numbers, contentDescription = "调整数量")
-                }
-            }
-            IconButton(onClick = onEditClick) {
-                Icon(Icons.Default.Edit, contentDescription = "编辑")
-            }
-            IconButton(onClick = onDeleteClick) {
-                Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
-            }
-        }
-    }
-}
-

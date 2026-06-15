@@ -73,6 +73,7 @@ data class UpdateListingRequest(
 @Serializable
 data class ListingSummaryDto(
     val id: Long,
+    val ownerId: Long,
     val type: String,
     val category: String,
     val title: String,
@@ -88,6 +89,7 @@ data class ListingSummaryDto(
     companion object {
         fun from(s: ListingSummary) = ListingSummaryDto(
             id = s.id,
+            ownerId = s.ownerId,
             type = s.type.name,
             category = s.category.name,
             title = s.title,

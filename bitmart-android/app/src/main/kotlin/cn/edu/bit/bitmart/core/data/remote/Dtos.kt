@@ -57,6 +57,7 @@ data class BookDto(
 @Serializable
 data class ListingSummaryDto(
     val id: Long,
+    val ownerId: Long,
     val type: String,
     val category: String,
     val title: String,

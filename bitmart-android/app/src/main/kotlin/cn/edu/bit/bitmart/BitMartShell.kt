@@ -34,12 +34,15 @@ private enum class ShellTab(val route: String, val label: String, val icon: Imag
  * 该外壳无需登录即可浏览（列表为公开）；详情/发布/登录/通知/设置等由上层导航以全屏方式叠加。
  * @param onItemClick 点击列表项进入详情。
  * @param onPublishClick 点击发布。
+ * @param onEditClick 在买卖列表中左滑“编辑”本人项进入编辑页。
  * @param onLoginClick “我的” 页未登录时点击登录。
  * @param onNotificationsClick 进入通知页。
  * @param onContactsClick 进入常用联系方式页。
  * @param onMyListingsClick 进入“我的商品/收购”管理页（buy=true 为收购）。
  * @param onSettingsClick 进入设置页。
  * @param onAboutClick 进入关于页。
+ * @param listingChanged 本人项编辑返回后置 true，透传给买卖页触发刷新。
+ * @param onListingChangeConsumed 刷新触发后回调，清除标记。
  */
 @Composable
 fun BitMartShell(
@@ -51,6 +54,9 @@ fun BitMartShell(
     onMyListingsClick: (Boolean) -> Unit,
     onSettingsClick: () -> Unit,
     onAboutClick: () -> Unit,
+    onEditClick: (Long) -> Unit = {},
+    listingChanged: Boolean = false,
+    onListingChangeConsumed: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -83,7 +89,13 @@ fun BitMartShell(
             modifier = Modifier.padding(padding),
         ) {
             composable(ShellTab.TRADE.route) {
-                TradeScreen(onItemClick = onItemClick, onPublishClick = onPublishClick)
+                TradeScreen(
+                    onItemClick = onItemClick,
+                    onPublishClick = onPublishClick,
+                    onEditClick = onEditClick,
+                    listingChanged = listingChanged,
+                    onListingChangeConsumed = onListingChangeConsumed,
+                )
             }
             composable(ShellTab.PROFILE.route) {
                 ProfileScreen(

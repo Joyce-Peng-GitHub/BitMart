@@ -1,16 +1,13 @@
 package cn.edu.bit.bitmart.feature.feed
 
 import android.widget.Toast
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -21,12 +18,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
@@ -42,8 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -51,26 +44,47 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
 import cn.edu.bit.bitmart.core.ui.FilterState
+import cn.edu.bit.bitmart.core.ui.ListingCard
 import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
-import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
-import coil3.compose.AsyncImage
+import cn.edu.bit.bitmart.core.ui.OwnedListingRow
 
-/** 商品/求购列表屏。买/卖共用，文案随类型切换。右下角三枚悬浮按钮：搜索、筛选、发布（自上而下）。 */
+/**
+ * 商品/求购列表屏。买/卖共用，文案随类型切换。右下角三枚悬浮按钮：搜索、筛选、发布（自上而下）。
+ * 列表项中属于当前登录用户（item.ownerId == currentUserId）的项支持左滑显露
+ * 调整数量 / 编辑 / 删除（与"我的商品/收购"一致）；他人项为普通卡片。
+ *
+ * @param onEditClick 左滑"编辑"本人项时进入编辑页。
+ * @param refreshSignal 本人项编辑返回后置 true，触发列表刷新。
+ * @param onRefreshConsumed 刷新触发后回调，由上层清除标记。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListingFeedScreen(
     onItemClick: (Long) -> Unit,
     onPublishClick: () -> Unit,
+    onEditClick: (Long) -> Unit = {},
+    refreshSignal: Boolean = false,
+    onRefreshConsumed: () -> Unit = {},
     viewModel: ListingFeedViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showFilter by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var adjustTarget by remember { mutableStateOf<ListingSummary?>(null) }
     val listState = rememberLazyListState()
     val context = LocalContext.current
 
     LaunchedEffect(Unit) { if (state.items.isEmpty()) viewModel.refresh() }
+
+    // 本人项编辑返回后刷新列表（标题/价格等可能已变），随后清除标记。
+    LaunchedEffect(refreshSignal) {
+        if (refreshSignal) {
+            viewModel.refresh(showSpinner = false)
+            onRefreshConsumed()
+        }
+    }
 
     // 异常（如网络异常）用 Toast 提示，不再固定在列表上方。
     LaunchedEffect(state.error) {
@@ -124,7 +138,20 @@ fun ListingFeedScreen(
                         modifier = Modifier.fillMaxSize().padding(top = 8.dp),
                     ) {
                         items(state.items, key = { it.id }) { item ->
-                            ListingCard(item, type = state.type, onClick = { onItemClick(item.id) })
+                            // 本人项支持左滑操作；他人项为普通卡片。
+                            if (state.currentUserId != null && item.ownerId == state.currentUserId) {
+                                OwnedListingRow(
+                                    item = item,
+                                    type = state.type,
+                                    adjusting = state.adjustingId == item.id,
+                                    onClick = { onItemClick(item.id) },
+                                    onAdjustClick = { adjustTarget = item },
+                                    onEditClick = { onEditClick(item.id) },
+                                    onDeleteClick = { viewModel.delete(item.id) },
+                                )
+                            } else {
+                                ListingCard(item = item, type = state.type, onClick = { onItemClick(item.id) })
+                            }
                         }
                         if (state.loadingMore) {
                             item {
@@ -165,6 +192,19 @@ fun ListingFeedScreen(
             showExpiredToggle = false,
         )
     }
+
+    adjustTarget?.let { target ->
+        AdjustQuantityDialog(
+            quantityTotal = target.quantityTotal,
+            currentQuantitySold = target.quantitySold,
+            buy = state.type == ListingType.BUY,
+            onDismiss = { adjustTarget = null },
+            onConfirm = { qty ->
+                viewModel.adjustSold(target.id, qty)
+                adjustTarget = null
+            },
+        )
+    }
 }
 
 /**
@@ -201,32 +241,4 @@ private fun SearchDialog(
             }
         },
     )
-}
-
-/** 列表项卡片：首图缩略图 + 标题/价格/标签。取货地点仅详情页展示（架构 §6.3），列表不含。 */
-@Composable
-fun ListingCard(item: ListingSummary, type: ListingType, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            val imageUrl = absoluteMediaUrl(item.firstImageUrl)
-            if (imageUrl != null) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = item.title,
-                    modifier = Modifier.size(64.dp).clip(MaterialTheme.shapes.small),
-                    contentScale = ContentScale.Crop,
-                )
-                Spacer(Modifier.width(12.dp))
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(item.title, style = MaterialTheme.typography.titleMedium)
-                val priceLabel = if (type == ListingType.BUY) "期望价" else "售价"
-                val price = item.unitPrice?.let { "￥$it" } ?: "面议"
-                Text("$priceLabel：$price", style = MaterialTheme.typography.bodyMedium)
-                if (item.tags.isNotEmpty()) {
-                    Text("标签：${item.tags.joinToString(" / ")}", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
 }

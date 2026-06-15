@@ -505,6 +505,26 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
+    test("列表摘要携带 ownerId，等于发布者 userId（供客户端判定本人项以启用左滑操作）") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(title = "ownerId测试商品qwe"))
+            }.body<CreatedResponse>().id
+            // 详情的 userId 即发布者 id。
+            val myId = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>().userId
+
+            // 公开列表中该项的 ownerId 等于发布者 id。
+            val publicItem = client.get("/api/v1/listings?type=SELL&limit=50").body<ListingPageDto>()
+                .items.first { it.id == id }
+            publicItem.ownerId shouldBe myId
+
+            // "我的列表"中所有项的 ownerId 均为本人 id。
+            val mine = client.get("/api/v1/me/listings") { bearerAuth(token) }.body<ListingPageDto>()
+            mine.items.all { it.ownerId == myId } shouldBe true
+        }
+    }
+
     test("公开列表默认不含已售罄项（与我的列表区别）") {
         app { client ->
             val token = client.registerToken()
