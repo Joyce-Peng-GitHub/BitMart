@@ -30,13 +30,16 @@ class ListingFeedViewModelTest {
         id, ListingType.SELL, ListingCategory.GENERAL, "商品$id", "10.00", 1, 0, null, null, emptyList(), "2026-06-02T00:00:00Z", "2026-07-02T00:00:00Z",
     )
 
-    /** 记录最近一次查询并按脚本返回页。 */
-    private class FakeRepo(val pages: List<ListingPage>) : ListingRepository {
+    /** 记录最近一次查询并按脚本返回页。listResult 非空时 list() 改为返回它（用于测错误路径）。 */
+    private class FakeRepo(
+        val pages: List<ListingPage>,
+        val listResult: DomainResult<ListingPage>? = null,
+    ) : ListingRepository {
         var lastQuery: ListingQuery? = null
         private var call = 0
         override suspend fun list(query: ListingQuery): DomainResult<ListingPage> {
             lastQuery = query
-            return DomainResult.Success(pages[call++.coerceAtMost(pages.size - 1)])
+            return listResult ?: DomainResult.Success(pages[call++.coerceAtMost(pages.size - 1)])
         }
         override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
         override suspend fun detail(id: Long) = DomainResult.Failure("X", "n/a", 404)
@@ -74,6 +77,22 @@ class ListingFeedViewModelTest {
     }
 
     @Test
+    fun `consumeError clears error so the same error can fire again`() = runTest {
+        val repo = FakeRepo(emptyList(), listResult = DomainResult.NetworkError("断网"))
+        val vm = ListingFeedViewModel(repo)
+        vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("网络异常：断网", vm.state.value.error)
+
+        // UI 以 Toast 展示后消费置空。
+        vm.consumeError()
+        assertNull(vm.state.value.error)
+
+        // 相同错误可再次置位（从而再次弹 Toast）。
+        vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("网络异常：断网", vm.state.value.error)
+    }
+
+    @Test
     fun `pull refresh reloads first page and clears refreshing`() = runTest {
         val repo = FakeRepo(listOf(
             ListingPage(listOf(summary(1)), nextCursor = null),
@@ -88,6 +107,28 @@ class ListingFeedViewModelTest {
         assertEquals(2, vm.state.value.items.size)
         assertEquals(false, vm.state.value.refreshing)
         assertEquals(false, vm.state.value.loading)
+    }
+
+    @Test
+    fun `applySearch sets trimmed query and refreshes`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = ListingFeedViewModel(repo)
+        vm.applySearch("  线性代数  ")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("线性代数", vm.state.value.query)
+        assertEquals("线性代数", repo.lastQuery?.text)
+    }
+
+    @Test
+    fun `applySearch with blank clears the text filter`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = ListingFeedViewModel(repo)
+        vm.applySearch("书"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("书", repo.lastQuery?.text)
+        // 清空：空串 → toQuery 用 null（无文字筛选）。
+        vm.applySearch("   "); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("", vm.state.value.query)
+        assertNull(repo.lastQuery?.text)
     }
 
     @Test

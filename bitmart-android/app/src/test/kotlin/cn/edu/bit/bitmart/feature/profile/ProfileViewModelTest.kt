@@ -192,4 +192,17 @@ class ProfileViewModelTest {
         assertEquals(0, vm.state.value.unreadCount)
         assertFalse(vm.state.value.refreshing)
     }
+
+    @Test
+    fun `consumeError clears the error`() = runTest {
+        val vm = ProfileViewModel(
+            authRepo(loggedIn = true),
+            profileRepo(DomainResult.Failure("X", "拉取失败", 500)),
+        )
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("拉取失败", vm.state.value.error)
+        // UI 以 Toast 展示后消费置空。
+        vm.consumeError()
+        assertNull(vm.state.value.error)
+    }
 }

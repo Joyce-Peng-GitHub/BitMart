@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart.feature.profile
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,9 +58,18 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     // 每次进入“我的”页（含从通知页返回）刷新未读角标。
     LaunchedEffect(Unit) { viewModel.refreshUnreadCount() }
+
+    // 异常（如网络异常）用 Toast 提示，不再显示在账号信息区。
+    LaunchedEffect(state.error) {
+        state.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.consumeError()
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -117,9 +128,6 @@ private fun ProfileHeader(state: ProfileUiState, onLoginClick: () -> Unit) {
                     Text("昵称：${user.nickname ?: "匿名"}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
                     Text("学号：${user.studentId}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
                     Text("ID：${user.id}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-                }
-                state.error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
             } else {
                 Text("未登录", style = MaterialTheme.typography.titleLarge)

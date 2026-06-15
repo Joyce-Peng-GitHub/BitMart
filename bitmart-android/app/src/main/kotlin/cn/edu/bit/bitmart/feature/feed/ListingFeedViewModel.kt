@@ -57,7 +57,14 @@ class ListingFeedViewModel @Inject constructor(
         refresh()
     }
 
-    fun onQueryChange(q: String) = _state.update { it.copy(query = q) }
+    /** 应用搜索词并重新查询（空串即取消搜索，回到全部）。 */
+    fun applySearch(query: String) {
+        _state.update { it.copy(query = query.trim()) }
+        refresh()
+    }
+
+    /** 消费一次性错误提示（UI 以 Toast 展示后调用，置空以便相同错误可再次触发）。 */
+    fun consumeError() = _state.update { it.copy(error = null) }
 
     fun toggleIncludeSold() {
         _state.update { it.copy(includeSold = !it.includeSold) }

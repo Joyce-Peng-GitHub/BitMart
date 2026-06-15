@@ -95,6 +95,9 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /** 消费一次性错误提示（UI 以 Toast 展示后调用，置空以便相同错误可再次触发）。 */
+    fun consumeError() = _state.update { it.copy(error = null) }
+
     /**
      * 刷新未读通知数（邮件图标角标）。屏幕每次进入组合时也会调用，
      * 保证从通知页返回后角标及时减少。角标非关键信息，失败静默保持原值。
