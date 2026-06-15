@@ -157,12 +157,11 @@ fun PublishScreen(
         }
     }
 
-    // 拍照识别：同一张图片既上传（得 blobKey）又交给 LLM 识别合并到当前草稿。
+    // 拍照识别：识别图中所有项 → 各成一条草稿入暂存区；是否把该图作为商品图由识别后的确认弹窗决定。
     val recognizePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             val bytes = compressImage(context, it)
             if (bytes != null) {
-                viewModel.uploadImage(bytes, "image.jpg")
                 viewModel.recognizeWithLlm(bytes)
             }
         }
@@ -433,6 +432,17 @@ fun PublishScreen(
                 text = { Text("将“$pending”加入常用联系方式，方便下次直接选择。") },
                 confirmButton = { TextButton(onClick = { viewModel.savePendingContact() }) { Text("保存") } },
                 dismissButton = { TextButton(onClick = { viewModel.dismissPendingContact() }) { Text("暂不") } },
+            )
+        }
+
+        // 识别完成后询问是否把这张图作为识别出商品的图片。
+        if (state.pendingRecognitionImage != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissRecognitionImage() },
+                title = { Text("添加图片？") },
+                text = { Text("已识别 ${state.recognizedCount} 项，是否将这张图片作为它们的商品图片？") },
+                confirmButton = { TextButton(onClick = { viewModel.confirmAttachRecognitionImage() }) { Text("添加") } },
+                dismissButton = { TextButton(onClick = { viewModel.dismissRecognitionImage() }) { Text("暂不") } },
             )
         }
 

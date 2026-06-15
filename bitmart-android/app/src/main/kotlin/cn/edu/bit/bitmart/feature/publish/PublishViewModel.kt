@@ -74,6 +74,13 @@ data class PublishUiState(
     val commonContacts: List<String> = emptyList(),
     /** 待询问"是否保存到常用联系方式"的新联系方式；非空时 UI 弹确认框。 */
     val pendingSaveContact: String? = null,
+    /**
+     * 识别成功后暂存的原图字节：非空时 UI 弹「是否把这张图片加入识别出的商品」确认框。
+     * 用户确认则上传并附到刚识别出的 [recognizedCount] 条草稿。
+     */
+    val pendingRecognitionImage: ByteArray? = null,
+    /** 最近一次识别新增到 draftBatch 末尾的草稿条数（供附图时定位）。 */
+    val recognizedCount: Int = 0,
     val loading: Boolean = false,
     val llmRecognizing: Boolean = false,
     val uploadingImage: Boolean = false,
@@ -245,7 +252,8 @@ class PublishViewModel @Inject constructor(
     }
 
     /**
-     * LLM 识别图片。未配置 → 发射导航事件；已配置 → 调用识别并合并结果到当前草稿。
+     * LLM 批量识别图片。未配置 → 发射导航事件；已配置 → 识别图中所有项，每项各成一条草稿
+     * 追加到待发布列表（暂存区），**不**改写当前表单。识别后置 pendingRecognitionImage 询问是否附图。
      * @param imageBytes 图片字节（JPEG/PNG）。
      */
     fun recognizeWithLlm(imageBytes: ByteArray) {
@@ -260,7 +268,19 @@ class PublishViewModel @Inject constructor(
             val category = _state.value.selectedCategory
             when (val r = llmClient.recognize(config, imageBytes, category)) {
                 is DomainResult.Success -> {
-                    _state.update { st -> st.copy(llmRecognizing = false, currentDraft = mergeLlmRecognition(st.currentDraft, r.data)) }
+                    val newDrafts = r.data.map { it.toDraftItem() }
+                    if (newDrafts.isEmpty()) {
+                        _state.update { it.copy(llmRecognizing = false, error = "未识别到可发布的商品") }
+                    } else {
+                        _state.update { st ->
+                            st.copy(
+                                llmRecognizing = false,
+                                draftBatch = st.draftBatch + newDrafts,
+                                pendingRecognitionImage = imageBytes,
+                                recognizedCount = newDrafts.size,
+                            )
+                        }
+                    }
                 }
                 is DomainResult.Failure -> _state.update { it.copy(llmRecognizing = false, error = "识别失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(llmRecognizing = false, error = "网络异常：${r.message}") }
@@ -268,19 +288,50 @@ class PublishViewModel @Inject constructor(
         }
     }
 
-    private fun mergeLlmRecognition(draft: DraftItem, recognition: LlmRecognition): DraftItem = when (recognition) {
-        is LlmRecognition.Book -> draft.copy(
-            title = recognition.title.ifBlank { draft.title },
-            author = recognition.author.ifBlank { draft.author },
-            publisher = recognition.publisher.ifBlank { draft.publisher },
-            edition = recognition.edition.ifBlank { draft.edition },
-            isbn = recognition.isbn ?: draft.isbn,
+    /** 确认把识别用的图片加入识别出的商品：上传后将 blobKey 附到末尾 recognizedCount 条草稿。 */
+    fun confirmAttachRecognitionImage() {
+        val bytes = _state.value.pendingRecognitionImage ?: return
+        val count = _state.value.recognizedCount
+        _state.update { it.copy(pendingRecognitionImage = null) }
+        if (count <= 0) return
+        viewModelScope.launch {
+            _state.update { it.copy(uploadingImage = true, error = null) }
+            when (val r = listingRepository.uploadImage(bytes, "image.jpg")) {
+                is DomainResult.Success -> _state.update { st ->
+                    val from = (st.draftBatch.size - count).coerceAtLeast(0)
+                    val updated = st.draftBatch.mapIndexed { i, d ->
+                        if (i >= from && d.imageKeys.size < PublishConfig.MAX_IMAGES) d.copy(imageKeys = d.imageKeys + r.data) else d
+                    }
+                    st.copy(uploadingImage = false, draftBatch = updated)
+                }
+                is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
+                is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
+            }
+        }
+    }
+
+    /** 放弃把识别用的图片加入商品：仅清空待确认状态。 */
+    fun dismissRecognitionImage() {
+        _state.update { it.copy(pendingRecognitionImage = null) }
+    }
+
+    /** 把单条识别结果映射为一条草稿（不含图片）。售价不由 LLM 产生。 */
+    private fun LlmRecognition.toDraftItem(): DraftItem = when (this) {
+        is LlmRecognition.Book -> DraftItem(
+            category = ListingCategory.BOOK,
+            title = title,
+            isbn = isbn,
+            author = author.ifBlank { null },
+            publisher = publisher.ifBlank { null },
+            edition = edition.ifBlank { null },
+            originalPrice = originalPrice ?: "",
         )
-        is LlmRecognition.General -> draft.copy(
-            title = recognition.title.ifBlank { draft.title },
-            description = recognition.description.ifBlank { draft.description },
-            unitPrice = recognition.suggestedPrice?.ifBlank { null } ?: draft.unitPrice,
-            tags = (draft.tags + recognition.tags).distinct().take(PublishConfig.MAX_TAGS),
+        is LlmRecognition.General -> DraftItem(
+            category = ListingCategory.GENERAL,
+            title = title,
+            description = description,
+            originalPrice = originalPrice ?: "",
+            tags = tags.distinct().take(PublishConfig.MAX_TAGS),
         )
     }
 
@@ -367,6 +418,15 @@ class PublishViewModel @Inject constructor(
         if (st.draftBatch.isEmpty()) {
             _state.update { it.copy(error = "请至少添加一项到待发布列表") }
             return
+        }
+
+        // 每条都需通过客户端校验：识别入暂存区的草稿可能缺联系方式等，用户须逐条补全后再提交。
+        st.draftBatch.forEachIndexed { i, d ->
+            val err = validateDraft(d)
+            if (err != null) {
+                _state.update { it.copy(error = "第 ${i + 1} 项：$err") }
+                return
+            }
         }
 
         viewModelScope.launch {

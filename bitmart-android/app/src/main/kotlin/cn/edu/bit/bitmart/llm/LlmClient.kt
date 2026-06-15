@@ -9,15 +9,15 @@ import cn.edu.bit.bitmart.core.domain.model.ListingCategory
  */
 interface LlmClient {
     /**
-     * 对一张图片发起识别。
+     * 对一张图片发起识别。一张图可能含多本书/多件商品（一图多项）。
      * @param config 用户在「LLM 设置」中保存的配置（含 base URL/key/model/超时/提示词）。
      * @param imageBytes 原始图片字节（JPEG/PNG 等），内部编码为 base64 data URL。
      * @param category 品类：BOOK / GENERAL，决定使用的提示词与响应 schema。
-     * @return 解析后的识别结果；HTTP/解析失败映射为 Failure，网络异常映射为 NetworkError。
+     * @return 解析后的识别结果列表（每项各成一条草稿）；HTTP/解析失败映射为 Failure，网络异常映射为 NetworkError。
      */
     suspend fun recognize(
         config: LlmConfig,
         imageBytes: ByteArray,
         category: ListingCategory,
-    ): DomainResult<LlmRecognition>
+    ): DomainResult<List<LlmRecognition>>
 }

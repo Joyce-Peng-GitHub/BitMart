@@ -3,8 +3,8 @@ package cn.edu.bit.bitmart.llm
 import kotlinx.serialization.Serializable
 
 /**
- * LLM 识图的解析结果。按品类分两种形态，供发布流程合并进本地暂存清单
- * （本任务仅产出该模型与客户端，#38 才接入发布流程）。
+ * LLM 识图的单项解析结果。按品类分两种形态。一次识别可产出多项（一图多项），
+ * 客户端返回 `List<LlmRecognition>`，发布流程把每项各成一条草稿追加到暂存区。
  */
 sealed interface LlmRecognition {
 
@@ -16,14 +16,16 @@ sealed interface LlmRecognition {
         val edition: String,
         /** ISBN，可空（提示词允许为空字符串，解析时归一化）。 */
         val isbn: String?,
+        /** 图中可见的标价/吊牌原价（人民币元，文本），看不到价格时为 null。 */
+        val originalPrice: String?,
     ) : LlmRecognition
 
     /** 一般商品识别结果。 */
     data class General(
         val title: String,
         val description: String,
-        /** 建议单价（人民币元，文本表示），无法判断时为 null。 */
-        val suggestedPrice: String?,
+        /** 图中可见的商品标价/吊牌原价（人民币元，文本），看不到价格时为 null。售价不由 LLM 产生。 */
+        val originalPrice: String?,
         val tags: List<String>,
     ) : LlmRecognition
 }
@@ -40,6 +42,7 @@ internal data class BookPayload(
     val publisher: String = "",
     val edition: String = "",
     val isbn: String = "",
+    val originalPrice: String = "",
 )
 
 /** 一般商品识别 JSON 载荷。 */
@@ -47,6 +50,6 @@ internal data class BookPayload(
 internal data class GeneralPayload(
     val title: String = "",
     val description: String = "",
-    val suggestedPrice: String = "",
+    val originalPrice: String = "",
     val tags: List<String> = emptyList(),
 )

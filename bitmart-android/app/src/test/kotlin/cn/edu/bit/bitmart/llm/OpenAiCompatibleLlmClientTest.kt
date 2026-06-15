@@ -63,49 +63,112 @@ class OpenAiCompatibleLlmClientTest {
     fun `book success parses all fields`() = runBlocking {
         val (client, _) = clientReturning(
             HttpStatusCode.OK,
-            envelope("""{"title":"深入理解计算机系统","author":"Bryant","publisher":"机械工业","edition":"第3版","isbn":"9787111544937"}"""),
+            envelope("""{"items":[{"title":"深入理解计算机系统","author":"Bryant","publisher":"机械工业","edition":"第3版","isbn":"9787111544937","originalPrice":"139.00"}]}"""),
         )
         val r = client.recognize(config, byteArrayOf(1, 2, 3), ListingCategory.BOOK)
         assertTrue("expected Success but was $r", r is DomainResult.Success)
-        val book = (r as DomainResult.Success).data as LlmRecognition.Book
+        val books = (r as DomainResult.Success).data
+        assertEquals(1, books.size)
+        val book = books.single() as LlmRecognition.Book
         assertEquals("深入理解计算机系统", book.title)
         assertEquals("Bryant", book.author)
         assertEquals("机械工业", book.publisher)
         assertEquals("第3版", book.edition)
         assertEquals("9787111544937", book.isbn)
+        assertEquals("139.00", book.originalPrice)
     }
 
     @Test
-    fun `book blank isbn normalized to null`() = runBlocking {
+    fun `book list with multiple items all parsed`() = runBlocking {
         val (client, _) = clientReturning(
             HttpStatusCode.OK,
-            envelope("""{"title":"x","author":"","publisher":"","edition":"","isbn":""}"""),
+            envelope("""{"items":[
+                {"title":"书一","author":"","publisher":"","edition":"","isbn":"111","originalPrice":""},
+                {"title":"书二","author":"","publisher":"","edition":"","isbn":"222","originalPrice":"30"}
+            ]}"""),
         )
         val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
-        val book = (r as DomainResult.Success).data as LlmRecognition.Book
-        assertEquals(null, book.isbn)
+        val books = (r as DomainResult.Success).data.map { it as LlmRecognition.Book }
+        assertEquals(2, books.size)
+        assertEquals("书一", books[0].title)
+        assertEquals("222", books[1].isbn)
+        assertEquals("30", books[1].originalPrice)
     }
 
     @Test
-    fun `general success parses fields`() = runBlocking {
+    fun `book blank isbn and price normalized to null`() = runBlocking {
         val (client, _) = clientReturning(
             HttpStatusCode.OK,
-            envelope("""{"title":"二手台灯","description":"九成新","suggestedPrice":"35","tags":["家居","照明"]}"""),
+            envelope("""{"items":[{"title":"x","author":"","publisher":"","edition":"","isbn":"","originalPrice":""}]}"""),
+        )
+        val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
+        val book = (r as DomainResult.Success).data.single() as LlmRecognition.Book
+        assertEquals(null, book.isbn)
+        assertEquals(null, book.originalPrice)
+    }
+
+    @Test
+    fun `empty items list yields empty success`() = runBlocking {
+        val (client, _) = clientReturning(HttpStatusCode.OK, envelope("""{"items":[]}"""))
+        val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
+        assertTrue(r is DomainResult.Success)
+        assertTrue((r as DomainResult.Success).data.isEmpty())
+    }
+
+    @Test
+    fun `bare object without items wrapper is normalized to single item`() = runBlocking {
+        // 兼容回退：模型未按 {items:[...]} 输出而给了裸对象时，归一为单元素列表。
+        val (client, _) = clientReturning(
+            HttpStatusCode.OK,
+            envelope("""{"title":"裸对象书","author":"","publisher":"","edition":"","isbn":"","originalPrice":""}"""),
+        )
+        val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
+        val books = (r as DomainResult.Success).data
+        assertEquals(1, books.size)
+        assertEquals("裸对象书", (books.single() as LlmRecognition.Book).title)
+    }
+
+    @Test
+    fun `bare array without items wrapper is parsed`() = runBlocking {
+        val (client, _) = clientReturning(
+            HttpStatusCode.OK,
+            envelope("""[{"title":"裸数组书","author":"","publisher":"","edition":"","isbn":"","originalPrice":""}]"""),
+        )
+        val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
+        assertEquals("裸数组书", ((r as DomainResult.Success).data.single() as LlmRecognition.Book).title)
+    }
+
+    @Test
+    fun `general success parses fields with visible price`() = runBlocking {
+        val (client, _) = clientReturning(
+            HttpStatusCode.OK,
+            envelope("""{"items":[{"title":"二手台灯","description":"九成新","originalPrice":"35","tags":["家居","照明"]}]}"""),
         )
         val r = client.recognize(config, byteArrayOf(1), ListingCategory.GENERAL)
-        val g = (r as DomainResult.Success).data as LlmRecognition.General
+        val g = (r as DomainResult.Success).data.single() as LlmRecognition.General
         assertEquals("二手台灯", g.title)
         assertEquals("九成新", g.description)
-        assertEquals("35", g.suggestedPrice)
+        assertEquals("35", g.originalPrice)
         assertEquals(listOf("家居", "照明"), g.tags)
     }
 
     @Test
+    fun `general blank price normalized to null`() = runBlocking {
+        val (client, _) = clientReturning(
+            HttpStatusCode.OK,
+            envelope("""{"items":[{"title":"二手台灯","description":"九成新","originalPrice":"","tags":[]}]}"""),
+        )
+        val r = client.recognize(config, byteArrayOf(1), ListingCategory.GENERAL)
+        val g = (r as DomainResult.Success).data.single() as LlmRecognition.General
+        assertEquals(null, g.originalPrice)
+    }
+
+    @Test
     fun `markdown fenced content is stripped and parsed`() = runBlocking {
-        val fenced = "```json\n{\"title\":\"围栏书\",\"author\":\"\",\"publisher\":\"\",\"edition\":\"\",\"isbn\":\"\"}\n```"
+        val fenced = "```json\n{\"items\":[{\"title\":\"围栏书\",\"author\":\"\",\"publisher\":\"\",\"edition\":\"\",\"isbn\":\"\",\"originalPrice\":\"\"}]}\n```"
         val (client, _) = clientReturning(HttpStatusCode.OK, envelope(fenced))
         val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
-        val book = (r as DomainResult.Success).data as LlmRecognition.Book
+        val book = (r as DomainResult.Success).data.single() as LlmRecognition.Book
         assertEquals("围栏书", book.title)
     }
 
@@ -135,7 +198,7 @@ class OpenAiCompatibleLlmClientTest {
     fun `request carries bearer auth model and data url image`() = runBlocking {
         val (client, captured) = clientReturning(
             HttpStatusCode.OK,
-            envelope("""{"title":"x","author":"","publisher":"","edition":"","isbn":""}"""),
+            envelope("""{"items":[{"title":"x","author":"","publisher":"","edition":"","isbn":"","originalPrice":""}]}"""),
         )
         client.recognize(config, byteArrayOf(0x10, 0x20, 0x30), ListingCategory.BOOK)
 
@@ -164,13 +227,13 @@ class OpenAiCompatibleLlmClientTest {
     fun `general category uses general schema name`() = runBlocking {
         val (client, captured) = clientReturning(
             HttpStatusCode.OK,
-            envelope("""{"title":"x","description":"","suggestedPrice":"","tags":[]}"""),
+            envelope("""{"items":[{"title":"x","description":"","originalPrice":"","tags":[]}]}"""),
         )
         client.recognize(config, byteArrayOf(1), ListingCategory.GENERAL)
         val bodyText = (captured.single().body as io.ktor.http.content.TextContent).text
         val schemaName = Json.parseToJsonElement(bodyText).jsonObject["response_format"]!!
             .jsonObject["json_schema"]!!.jsonObject["name"]!!.jsonPrimitive.content
-        assertEquals("general_goods", schemaName)
+        assertEquals("general_goods_list", schemaName)
     }
 
     @Test
@@ -178,5 +241,22 @@ class OpenAiCompatibleLlmClientTest {
         val client = clientThrowing()
         val r = client.recognize(config, byteArrayOf(1, 2, 3), ListingCategory.BOOK)
         assertTrue("expected NetworkError but was $r", r is DomainResult.NetworkError)
+    }
+
+    @Test
+    fun `request sets socket and request timeout to configured threshold`() = runBlocking {
+        // 回归：仅设 requestTimeoutMillis 时 OkHttp 默认 10s socket 读超时会先掐断 HTTP/2 流，
+        // 使配置阈值形同虚设。修复后 socketTimeoutMillis/connectTimeoutMillis 须跟随同一阈值。
+        val (client, captured) = clientReturning(
+            HttpStatusCode.OK,
+            envelope("""{"items":[{"title":"x","author":"","publisher":"","edition":"","isbn":"","originalPrice":""}]}"""),
+        )
+        client.recognize(config.copy(timeoutSeconds = 45), byteArrayOf(1), ListingCategory.BOOK)
+
+        val timeoutConfig = captured.single()
+            .getCapabilityOrNull(io.ktor.client.plugins.HttpTimeoutCapability)!!
+        assertEquals(45_000L, timeoutConfig.requestTimeoutMillis)
+        assertEquals(45_000L, timeoutConfig.socketTimeoutMillis)
+        assertEquals(45_000L, timeoutConfig.connectTimeoutMillis)
     }
 }
