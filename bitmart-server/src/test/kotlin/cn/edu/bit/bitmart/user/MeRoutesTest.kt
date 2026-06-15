@@ -77,6 +77,19 @@ class MeRoutesTest : FunSpec({
         }
     }
 
+    test("PATCH /me 昵称超过 32 字符时自动截断而不报错") {
+        app { client, _ ->
+            val (token, _) = client.register()
+            val longName = "a".repeat(100)
+            val updated = client.patch("/api/v1/me") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateProfileRequest(longName))
+            }
+            updated.status shouldBe HttpStatusCode.OK
+            updated.body<UserDto>().nickname!!.length shouldBe 32
+            updated.body<UserDto>().nickname shouldBe "a".repeat(32)
+        }
+    }
+
     test("通知列表合并个人通知与全员公告并按时间排序") {
         app { client, components ->
             val (token, userId) = client.register()

@@ -86,9 +86,10 @@ fun AccountSettingsScreen(
             Text("修改昵称", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             OutlinedTextField(
                 value = nickname,
-                onValueChange = { nickname = it },
+                onValueChange = { if (it.length <= 32) nickname = it },
                 label = { Text("昵称（留空显示为匿名）") },
                 singleLine = true,
+                supportingText = { Text("${nickname.length}/32") },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
             Button(
