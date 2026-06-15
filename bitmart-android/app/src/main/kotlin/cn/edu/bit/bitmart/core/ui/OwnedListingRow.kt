@@ -11,8 +11,8 @@ import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 
 /**
- * “本人发布”列表项：统一 [ListingCard] 外层包一层 [SwipeRevealRow]，左滑显露
- * 调整数量 / 编辑 / 删除。买卖列表（仅本人项）与“我的商品/收购”列表共用，确保交互一致。
+ * “本人发布”列表项：统一 [ListingCard] 外层包一层 [SwipeRevealRow]。
+ * 右滑显露 调整数量；左滑显露 编辑 / 删除。买卖列表（仅本人项）与“我的商品/收购”列表共用，确保交互一致。
  *
  * @param item 列表摘要。
  * @param type 列表类型，仅用于卡片价格文案。
@@ -34,14 +34,19 @@ fun OwnedListingRow(
     modifier: Modifier = Modifier,
 ) {
     SwipeRevealRow(
-        actionCount = 3,
         modifier = modifier,
-        actions = { close ->
+        startActionCount = 1,
+        endActionCount = 2,
+        // 右滑：调整数量。
+        startActions = { close ->
             if (adjusting) {
                 SwipeActionLoading()
             } else {
                 SwipeAction(Icons.Default.Numbers, "数量", onClick = { close(); onAdjustClick() })
             }
+        },
+        // 左滑：编辑 / 删除。
+        endActions = { close ->
             SwipeAction(Icons.Default.Edit, "编辑", onClick = { close(); onEditClick() })
             SwipeAction(
                 Icons.Default.Delete,
