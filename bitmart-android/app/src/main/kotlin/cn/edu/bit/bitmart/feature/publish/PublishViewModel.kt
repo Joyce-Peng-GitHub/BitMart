@@ -60,6 +60,13 @@ data class DraftItem(
     val imageKeys: List<String> = emptyList(),
     val originalPrice: String = "",
 )
+
+/**
+ * 是否为"未经编辑的空白草稿"（与同类别的全默认草稿结构相等）。
+ * 用于判断表单中的临时项是否值得作为一项并入列表：空白则忽略，非空白则展示/入列。
+ */
+internal fun DraftItem.isBlankDraft(): Boolean = this == DraftItem(category)
+
 /** 发布页 UI 状态（多草稿批量发布模型）。 */
 data class PublishUiState(
     val type: ListingType = ListingType.SELL,
@@ -69,6 +76,11 @@ data class PublishUiState(
     //   后续可将 draftBatch 持久化到 DataStore/Room 以实现跨进程死亡的草稿恢复（§5.3 NICE-TO-HAVE）。
     val currentDraft: DraftItem = DraftItem(ListingCategory.GENERAL),
     val draftBatch: List<DraftItem> = emptyList(),
+    /**
+     * 当前表单正在编辑的暂存项下标；null 表示正在编写一条尚未加入列表的新项。
+     * 非空时「加入待发布列表」改为写回该槽位（编辑既有项不再产生重复项，且不破坏列表顺序）。
+     */
+    val editingIndex: Int? = null,
     val popularTags: List<String> = emptyList(),
     /** 本地保存的常用联系方式，供发布页快速选择填入（来自 ContactPrefsStore）。 */
     val commonContacts: List<String> = emptyList(),
@@ -372,8 +384,9 @@ class PublishViewModel @Inject constructor(
     }
 
     /**
-     * 将当前草稿加入批次（校验通过后）并重置编辑器。
-     * 可编辑已加入的草稿：点击列表项 → 从 batch 移除并载入到 currentDraft。
+     * 把当前草稿固化到待发布列表（校验通过后）并重置编辑器。
+     * - 新建项（editingIndex==null）：追加到列表末尾。
+     * - 编辑既有项（editingIndex!=null）：写回原槽位（不产生重复、不打乱顺序）。
      */
     fun addDraftToBatch() {
         val draft = _state.value.currentDraft
@@ -382,9 +395,15 @@ class PublishViewModel @Inject constructor(
 
         val contact = draft.contact.trim()
         _state.update { st ->
+            val idx = st.editingIndex
+            val newBatch =
+                if (idx != null && idx in st.draftBatch.indices)
+                    st.draftBatch.toMutableList().also { it[idx] = draft }
+                else st.draftBatch + draft
             st.copy(
-                draftBatch = st.draftBatch + draft,
+                draftBatch = newBatch,
                 currentDraft = DraftItem(st.selectedCategory), // 重置编辑器，类型保持。
+                editingIndex = null,
                 error = null,
                 // 输入了尚未保存且本会话未询问过的新联系方式 → 提示是否加入常用联系方式。
                 pendingSaveContact =
@@ -394,17 +413,70 @@ class PublishViewModel @Inject constructor(
         }
     }
 
-    /** 从批次移除某草稿。 */
-    fun removeDraft(index: Int) {
-        _state.update { st -> st.copy(draftBatch = st.draftBatch.filterIndexed { i, _ -> i != index }) }
+    /** 新建一条草稿：先把当前项并入列表（保留临时项），再清空表单进入新建态。 */
+    fun newDraft() {
+        _state.update { st ->
+            val parked = parkCurrent(st)
+            parked.copy(currentDraft = DraftItem(parked.selectedCategory), editingIndex = null, error = null)
+        }
     }
 
-    /** 编辑某草稿：移除并载入到编辑器。 */
+    /** 丢弃当前正在编写、尚未并入列表的临时项（清空表单，不写回也不追加）。 */
+    fun discardDraft() {
+        _state.update { it.copy(currentDraft = DraftItem(it.selectedCategory), editingIndex = null, error = null) }
+    }
+
+    /**
+     * 把表单中的当前项固化进列表，使"尚未保存的临时项"与暂存项一视同仁：
+     * - 编辑既有项（editingIndex 有效）→ 写回该槽位（不改变长度）。
+     * - 编写新项且非空白 → 追加到末尾，并令 editingIndex 指向它（避免展示层重复计数）。
+     * - 空白新项 → 原样返回。
+     * 不做字段校验（草稿允许暂不完整，提交时再整体校验）。
+     */
+    private fun parkCurrent(st: PublishUiState): PublishUiState {
+        val idx = st.editingIndex
+        return when {
+            idx != null && idx in st.draftBatch.indices ->
+                st.copy(draftBatch = st.draftBatch.toMutableList().also { it[idx] = st.currentDraft })
+            idx == null && !st.currentDraft.isBlankDraft() -> {
+                val newBatch = st.draftBatch + st.currentDraft
+                st.copy(draftBatch = newBatch, editingIndex = newBatch.lastIndex)
+            }
+            else -> st
+        }
+    }
+
+    /** 从批次移除某草稿，并相应修正正在编辑的下标。 */
+    fun removeDraft(index: Int) {
+        _state.update { st ->
+            if (index !in st.draftBatch.indices) return@update st
+            val newBatch = st.draftBatch.filterIndexed { i, _ -> i != index }
+            val editing = st.editingIndex
+            st.copy(
+                draftBatch = newBatch,
+                // 删除的正是在编辑项 → 退回新建态并清空表单；删除其之前的项 → 下标左移。
+                editingIndex = when {
+                    editing == null -> null
+                    editing == index -> null
+                    editing > index -> editing - 1
+                    else -> editing
+                },
+                currentDraft = if (editing == index) DraftItem(st.selectedCategory) else st.currentDraft,
+            )
+        }
+    }
+
+    /** 选中某暂存项进入表单编辑（非破坏）：先把当前项并入列表，再载入目标项；项始终保留在列表中。 */
     fun editDraft(index: Int) {
         _state.update { st ->
-            st.copy(
-                currentDraft = st.draftBatch[index],
-                draftBatch = st.draftBatch.filterIndexed { i, _ -> i != index },
+            val parked = parkCurrent(st)
+            if (index !in parked.draftBatch.indices) return@update parked
+            val item = parked.draftBatch[index]
+            parked.copy(
+                currentDraft = item,
+                selectedCategory = item.category, // 同步类别，使顶部 chips 与字段布局一致。
+                editingIndex = index,
+                error = null,
             )
         }
     }
@@ -414,6 +486,8 @@ class PublishViewModel @Inject constructor(
      * 成功后标记 batchSubmitted（UI 监听后 popBackStack）。
      */
     fun submitBatch() {
+        // 先把表单中的临时项并入列表，使"未保存的当前项"也被一并提交。
+        _state.update { parkCurrent(it) }
         val st = _state.value
         if (st.draftBatch.isEmpty()) {
             _state.update { it.copy(error = "请至少添加一项到待发布列表") }

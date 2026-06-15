@@ -559,14 +559,160 @@ class PublishViewModelTest {
     }
 
     @Test
-    fun `editDraft loads into currentDraft and removes from batch`() = runTest {
+    fun `editDraft loads into currentDraft without removing from batch`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
         vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
         dispatcher.scheduler.advanceUntilIdle()
 
         vm.editDraft(0)
+        // 非破坏：项仍留在列表，currentDraft 载入该项，editingIndex 记录其位置。
         assertEquals("A", vm.state.value.currentDraft.title)
-        assertTrue(vm.state.value.draftBatch.isEmpty())
+        assertEquals(1, vm.state.value.draftBatch.size)
+        assertEquals(0, vm.state.value.editingIndex)
+    }
+
+    @Test
+    fun `editDraft then addDraftToBatch writes back in place without duplicating`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
+        vm.onTitle("B"); vm.onContact("x"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // 编辑第 0 项，改标题后保存 → 写回原位，不新增、不打乱顺序。
+        vm.editDraft(0)
+        vm.onTitle("A2")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2, vm.state.value.draftBatch.size)
+        assertEquals("A2", vm.state.value.draftBatch[0].title)
+        assertEquals("B", vm.state.value.draftBatch[1].title)
+        assertNull(vm.state.value.editingIndex) // 保存后回到新建态。
+        assertEquals("", vm.state.value.currentDraft.title)
+    }
+
+    @Test
+    fun `editDraft syncs selectedCategory to the edited item`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.setCategory(ListingCategory.BOOK)
+        vm.onTitle("书"); vm.onContact("x"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+        // 切到一般商品后再回头编辑书籍项：顶部类别应同步回 BOOK。
+        vm.setCategory(ListingCategory.GENERAL)
+        vm.editDraft(0)
+
+        assertEquals(ListingCategory.BOOK, vm.state.value.selectedCategory)
+        assertEquals(ListingCategory.BOOK, vm.state.value.currentDraft.category)
+    }
+
+    @Test
+    fun `newDraft clears the form and leaves editing state`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.editDraft(0) // 进入编辑既有项。
+        assertEquals(0, vm.state.value.editingIndex)
+
+        vm.newDraft()
+        // 表单清空、退出编辑态；暂存项不受影响。
+        assertEquals("", vm.state.value.currentDraft.title)
+        assertNull(vm.state.value.editingIndex)
+        assertEquals(1, vm.state.value.draftBatch.size)
+    }
+
+    @Test
+    fun `removeDraft of the edited item resets the form and editingIndex`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
+        vm.onTitle("B"); vm.onContact("x"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.editDraft(1) // 正在编辑第 1 项（B）。
+        vm.removeDraft(1)
+
+        assertEquals(1, vm.state.value.draftBatch.size)
+        assertEquals("A", vm.state.value.draftBatch[0].title)
+        assertNull(vm.state.value.editingIndex)
+        assertEquals("", vm.state.value.currentDraft.title)
+    }
+
+    @Test
+    fun `removeDraft before the edited item shifts editingIndex left`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
+        vm.onTitle("B"); vm.onContact("x"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.editDraft(1)      // 编辑 B（index 1）。
+        vm.removeDraft(0)    // 删除其之前的 A → B 左移到 0。
+
+        assertEquals(0, vm.state.value.editingIndex)
+        assertEquals("B", vm.state.value.draftBatch[0].title)
+    }
+
+    @Test
+    fun `editDraft parks the in-progress new item before loading the target`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("A"); vm.onContact("x"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+        // 表单里有一条正在编写、尚未加入的新项 B。
+        vm.onTitle("B")
+        // 选中已暂存的 A → B 先并入列表（不丢失），再载入 A。
+        vm.editDraft(0)
+
+        val s = vm.state.value
+        assertEquals("A", s.currentDraft.title)
+        assertEquals(0, s.editingIndex)
+        assertEquals(2, s.draftBatch.size)
+        assertEquals("A", s.draftBatch[0].title)
+        assertEquals("B", s.draftBatch[1].title)
+    }
+
+    @Test
+    fun `newDraft parks the in-progress new item then resets the form`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("C") // 编写中的新项，未加入。
+        vm.newDraft()
+
+        val s = vm.state.value
+        assertEquals(1, s.draftBatch.size)
+        assertEquals("C", s.draftBatch[0].title)
+        assertNull(s.editingIndex)
+        assertEquals("", s.currentDraft.title)
+    }
+
+    @Test
+    fun `discardDraft drops the in-progress item without adding it`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        vm.onTitle("D")
+        vm.discardDraft()
+
+        val s = vm.state.value
+        assertTrue(s.draftBatch.isEmpty())
+        assertEquals("", s.currentDraft.title)
+        assertNull(s.editingIndex)
+    }
+
+    @Test
+    fun `submitBatch includes the in-progress item by parking it first`() = runTest {
+        val repo = FakeRepo()
+        val vm = PublishViewModel(repo, FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore())
+        // 一条已暂存项 + 一条仅在表单中的临时项，直接提交应一并发布。
+        vm.onTitle("已暂存"); vm.onContact("x"); vm.addDraftToBatch()
+        vm.onTitle("临时项"); vm.onContact("y")
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.batchSubmitted)
+        val drafts = repo.lastBatchDrafts!!
+        assertEquals(2, drafts.size)
+        assertEquals("已暂存", drafts[0].title)
+        assertEquals("临时项", drafts[1].title)
+    }
+
+    @Test
+    fun `isBlankDraft distinguishes a pristine draft from a touched one`() {
+        assertTrue(DraftItem(ListingCategory.GENERAL).isBlankDraft())
+        assertTrue(DraftItem(ListingCategory.BOOK).isBlankDraft())
+        assertFalse(DraftItem(ListingCategory.GENERAL, title = "x").isBlankDraft())
     }
 
     @Test

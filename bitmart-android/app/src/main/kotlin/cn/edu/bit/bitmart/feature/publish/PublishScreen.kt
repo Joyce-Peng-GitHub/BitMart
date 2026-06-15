@@ -1,10 +1,11 @@
-﻿package cn.edu.bit.bitmart.feature.publish
+package cn.edu.bit.bitmart.feature.publish
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -22,21 +23,27 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -44,20 +51,28 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +80,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -79,20 +98,23 @@ import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.PublishConfig
 import cn.edu.bit.bitmart.core.ui.blobKeyToMediaUrl
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
 /**
- * 发布屏（多草稿批量模型）：先选书籍/一般商品，填写字段后加入批次，最后一并提交。
+ * 发布屏（多草稿批量模型）：填写字段后逐条加入暂存区，最后一并提交。
+ * 暂存区不再内联在表单下方，而是由右下角悬浮按钮（角标显示项数）或从右侧边缘滑入唤出的右抽屉承载：
+ * 抽屉内可点项进入编辑、点「新建项」清空表单新建、点「提交全部」批量发布。
  * 书籍可扫码 ISBN → lookupBook 预填；可拍照/上传图片 → uploadImage / LLM 识别。
  * @param initialType 发布类型，由入口决定（商品 tab→SELL，收购 tab→BUY），页内不再切换。
  * @param onPublished 批次提交成功后回调（pop back）。
  * @param onNavigateToLlmSettings LLM 未配置时跳转 LLM 设置页。
  * @param onNavigateToBookScan 打开书籍条码扫描页。
  */
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PublishScreen(
     initialType: ListingType = ListingType.SELL,
@@ -167,13 +189,118 @@ fun PublishScreen(
         }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets.safeDrawing,
-    ) { innerPadding ->
+    val onPickImage = { imagePicker.launch("image/*"); Unit }
+    val onRecognize = { recognizePicker.launch("image/*"); Unit }
+
+    if (editMode) {
+        // 编辑模式：单条编辑保存，无暂存区/悬浮按钮/抽屉。
+        Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { innerPadding ->
+            PublishFormColumn(
+                state = state,
+                viewModel = viewModel,
+                editMode = true,
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                onPickImage = onPickImage,
+                onRecognize = onRecognize,
+            )
+        }
+        return
+    }
+
+    // 发布模式：右侧抽屉承载暂存区。把布局方向临时翻转为 RTL，使 ModalNavigationDrawer 从右侧滑出，
+    // 并让 gesturesEnabled 的滑动开合落在屏幕右缘；抽屉内容与正文再翻回原始方向，避免镜像。
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val layoutDirection = LocalLayoutDirection.current
+
+    // 抽屉打开时拦截返回键 → 先关抽屉而非退出发布页。
+    BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
+
+    // 展示用列表：把表单中"尚未保存的临时项"也作为一项（编辑既有项时实时替换该槽位，
+    // 编写新项且非空白时追加到末尾）；currentIndex 标记其在列表中的位置。
+    val displayItems = stagingDisplayItems(state)
+    val currentIndex = stagingCurrentIndex(state)
+
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = true,
+            drawerContent = {
+                CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+                    // 抽屉只占右侧大部分屏幕，左侧少部分露出被阴影覆盖的表单。
+                    ModalDrawerSheet(modifier = Modifier.fillMaxWidth(0.85f)) {
+                        StagingDrawerBody(
+                            items = displayItems,
+                            currentIndex = currentIndex,
+                            loading = state.loading,
+                            onSelect = { index ->
+                                if (index != currentIndex) viewModel.editDraft(index)
+                                scope.launch { drawerState.close() }
+                            },
+                            onDelete = { index ->
+                                // 末尾那条"临时项"（编辑新项时）只是表单内容，删除即丢弃；其余为真实槽位。
+                                if (state.editingIndex == null && index == state.draftBatch.size) viewModel.discardDraft()
+                                else viewModel.removeDraft(index)
+                            },
+                            onNew = {
+                                viewModel.newDraft()
+                                scope.launch { drawerState.close() }
+                            },
+                            onSubmitAll = {
+                                scope.launch { drawerState.close() }
+                                viewModel.submitBatch()
+                            },
+                        )
+                    }
+                }
+            },
+        ) {
+            CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+                Scaffold(
+                    contentWindowInsets = WindowInsets.safeDrawing,
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = { scope.launch { drawerState.open() } }) {
+                            BadgedBox(badge = {
+                                if (displayItems.isNotEmpty()) Badge { Text("${displayItems.size}") }
+                            }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.List,
+                                    contentDescription = "待发布列表（${displayItems.size} 项）",
+                                )
+                            }
+                        }
+                    },
+                ) { innerPadding ->
+                    PublishFormColumn(
+                        state = state,
+                        viewModel = viewModel,
+                        editMode = false,
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        onPickImage = onPickImage,
+                        onRecognize = onRecognize,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 发布/编辑表单主体（可滚动）。暂存区列表与「提交全部」已移入右抽屉，此处仅保留单条编辑与
+ * 「加入待发布列表 / 保存修改 / 保存」按钮。
+ */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun PublishFormColumn(
+    state: PublishUiState,
+    viewModel: PublishViewModel,
+    editMode: Boolean,
+    modifier: Modifier,
+    onPickImage: () -> Unit,
+    onRecognize: () -> Unit,
+) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(innerPadding)
+        modifier = modifier
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -348,7 +475,7 @@ fun PublishScreen(
         Text("图片（${draft.imageKeys.size}/${PublishConfig.MAX_IMAGES}）", style = MaterialTheme.typography.titleSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
-                onClick = { imagePicker.launch("image/*") },
+                onClick = onPickImage,
                 enabled = !state.uploadingImage && canAddImage,
             ) {
                 Icon(Icons.Default.Image, contentDescription = null)
@@ -356,7 +483,7 @@ fun PublishScreen(
                 Text("选择图片")
             }
             OutlinedButton(
-                onClick = { recognizePicker.launch("image/*") },
+                onClick = onRecognize,
                 enabled = !state.llmRecognizing && canAddImage,
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null)
@@ -473,56 +600,148 @@ fun PublishScreen(
                 else Text("保存")
             }
         } else {
-            // 加入批次按钮。
+            // 加入暂存区：编辑既有项时写回原位（按钮文案随之切换），否则追加新项。
+            val editing = state.editingIndex != null
             Button(onClick = viewModel::addDraftToBatch, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Add, contentDescription = null)
+                Icon(if (editing) Icons.Default.Check else Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
-                Text("加入待发布列表")
+                Text(if (editing) "保存修改" else "加入待发布列表")
             }
+            // 底部留白，避免最后一个按钮被悬浮按钮遮挡。
+            Spacer(Modifier.height(72.dp))
+        }
+    }
+}
 
-            // 已加入的批次列表。
-            if (state.draftBatch.isNotEmpty()) {
-                Text("待发布列表（${state.draftBatch.size}项）", style = MaterialTheme.typography.titleMedium)
-                state.draftBatch.forEachIndexed { index, item ->
-                    Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.editDraft(index) }) {
+/**
+ * 右抽屉内的暂存区：可滚动的列表（含表单中尚未保存的临时项），点项进入编辑、尾部垃圾桶删除，
+ * 当前正在编辑的项高亮并标注"（编辑中）"；其下固定「新建项」与「提交全部」。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StagingDrawerBody(
+    items: List<DraftItem>,
+    currentIndex: Int?,
+    loading: Boolean,
+    onSelect: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    onNew: () -> Unit,
+    onSubmitAll: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+        Text(
+            "待发布列表（${items.size}项）",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 4.dp, top = 20.dp, bottom = 8.dp),
+        )
+
+        if (items.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    "暂无待发布项\n点击下方“新建项”开始",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                itemsIndexed(items) { index, item ->
+                    val isCurrent = index == currentIndex
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor =
+                                if (isCurrent) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                        modifier = Modifier.fillMaxWidth().clickable { onSelect(index) },
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(item.title, style = MaterialTheme.typography.bodyLarge)
+                            Column(modifier = Modifier.weight(1f).padding(vertical = 10.dp)) {
                                 Text(
-                                    "${item.category.name} · ${item.quantityTotal}件",
+                                    item.title.ifBlank { "未命名" },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    draftSubtitle(item) + if (isCurrent) " · 编辑中" else "",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.outline,
                                 )
                             }
-                            Row {
-                                IconButton(onClick = { viewModel.editDraft(index) }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "编辑")
-                                }
-                                IconButton(onClick = { viewModel.removeDraft(index) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "删除")
-                                }
+                            IconButton(onClick = { onDelete(index) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "删除")
                             }
                         }
                     }
                 }
-
-                // 批量提交按钮。
-                Button(
-                    onClick = viewModel::submitBatch,
-                    enabled = !state.loading,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (state.loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                    else Text("提交全部（${state.draftBatch.size}项）")
-                }
             }
         }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // 新建项：把当前项并入列表后清空表单，进入一条新草稿。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.medium)
+                .clickable { onNew() }
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Text("新建项", style = MaterialTheme.typography.bodyLarge)
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        Button(
+            onClick = onSubmitAll,
+            enabled = items.isNotEmpty() && !loading,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        ) {
+            if (loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
+            else Text("提交全部（${items.size}项）")
+        }
     }
+}
+
+/**
+ * 展示用列表：在暂存项基础上纳入表单中的当前临时项。
+ * - 正在编辑既有项 → 用实时的 currentDraft 替换该槽位（数量不变）。
+ * - 编写新项且非空白 → 把 currentDraft 追加到末尾。
+ * - 空白新项 → 不显示额外项。
+ */
+private fun stagingDisplayItems(state: PublishUiState): List<DraftItem> {
+    val idx = state.editingIndex
+    return when {
+        idx != null && idx in state.draftBatch.indices ->
+            state.draftBatch.toMutableList().also { it[idx] = state.currentDraft }
+        idx == null && !state.currentDraft.isBlankDraft() ->
+            state.draftBatch + state.currentDraft
+        else -> state.draftBatch
     }
+}
+
+/** 当前表单项在展示列表中的下标；空白新项时为 null（列表不含临时项）。 */
+private fun stagingCurrentIndex(state: PublishUiState): Int? = when {
+    state.editingIndex != null -> state.editingIndex
+    !state.currentDraft.isBlankDraft() -> state.draftBatch.size
+    else -> null
+}
+
+/** 暂存项副标题：类别 + 件数。 */
+private fun draftSubtitle(item: DraftItem): String {
+    val category = if (item.category == ListingCategory.BOOK) "书籍" else "一般商品"
+    return "$category · ${item.quantityTotal}件"
 }
 
 /** 压缩并转换图片为 JPEG 字节（1024px 上限，80% 质量）。 */
