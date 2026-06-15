@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
 import cn.edu.bit.bitmart.core.ui.ListingTimeInfo
+import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
 import coil3.compose.AsyncImage
 
 /** 详情屏。展示卖家昵称、联系方式、完整描述、书籍信息；含防诈骗提示、图片轮播、调整数量/编辑/删除按钮。 */
@@ -228,7 +229,7 @@ fun ImageCarousel(imageUrls: List<String>, modifier: Modifier = Modifier) {
     Box(modifier = modifier) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
             AsyncImage(
-                model = imageUrls[page],
+                model = absoluteMediaUrl(imageUrls[page]),
                 contentDescription = "商品图片 ${page + 1}",
                 modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.medium),
                 contentScale = ContentScale.Crop,
