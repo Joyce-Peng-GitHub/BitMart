@@ -192,7 +192,7 @@ class ListingService(
 
     private fun hasFieldUpdates(input: UpdateListingInput): Boolean =
         input.title != null || input.description != null || input.pickupLocation != null ||
-            input.expiresAt != null || input.unitPrice != null || input.clearUnitPrice ||
+            input.expiresAt != null || input.unitPrice != null || input.originalPrice != null || input.clearUnitPrice ||
             input.category != null || input.quantityTotal != null || input.contacts != null
 
     private fun UpdateListingInput.toUpdateValidation() = ListingUpdateInput(

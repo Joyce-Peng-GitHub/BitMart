@@ -58,8 +58,8 @@ data class DraftItem(
     val edition: String? = null,
     // 图片 blobKey 列表（已上传到服务端）。
     val imageKeys: List<String> = emptyList(),
+    val originalPrice: String = "",
 )
-
 /** 发布页 UI 状态（多草稿批量发布模型）。 */
 data class PublishUiState(
     val type: ListingType = ListingType.SELL,
@@ -147,6 +147,7 @@ class PublishViewModel @Inject constructor(
     fun onAuthor(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(author = v)) }
     fun onPublisher(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(publisher = v)) }
     fun onEdition(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(edition = v)) }
+    fun onOriginalPrice(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(originalPrice = v)) }
 
     /**
      * 消费一次性错误提示：UI 以 Toast 展示后调用，将 error 置空，
@@ -303,6 +304,7 @@ class PublishViewModel @Inject constructor(
                                 author = book.authors,
                                 publisher = book.publisher,
                                 edition = book.edition,
+                                originalPrice = book.price ?: "",
                             ) else st.currentDraft.copy(isbn = isbn),
                         )
                     }
@@ -472,6 +474,7 @@ class PublishViewModel @Inject constructor(
         publisher = book?.publisher,
         edition = book?.edition,
         imageKeys = imageUrls.map { it.removePrefix("/static/") },
+        originalPrice = originalPrice ?: "",
     )
 
     /** 草稿 → 全字段更新（编辑保存）。编辑为整体替换，故标量字段均下发（空串清除）。 */
@@ -498,6 +501,7 @@ class PublishViewModel @Inject constructor(
                 publisher = publisher?.trim()?.ifBlank { null },
                 edition = edition?.trim()?.ifBlank { null },
             ) else null,
+            originalPrice = originalPrice.trim().ifBlank { null },
         )
     }
 
@@ -532,6 +536,7 @@ class PublishViewModel @Inject constructor(
                 edition = edition?.trim()?.ifBlank { null },
             ) else null,
             imageKeys = imageKeys,
+            originalPrice = originalPrice.trim().ifBlank { null },
         )
     }
 }

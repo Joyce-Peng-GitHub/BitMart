@@ -180,6 +180,7 @@ listing (
   title           TEXT NOT NULL,
   description     TEXT NOT NULL DEFAULT '',
   unit_price      NUMERIC(10,2) NULL,        -- NULL = 面议/带价联系
+  original_price  NUMERIC(10,2) NULL,        -- 原价（仅展示，不影响筛选）
   quantity_total  INT NOT NULL CHECK (quantity_total >= 1),
   quantity_sold   INT NOT NULL DEFAULT 0
                   CHECK (quantity_sold BETWEEN 0 AND quantity_total),

@@ -61,6 +61,7 @@ data class ListingDetail(
     val imageUrls: List<String>,
     val expiresAt: String,
     val createdAt: String,
+    val originalPrice: String? = null,
     val book: BookInfo?,
 )
 
@@ -70,6 +71,7 @@ data class BookInfo(
     val authors: String?,
     val publisher: String?,
     val edition: String?,
+    val price: String? = null,
 )
 
 /** 一页列表结果及下一页游标。 */

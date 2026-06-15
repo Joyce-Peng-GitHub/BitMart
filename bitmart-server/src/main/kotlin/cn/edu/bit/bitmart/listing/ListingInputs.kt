@@ -12,6 +12,7 @@ data class CreateListingInput(
     val title: String,
     val description: String,
     val unitPrice: BigDecimal?,
+    val originalPrice: BigDecimal? = null,
     val quantityTotal: Int,
     val pickupLocation: String?,
     val contacts: List<Contact>,
@@ -38,6 +39,7 @@ data class UpdateListingInput(
     val title: String? = null,
     val description: String? = null,
     val unitPrice: BigDecimal? = null,
+    val originalPrice: BigDecimal? = null,
     val clearUnitPrice: Boolean = false,   // 显式置空价格（区分"未改"与"改为面议"）
     val pickupLocation: String? = null,
     val quantitySold: Int? = null,

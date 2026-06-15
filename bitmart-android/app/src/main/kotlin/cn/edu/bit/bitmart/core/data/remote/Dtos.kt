@@ -94,8 +94,8 @@ data class ListingDetailDto(
     val createdAt: String,
     val updatedAt: String,
     val book: BookDto? = null,
+    val originalPrice: String? = null,
 )
-
 @Serializable
 data class TagDto(val id: Long, val name: String)
 
@@ -119,8 +119,8 @@ data class CreateListingRequest(
     val expiresAt: String? = null,
     val book: BookDto? = null,
     val imageKeys: List<String> = emptyList(),
+    val originalPrice: String? = null,
 )
-
 @Serializable
 data class CreatedResponse(val id: Long)
 
@@ -141,8 +141,8 @@ data class UpdateListingRequest(
     val tags: List<String>? = null,
     val imageKeys: List<String>? = null,
     val book: BookDto? = null,
+    val originalPrice: String? = null,
 )
-
 /** 修改当前用户资料请求（PATCH /me），目前仅支持昵称。 */
 @Serializable
 data class UpdateMeRequest(val nickname: String? = null)

@@ -78,7 +78,7 @@ class ListingDetailViewModelTest {
     private val detail = ListingDetail(
         1, ListingType.SELL, ListingCategory.GENERAL, 5, "卖家", "书", "描述",
         "30.00", 2, 0, "三号楼", emptyList(), emptyList(), emptyList(),
-        "2026-07-01T00:00:00Z", "2026-06-02T00:00:00Z", null,
+        "2026-07-01T00:00:00Z", "2026-06-02T00:00:00Z", book = null,
     )
 
     @Test

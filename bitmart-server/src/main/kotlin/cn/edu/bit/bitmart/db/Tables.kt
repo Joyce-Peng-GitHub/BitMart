@@ -79,6 +79,7 @@ object Listings : LongIdTable("listing") {
     val title = text("title")
     val description = text("description")
     val unitPrice = decimal("unit_price", 10, 2).nullable()
+    val originalPrice = decimal("original_price", 10, 2).nullable()
     val quantityTotal = integer("quantity_total")
     val quantitySold = integer("quantity_sold")
     val pickupLocation = text("pickup_location").nullable()

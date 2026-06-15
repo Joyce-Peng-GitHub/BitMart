@@ -32,6 +32,7 @@ data class ListingDetail(
     val title: String,
     val description: String,
     val unitPrice: BigDecimal?,
+    val originalPrice: BigDecimal?,
     val quantityTotal: Int,
     val quantitySold: Int,
     val pickupLocation: String?,

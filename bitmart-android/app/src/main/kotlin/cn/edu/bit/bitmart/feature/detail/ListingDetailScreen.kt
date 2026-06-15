@@ -138,6 +138,7 @@ fun ListingDetailScreen(
                 val isBuy = d.type == ListingType.BUY
                 val priceLabel = if (isBuy) "期望价" else "售价"
                 Text("$priceLabel：${d.unitPrice?.let { "￥$it" } ?: "面议"}")
+                d.originalPrice?.let { Text("原价：￥$it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 val soldVerb = if (isBuy) "已收" else "已售"
                 Text("数量：${d.quantitySold}/${d.quantityTotal} $soldVerb")
                 d.pickupLocation?.let { Text("取货地点：$it") }

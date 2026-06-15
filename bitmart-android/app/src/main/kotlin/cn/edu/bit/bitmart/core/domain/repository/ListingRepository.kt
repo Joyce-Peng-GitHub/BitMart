@@ -39,8 +39,8 @@ data class PublishDraft(
     val expiresAtIso: String? = null,
     val book: BookInfo? = null,
     val imageKeys: List<String> = emptyList(),
+    val originalPrice: String? = null,
 )
-
 /** 修改草稿（更新现有 listing）。null 字段表示不改；全字段编辑会带上全部字段。 */
 data class UpdateDraft(
     val title: String? = null,
@@ -57,8 +57,8 @@ data class UpdateDraft(
     val tags: List<String>? = null,
     val imageKeys: List<String>? = null,
     val book: BookInfo? = null,
+    val originalPrice: String? = null,
 )
-
 /** 列表仓储接口。 */
 interface ListingRepository {
     /** 列表查询（公开，无需登录）。 */

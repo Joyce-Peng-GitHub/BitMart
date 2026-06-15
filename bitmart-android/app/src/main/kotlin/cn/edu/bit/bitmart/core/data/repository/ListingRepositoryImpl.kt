@@ -70,6 +70,7 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
                 tags = update.tags,
                 imageKeys = update.imageKeys,
                 book = update.book?.toDto(),
+                originalPrice = update.originalPrice,
             ),
         )
 
@@ -91,11 +92,11 @@ private fun PublishDraft.toCreateRequest() = CreateListingRequest(
     expiresAt = expiresAtIso,
     book = book?.toDto(),
     imageKeys = imageKeys,
+    originalPrice = originalPrice,
 )
-
 private fun BookInfo.toDto() = BookDto(isbn, title, authors, publisher, edition)
 
-private fun BookMetaDto.toBookInfo() = BookInfo(isbn, title, author, publisher, edition)
+private fun BookMetaDto.toBookInfo() = BookInfo(isbn, title, author, publisher, edition, price = price)
 
 private fun ListingPageDto.toDomain() = ListingPage(items.map { it.toDomain() }, nextCursor)
 
@@ -131,6 +132,7 @@ private fun ListingDetailDto.toDomain() = ListingDetail(
     unitPrice = unitPrice, quantityTotal = quantityTotal, quantitySold = quantitySold,
     pickupLocation = pickupLocation, contacts = contacts.map { it.toDomain() }, tags = tags,
     imageUrls = imageUrls, expiresAt = expiresAt, createdAt = createdAt, book = book?.toDomain(),
+    originalPrice = originalPrice,
 )
 
 private fun ContactDto.toDomain() = Contact(channel = channel, value = value)

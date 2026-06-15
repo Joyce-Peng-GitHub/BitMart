@@ -47,6 +47,7 @@ class ListingRepository {
             it[title] = input.title
             it[description] = input.description
             it[unitPrice] = input.unitPrice
+            it[originalPrice] = input.originalPrice
             it[quantityTotal] = input.quantityTotal
             it[quantitySold] = 0
             it[pickupLocation] = input.pickupLocation
@@ -133,6 +134,7 @@ class ListingRepository {
                 input.clearUnitPrice -> it[unitPrice] = null
                 input.unitPrice != null -> it[unitPrice] = input.unitPrice
             }
+            input.originalPrice?.let { v -> it[originalPrice] = v }
             input.expiresAt?.let { v -> it[expiresAt] = v }
             input.category?.let { v -> it[category] = v }
             input.quantityTotal?.let { v -> it[quantityTotal] = v }
@@ -296,6 +298,7 @@ class ListingRepository {
             title = this[Listings.title],
             description = this[Listings.description],
             unitPrice = this[Listings.unitPrice],
+            originalPrice = this[Listings.originalPrice],
             quantityTotal = this[Listings.quantityTotal],
             quantitySold = this[Listings.quantitySold],
             pickupLocation = this[Listings.pickupLocation],

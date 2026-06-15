@@ -228,6 +228,7 @@ fun PublishScreen(
             OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text("作者") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text("出版社") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text("版本") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, modifier = Modifier.fillMaxWidth())
         }
 
         OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
@@ -236,6 +237,7 @@ fun PublishScreen(
         val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
         OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, modifier = Modifier.fillMaxWidth())
 
         // 有效期：下拉选择"有效天数 / 过期日期"，右侧输入随之切换（天数框 / 日期选择）。
         var expiryModeMenu by remember { mutableStateOf(false) }
