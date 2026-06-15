@@ -17,7 +17,6 @@ import cn.edu.bit.bitmart.feature.auth.AuthScreen
 import cn.edu.bit.bitmart.feature.bookscan.BookScanScreen
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.feature.detail.ListingDetailScreen
-import cn.edu.bit.bitmart.feature.edit.EditListingScreen
 import cn.edu.bit.bitmart.feature.notifications.NotificationsScreen
 import cn.edu.bit.bitmart.feature.profile.ContactsScreen
 import cn.edu.bit.bitmart.feature.profile.MyListingsScreen
@@ -162,15 +161,20 @@ fun BitMartNavHost(
             arguments = listOf(navArgument(Routes.EDIT_ARG) { type = NavType.LongType }),
         ) { entry ->
             val id = entry.arguments?.getLong(Routes.EDIT_ARG) ?: return@composable
-            EditListingScreen(
-                listingId = id,
-                onSaved = {
-                    // 标记上一页需要刷新。上一页若是详情，详情会 reload 并把标记前递给列表；
-                    // 若直接从列表进入编辑，则上一页即列表，直接刷新。
+            // 编辑复用发布表单（PublishScreen 编辑模式），字段与发布页相同。
+            val scannedIsbn by entry.savedStateHandle.getStateFlow<String?>("isbn_result", null)
+                .collectAsStateWithLifecycle()
+            PublishScreen(
+                editListingId = id,
+                onPublished = {
+                    // 保存成功：标记上一页（详情或"我的"列表）刷新，然后返回。
                     navController.previousBackStackEntry?.savedStateHandle?.set(Routes.LISTING_CHANGED_KEY, true)
                     navController.popBackStack()
                 },
-                onBack = { navController.popBackStack() },
+                onNavigateToLlmSettings = { navController.navigate(Routes.LLM_SETTINGS) },
+                onNavigateToBookScan = { navController.navigate(Routes.BOOK_SCAN) },
+                scannedIsbn = scannedIsbn,
+                onIsbnConsumed = { entry.savedStateHandle.remove<String>("isbn_result") },
             )
         }
         composable(Routes.NOTIFICATIONS) {

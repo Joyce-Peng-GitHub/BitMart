@@ -51,7 +51,7 @@ data class CreatedResponse(val id: Long)
 @Serializable
 data class BatchCreatedResponse(val ids: List<Long>)
 
-/** 修改请求。clearUnitPrice 用于显式改为面议。 */
+/** 修改请求。clearUnitPrice 用于显式改为面议。全字段编辑：非 null 字段才更新。 */
 @Serializable
 data class UpdateListingRequest(
     val title: String? = null,
@@ -61,6 +61,13 @@ data class UpdateListingRequest(
     val pickupLocation: String? = null,
     val quantitySold: Int? = null,
     val expiresInDays: Int? = null,
+    val expiresAt: String? = null,            // 绝对过期时间（ISO），优先于 expiresInDays
+    val category: String? = null,             // 枚举名 GENERAL/BOOK
+    val quantityTotal: Int? = null,
+    val contacts: List<ContactDto>? = null,
+    val tags: List<String>? = null,
+    val imageKeys: List<String>? = null,      // 非 null 整体替换图片
+    val book: BookDto? = null,
 )
 
 @Serializable

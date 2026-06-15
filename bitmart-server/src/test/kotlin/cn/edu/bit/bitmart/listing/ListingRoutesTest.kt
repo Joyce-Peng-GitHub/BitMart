@@ -273,6 +273,83 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
+    test("全字段编辑：标题/件数/联系方式/标签/图片/类别+书籍均生效并在详情反映") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "待全字段编辑", tags = listOf("旧标签"), quantityTotal = 5).copy(imageKeys = listOf("old.jpg")))
+            }.body<CreatedResponse>().id
+
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(
+                    UpdateListingRequest(
+                        title = "新标题",
+                        quantityTotal = 8,
+                        contacts = listOf(ContactDto("QQ", "12345")),
+                        tags = listOf("新标签一", "新标签二"),
+                        imageKeys = listOf("new1.jpg", "new2.jpg"),
+                        category = "BOOK",
+                        book = BookDto(isbn = "9787111407010", title = "新书", authors = "作者"),
+                    ),
+                )
+            }.status shouldBe HttpStatusCode.OK
+
+            val d = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>()
+            d.title shouldBe "新标题"
+            d.quantityTotal shouldBe 8
+            d.contacts.first().value shouldBe "12345"
+            d.tags.toSet() shouldBe setOf("新标签一", "新标签二")
+            d.imageUrls shouldBe listOf("/static/new1.jpg", "/static/new2.jpg")
+            d.category shouldBe "BOOK"
+            d.book?.isbn shouldBe "9787111407010"
+        }
+    }
+
+    test("编辑：件数不能少于已售出数量 → 400") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(quantityTotal = 5))
+            }.body<CreatedResponse>().id
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantitySold = 3))
+            }.status shouldBe HttpStatusCode.OK
+
+            // 件数改为 2（< 已售出 3）→ 400。
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(quantityTotal = 2))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
+    test("编辑：类别由书籍改为一般商品时清除书籍信息") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(
+                    CreateListingRequest(
+                        type = "SELL", category = "BOOK", title = "书籍待改类别",
+                        description = "九成新", unitPrice = "30.00", quantityTotal = 1,
+                        pickupLocation = "三号楼", contacts = listOf(ContactDto("WECHAT", "wxid_x")),
+                        tags = emptyList(), expiresInDays = 30, book = BookDto(isbn = "9787111407010"),
+                    ),
+                )
+            }.body<CreatedResponse>().id
+            client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>().book?.isbn shouldBe "9787111407010"
+
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(UpdateListingRequest(category = "GENERAL"))
+            }.status shouldBe HttpStatusCode.OK
+
+            val d = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>()
+            d.category shouldBe "GENERAL"
+            (d.book == null) shouldBe true
+        }
+    }
+
     test("非本人无法修改/删除（403）") {
         app { client ->
             val ownerToken = client.registerToken()

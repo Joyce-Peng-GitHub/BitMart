@@ -42,4 +42,12 @@ data class UpdateListingInput(
     val pickupLocation: String? = null,
     val quantitySold: Int? = null,
     val expiresAt: OffsetDateTime? = null,
+    val expiryIsAbsolute: Boolean = false, // expiresAt 是否来自绝对日期（影响校验下界）
+    // —— 全字段编辑新增（均为 null 表示不改） ——
+    val category: Int? = null,             // ListingCategory 序号
+    val quantityTotal: Int? = null,
+    val contacts: List<Contact>? = null,
+    val tags: List<String>? = null,
+    val imageKeys: List<String>? = null,   // 非 null 则整体替换图片
+    val book: BookInput? = null,           // category=BOOK 时的书籍信息
 )

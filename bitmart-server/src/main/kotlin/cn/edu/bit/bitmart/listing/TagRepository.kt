@@ -9,6 +9,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.plus
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertAndGetId
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -44,6 +45,23 @@ class TagRepository {
                 }
             }
         }
+    }
+
+    /**
+     * 将 listing 的标签整体设为给定名称集合（编辑用）：差异更新——移除多余链接、新增缺失链接。
+     * 仅对新增链接递增用量（与 [attach] 一致），移除链接不回退用量（与软删除不回退保持一致）。
+     */
+    fun setTags(listingId: Long, tagNames: List<String>) {
+        val desiredIds = TagNormalizer.normalizeDistinct(tagNames).map { getOrCreate(it) }.toSet()
+        val currentIds = ListingTags.selectAll()
+            .where { ListingTags.listingId eq listingId }
+            .map { it[ListingTags.tagId] }
+            .toSet()
+        val toRemove = currentIds - desiredIds
+        if (toRemove.isNotEmpty()) {
+            ListingTags.deleteWhere { (ListingTags.listingId eq listingId) and (ListingTags.tagId inList toRemove) }
+        }
+        attach(listingId, desiredIds)
     }
 
     /** 读取某 listing 的标签名列表。 */

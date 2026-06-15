@@ -189,4 +189,30 @@ class ListingValidatorTest : FunSpec({
         validator.validateExtension(now.plus(Duration.ofDays(30)), now).isValid.shouldBeTrue()
         codes(validator.validateExtension(now.plus(Duration.ofDays(400)), now)) shouldContain "EXPIRY_TOO_LATE"
     }
+
+    // —— 全字段编辑校验（validateUpdate）：仅校验非 null 字段，与发布同规则 ——
+    test("更新校验：全 null 输入合法（不改任何字段）") {
+        validator.validateUpdate(ListingUpdateInput(), currentQuantitySold = 0, now = now).isValid.shouldBeTrue()
+    }
+
+    test("更新校验：件数不得少于已售出，等于已售出合法") {
+        codes(validator.validateUpdate(ListingUpdateInput(quantityTotal = 2), currentQuantitySold = 3, now = now)) shouldContain "QUANTITY_TOTAL_BELOW_SOLD"
+        validator.validateUpdate(ListingUpdateInput(quantityTotal = 3), currentQuantitySold = 3, now = now).isValid.shouldBeTrue()
+    }
+
+    test("更新校验：件数上限沿用 MAX_QUANTITY") {
+        codes(validator.validateUpdate(ListingUpdateInput(quantityTotal = 10000), currentQuantitySold = 0, now = now)) shouldContain "QUANTITY_TOTAL_TOO_LARGE"
+    }
+
+    test("更新校验：绝对过期明天合法、超 maxDays 拒绝") {
+        validator.validateUpdate(ListingUpdateInput(expiresAt = now.plus(Duration.ofHours(8)), expiryIsAbsolute = true), currentQuantitySold = 0, now = now).isValid.shouldBeTrue()
+        codes(validator.validateUpdate(ListingUpdateInput(expiresAt = now.plus(Duration.ofDays(366)), expiryIsAbsolute = true), currentQuantitySold = 0, now = now)) shouldContain "EXPIRY_TOO_LATE"
+    }
+
+    test("更新校验：价格超限 / 标签超限 / 空标题 / 无联系方式 分别拒绝") {
+        codes(validator.validateUpdate(ListingUpdateInput(unitPrice = BigDecimal("100000000")), 0, now)) shouldContain "PRICE_TOO_LARGE"
+        codes(validator.validateUpdate(ListingUpdateInput(tags = (1..9).map { "t$it" }), 0, now)) shouldContain "TAGS_TOO_MANY"
+        codes(validator.validateUpdate(ListingUpdateInput(title = "   "), 0, now)) shouldContain "TITLE_BLANK"
+        codes(validator.validateUpdate(ListingUpdateInput(contacts = emptyList()), 0, now)) shouldContain "CONTACT_REQUIRED"
+    }
 })

@@ -41,7 +41,7 @@ data class PublishDraft(
     val imageKeys: List<String> = emptyList(),
 )
 
-/** 修改草稿（更新现有 listing）。 */
+/** 修改草稿（更新现有 listing）。null 字段表示不改；全字段编辑会带上全部字段。 */
 data class UpdateDraft(
     val title: String? = null,
     val description: String? = null,
@@ -50,6 +50,13 @@ data class UpdateDraft(
     val pickupLocation: String? = null,
     val quantitySold: Int? = null,
     val expiresInDays: Int? = null,
+    val expiresAtIso: String? = null,
+    val category: ListingCategory? = null,
+    val quantityTotal: Int? = null,
+    val contacts: List<Contact>? = null,
+    val tags: List<String>? = null,
+    val imageKeys: List<String>? = null,
+    val book: BookInfo? = null,
 )
 
 /** 列表仓储接口。 */

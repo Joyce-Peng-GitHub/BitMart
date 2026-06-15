@@ -9,10 +9,12 @@ import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
 import cn.edu.bit.bitmart.core.domain.model.Contact
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
+import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.PublishConfig
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
+import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
 import cn.edu.bit.bitmart.llm.LlmClient
 import cn.edu.bit.bitmart.llm.LlmRecognition
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import javax.inject.Inject
 
@@ -77,6 +80,10 @@ data class PublishUiState(
     val lookingUpBook: Boolean = false,
     val error: String? = null,
     val batchSubmitted: Boolean = false,
+    /** 编辑模式：被编辑 listing 的 id（null = 新建发布模式）。 */
+    val editingId: Long? = null,
+    /** 编辑保存成功（UI 监听后 popBackStack 并刷新列表）。 */
+    val saved: Boolean = false,
 )
 
 /** 一次性事件：导航到 LLM 设置页（LLM 未配置时触发）。 */
@@ -317,49 +324,8 @@ class PublishViewModel @Inject constructor(
      */
     fun addDraftToBatch() {
         val draft = _state.value.currentDraft
-        // 客户端基础校验。
-        if (draft.title.isBlank()) { _state.update { it.copy(error = "请填写标题") }; return }
-        if (draft.contact.isBlank()) { _state.update { it.copy(error = "请填写联系方式") }; return }
-        // 件数须为正整数且不超过上界。用 Long 解析，以便把"过大的整数"正确归类为超上界
-        // （toInt 对超 Int.MAX 的输入会返回 null，从而被误判为"非正整数"）。
-        // 超 Long 范围（约 20 位以上）的极端输入仍回落到"非正整数"提示，属可接受的边缘情形。
-        val qty = draft.quantityTotal.toLongOrNull()
-        if (qty == null || qty < 1) { _state.update { it.copy(error = "件数必须为正整数") }; return }
-        if (qty > PublishConfig.MAX_QUANTITY) {
-            _state.update { it.copy(error = "件数不能超过 ${PublishConfig.MAX_QUANTITY}") }; return
-        }
-        // 价格可留空（面议）；填写则须为合法数字且不超过 DB 列上限（避免入库时 NUMERIC 溢出）。
-        val priceRaw = draft.unitPrice.trim()
-        if (priceRaw.isNotEmpty()) {
-            val price = priceRaw.toBigDecimalOrNull()
-            if (price == null) { _state.update { it.copy(error = "价格格式不正确") }; return }
-            if (price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal()) {
-                _state.update { it.copy(error = "价格不能超过 ${PublishConfig.MAX_UNIT_PRICE}") }; return
-            }
-        }
-        // 有效期：按天数（留空=服务端默认）或按绝对过期日期（[今天, 过期日) 内有效）。
-        when (draft.expiryMode) {
-            ExpiryMode.DAYS -> {
-                val expiryRaw = draft.expiresInDays.trim()
-                if (expiryRaw.isNotEmpty()) {
-                    val days = expiryRaw.toIntOrNull()
-                    if (days == null || days !in PublishConfig.EXPIRY_MIN_DAYS..PublishConfig.EXPIRY_MAX_DAYS) {
-                        _state.update { it.copy(error = "有效期必须为 ${PublishConfig.EXPIRY_MIN_DAYS}-${PublishConfig.EXPIRY_MAX_DAYS} 的整数天数") }
-                        return
-                    }
-                }
-            }
-            ExpiryMode.DATE -> {
-                val date = draft.expiresOn?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                if (date == null) { _state.update { it.copy(error = "请选择过期日期") }; return }
-                val today = LocalDate.now()
-                // 过期日须晚于今天且不超过一年（与 EXPIRY_MAX_DAYS 一致）；[今天, 过期日) 内有效。
-                if (!date.isAfter(today) || date.isAfter(today.plusDays(PublishConfig.EXPIRY_MAX_DAYS.toLong()))) {
-                    _state.update { it.copy(error = "过期日期须晚于今天且不超过 ${PublishConfig.EXPIRY_MAX_DAYS} 天后") }
-                    return
-                }
-            }
-        }
+        val err = validateDraft(draft)
+        if (err != null) { _state.update { it.copy(error = err) }; return }
 
         val contact = draft.contact.trim()
         _state.update { st ->
@@ -412,13 +378,140 @@ class PublishViewModel @Inject constructor(
         }
     }
 
-    private fun DraftItem.toPublishDraft(type: ListingType): PublishDraft {
-        // 按过期日期发布时，换算为该日 00:00（设备时区）的绝对瞬时，优先于天数。
-        val absoluteExpiry = if (expiryMode == ExpiryMode.DATE && expiresOn != null) {
+    /**
+     * 单条草稿的客户端校验（发布加入批次与编辑保存共用）。返回错误消息，null 表示通过。
+     */
+    private fun validateDraft(draft: DraftItem): String? {
+        if (draft.title.isBlank()) return "请填写标题"
+        if (draft.contact.isBlank()) return "请填写联系方式"
+        // 件数：用 Long 解析以便把超 Int 的"过大整数"正确归类为超上界。
+        val qty = draft.quantityTotal.toLongOrNull()
+        if (qty == null || qty < 1) return "件数必须为正整数"
+        if (qty > PublishConfig.MAX_QUANTITY) return "件数不能超过 ${PublishConfig.MAX_QUANTITY}"
+        val priceRaw = draft.unitPrice.trim()
+        if (priceRaw.isNotEmpty()) {
+            val price = priceRaw.toBigDecimalOrNull() ?: return "价格格式不正确"
+            if (price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal()) return "价格不能超过 ${PublishConfig.MAX_UNIT_PRICE}"
+        }
+        when (draft.expiryMode) {
+            ExpiryMode.DAYS -> {
+                val expiryRaw = draft.expiresInDays.trim()
+                if (expiryRaw.isNotEmpty()) {
+                    val days = expiryRaw.toIntOrNull()
+                    if (days == null || days !in PublishConfig.EXPIRY_MIN_DAYS..PublishConfig.EXPIRY_MAX_DAYS)
+                        return "有效期必须为 ${PublishConfig.EXPIRY_MIN_DAYS}-${PublishConfig.EXPIRY_MAX_DAYS} 的整数天数"
+                }
+            }
+            ExpiryMode.DATE -> {
+                val date = draft.expiresOn?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return "请选择过期日期"
+                val today = LocalDate.now()
+                if (!date.isAfter(today) || date.isAfter(today.plusDays(PublishConfig.EXPIRY_MAX_DAYS.toLong())))
+                    return "过期日期须晚于今天且不超过 ${PublishConfig.EXPIRY_MAX_DAYS} 天后"
+            }
+        }
+        return null
+    }
+
+    /** 进入编辑模式：拉取详情并把字段预填到 currentDraft（与发布共用同一表单）。 */
+    fun loadForEdit(id: Long) {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            when (val r = listingRepository.detail(id)) {
+                is DomainResult.Success -> {
+                    val d = r.data
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            editingId = id,
+                            type = d.type,
+                            selectedCategory = d.category,
+                            currentDraft = d.toDraftItem(),
+                        )
+                    }
+                }
+                is DomainResult.Failure ->
+                    _state.update { it.copy(loading = false, error = if (r.httpStatus == 401) "请登录后编辑" else r.message) }
+                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+            }
+        }
+    }
+
+    /** 编辑保存：校验后整体更新该 listing；成功标记 saved（UI 监听后 popBackStack）。 */
+    fun saveEdit() {
+        val id = _state.value.editingId ?: return
+        val draft = _state.value.currentDraft
+        val err = validateDraft(draft)
+        if (err != null) { _state.update { it.copy(error = err) }; return }
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            when (val r = listingRepository.update(id, draft.toUpdateDraft())) {
+                is DomainResult.Success -> _state.update { it.copy(loading = false, saved = true) }
+                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = "保存失败：${r.message}") }
+                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+            }
+        }
+    }
+
+    /** 详情 → 草稿（编辑预填）。过期以"日期模式"预填为当前过期日；图片由 URL 还原 blobKey。 */
+    private fun ListingDetail.toDraftItem() = DraftItem(
+        category = category,
+        title = title,
+        description = description,
+        unitPrice = unitPrice ?: "",
+        quantityTotal = quantityTotal.toString(),
+        expiresInDays = "",
+        expiryMode = ExpiryMode.DATE,
+        expiresOn = runCatching {
+            OffsetDateTime.parse(expiresAt).atZoneSameInstant(ZoneId.systemDefault()).toLocalDate().toString()
+        }.getOrNull(),
+        pickupLocation = pickupLocation ?: "",
+        contact = contacts.firstOrNull()?.value ?: "",
+        tags = tags,
+        isbn = book?.isbn,
+        author = book?.authors,
+        publisher = book?.publisher,
+        edition = book?.edition,
+        imageKeys = imageUrls.map { it.removePrefix("/static/") },
+    )
+
+    /** 草稿 → 全字段更新（编辑保存）。编辑为整体替换，故标量字段均下发（空串清除）。 */
+    private fun DraftItem.toUpdateDraft(): UpdateDraft {
+        val priceRaw = unitPrice.trim()
+        val absoluteExpiry = absoluteExpiryIso()
+        return UpdateDraft(
+            title = title.trim(),
+            description = description.trim(),
+            unitPrice = priceRaw.ifBlank { null },
+            clearUnitPrice = priceRaw.isBlank(),
+            pickupLocation = pickupLocation.trim(),
+            expiresInDays = if (absoluteExpiry != null) null else expiresInDays.trim().toIntOrNull(),
+            expiresAtIso = absoluteExpiry,
+            category = category,
+            quantityTotal = quantityTotal.toInt(),
+            contacts = listOf(Contact("", contact.trim())),
+            tags = tags,
+            imageKeys = imageKeys,
+            book = if (category == ListingCategory.BOOK) BookInfo(
+                isbn = isbn?.trim()?.ifBlank { null },
+                title = title.trim().ifBlank { null },
+                authors = author?.trim()?.ifBlank { null },
+                publisher = publisher?.trim()?.ifBlank { null },
+                edition = edition?.trim()?.ifBlank { null },
+            ) else null,
+        )
+    }
+
+    /** 按过期日期模式换算的绝对过期瞬时（ISO）；天数模式返回 null。发布与编辑共用。 */
+    private fun DraftItem.absoluteExpiryIso(): String? =
+        if (expiryMode == ExpiryMode.DATE && expiresOn != null) {
             runCatching {
                 LocalDate.parse(expiresOn).atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime().toString()
             }.getOrNull()
         } else null
+
+    private fun DraftItem.toPublishDraft(type: ListingType): PublishDraft {
+        // 按过期日期发布时，换算为该日 00:00（设备时区）的绝对瞬时，优先于天数。
+        val absoluteExpiry = absoluteExpiryIso()
         return PublishDraft(
             type = type,
             category = category,

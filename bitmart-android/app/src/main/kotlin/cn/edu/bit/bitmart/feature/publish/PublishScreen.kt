@@ -95,10 +95,12 @@ import java.time.ZoneOffset
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PublishScreen(
-    initialType: ListingType,
+    initialType: ListingType = ListingType.SELL,
     onPublished: () -> Unit,
     onNavigateToLlmSettings: () -> Unit,
     onNavigateToBookScan: () -> Unit,
+    /** 非空表示编辑模式：编辑该 listing（字段与发布页相同）。 */
+    editListingId: Long? = null,
     /** 从条码扫描页回传的 ISBN（NavHost 观察 savedStateHandle 后传入）。 */
     scannedIsbn: String? = null,
     onIsbnConsumed: () -> Unit = {},
@@ -106,9 +108,12 @@ fun PublishScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val editMode = editListingId != null
 
-    // 发布类型由入口决定，进入时设置一次。
-    LaunchedEffect(Unit) { viewModel.setType(initialType) }
+    // 发布：类型由入口决定（进入时设置一次）；编辑：拉取详情预填表单。
+    LaunchedEffect(Unit) {
+        if (editListingId != null) viewModel.loadForEdit(editListingId) else viewModel.setType(initialType)
+    }
 
     // 从条码扫描页收到 ISBN → 预填书籍草稿。
     LaunchedEffect(scannedIsbn) {
@@ -120,6 +125,11 @@ fun PublishScreen(
 
     LaunchedEffect(state.batchSubmitted) {
         if (state.batchSubmitted) onPublished()
+    }
+
+    // 编辑保存成功后返回（并触发上游列表刷新，由 NavHost 接线）。
+    LaunchedEffect(state.saved) {
+        if (state.saved) onPublished()
     }
 
     LaunchedEffect(Unit) {
@@ -169,9 +179,14 @@ fun PublishScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // 类型由入口决定（商品/收购），标题随之；页内不再提供卖/买切换。
+        // 类型由入口决定（商品/收购），标题随之；页内不再提供卖/买切换。编辑模式标题为"编辑…"。
         Text(
-            if (state.type == ListingType.BUY) "发布收购（批量）" else "发布商品（批量）",
+            when {
+                editMode && state.type == ListingType.BUY -> "编辑收购"
+                editMode -> "编辑商品"
+                state.type == ListingType.BUY -> "发布收购（批量）"
+                else -> "发布商品（批量）"
+            },
             style = MaterialTheme.typography.headlineSmall,
         )
 
@@ -434,51 +449,63 @@ fun PublishScreen(
             }
         }
 
-        // 加入批次按钮。
-        Button(onClick = viewModel::addDraftToBatch, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(Modifier.width(4.dp))
-            Text("加入待发布列表")
-        }
-
-        // 已加入的批次列表。
-        if (state.draftBatch.isNotEmpty()) {
-            Text("待发布列表（${state.draftBatch.size}项）", style = MaterialTheme.typography.titleMedium)
-            state.draftBatch.forEachIndexed { index, item ->
-                Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.editDraft(index) }) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.title, style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                "${item.category.name} · ${item.quantityTotal}件",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline,
-                            )
-                        }
-                        Row {
-                            IconButton(onClick = { viewModel.editDraft(index) }) {
-                                Icon(Icons.Default.Edit, contentDescription = "编辑")
-                            }
-                            IconButton(onClick = { viewModel.removeDraft(index) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "删除")
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 批量提交按钮。
+        if (editMode) {
+            // 编辑模式：单条保存。
             Button(
-                onClick = viewModel::submitBatch,
+                onClick = viewModel::saveEdit,
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (state.loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                else Text("提交全部（${state.draftBatch.size}项）")
+                else Text("保存")
+            }
+        } else {
+            // 加入批次按钮。
+            Button(onClick = viewModel::addDraftToBatch, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
+                Text("加入待发布列表")
+            }
+
+            // 已加入的批次列表。
+            if (state.draftBatch.isNotEmpty()) {
+                Text("待发布列表（${state.draftBatch.size}项）", style = MaterialTheme.typography.titleMedium)
+                state.draftBatch.forEachIndexed { index, item ->
+                    Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.editDraft(index) }) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(item.title, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    "${item.category.name} · ${item.quantityTotal}件",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                )
+                            }
+                            Row {
+                                IconButton(onClick = { viewModel.editDraft(index) }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "编辑")
+                                }
+                                IconButton(onClick = { viewModel.removeDraft(index) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "删除")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 批量提交按钮。
+                Button(
+                    onClick = viewModel::submitBatch,
+                    enabled = !state.loading,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (state.loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
+                    else Text("提交全部（${state.draftBatch.size}项）")
+                }
             }
         }
     }

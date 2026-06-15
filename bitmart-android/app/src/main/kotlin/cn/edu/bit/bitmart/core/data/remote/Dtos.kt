@@ -123,7 +123,7 @@ data class CreateListingRequest(
 @Serializable
 data class CreatedResponse(val id: Long)
 
-/** 修改 listing 请求（与后端 UpdateListingRequest 对齐）。 */
+/** 修改 listing 请求（与后端 UpdateListingRequest 对齐）。null 字段不改。 */
 @Serializable
 data class UpdateListingRequest(
     val title: String? = null,
@@ -133,6 +133,13 @@ data class UpdateListingRequest(
     val pickupLocation: String? = null,
     val quantitySold: Int? = null,
     val expiresInDays: Int? = null,
+    val expiresAt: String? = null,
+    val category: String? = null,
+    val quantityTotal: Int? = null,
+    val contacts: List<ContactDto>? = null,
+    val tags: List<String>? = null,
+    val imageKeys: List<String>? = null,
+    val book: BookDto? = null,
 )
 
 /** 修改当前用户资料请求（PATCH /me），目前仅支持昵称。 */

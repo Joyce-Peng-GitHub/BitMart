@@ -89,6 +89,29 @@ class ListingValidator(
         return errors.build()
     }
 
+    /**
+     * 校验一次"全字段编辑"更新：仅对提供（非 null）的字段施加与发布相同的规则。
+     * 件数另要求不少于已售出数量。复用各字段的私有校验，保证编辑与发布一致。
+     */
+    fun validateUpdate(input: ListingUpdateInput, currentQuantitySold: Int, now: Instant): ValidationResult {
+        val errors = ValidationErrors()
+        input.title?.let { validateTitle(it, errors) }
+        input.quantityTotal?.let { q ->
+            validateQuantity(q, errors)
+            errors.check(
+                q >= currentQuantitySold,
+                field = "quantityTotal",
+                code = "QUANTITY_TOTAL_BELOW_SOLD",
+                message = "件数不能少于已售出数量 $currentQuantitySold",
+            )
+        }
+        input.unitPrice?.let { validatePrice(it, errors) }
+        input.expiresAt?.let { validateExpiry(it, now, errors, absolute = input.expiryIsAbsolute) }
+        input.contacts?.let { validateContacts(it, errors) }
+        input.tags?.let { validateTags(it, errors) }
+        return errors.build()
+    }
+
     private fun validateTitle(title: String, errors: ValidationErrors) {
         errors.check(title.isNotBlank(), "title", "TITLE_BLANK", "标题不能为空")
     }
@@ -198,4 +221,15 @@ data class ListingInput(
     val expiresAt: Instant,
     /** 过期时间是否为客户端指定的绝对日期；为 true 时仅校验"晚于当前时间"，否则用最小天数下界。 */
     val expiryIsAbsolute: Boolean = false,
+)
+
+/** 待校验的"全字段编辑"输入（领域层视图）。仅非 null 字段参与校验，与发布同规则。 */
+data class ListingUpdateInput(
+    val title: String? = null,
+    val quantityTotal: Int? = null,
+    val unitPrice: BigDecimal? = null,
+    val expiresAt: Instant? = null,
+    val expiryIsAbsolute: Boolean = false,
+    val contacts: List<Contact>? = null,
+    val tags: List<String>? = null,
 )

@@ -1,6 +1,7 @@
 package cn.edu.bit.bitmart.listing
 
 import cn.edu.bit.bitmart.db.ListingBooks
+import cn.edu.bit.bitmart.db.ListingImages
 import cn.edu.bit.bitmart.db.Listings
 import cn.edu.bit.bitmart.db.Users
 import cn.edu.bit.bitmart.domain.BookInfo
@@ -20,6 +21,7 @@ import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.IntegerColumnType
 import org.jetbrains.exposed.v1.core.LongColumnType
 import org.jetbrains.exposed.v1.core.TextColumnType
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertAndGetId
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -120,6 +122,7 @@ class ListingRepository {
 
     /**
      * 更新可变字段。返回受影响行数。售出数量与延期由专门方法处理以施加并发约束。
+     * 全字段编辑还可改 category/quantityTotal/contacts；标签、图片、书籍由专门方法处理。
      */
     fun updateFields(id: Long, input: UpdateListingInput): Int =
         Listings.update({ (Listings.id eq id) and Listings.deletedAt.isNull() }) {
@@ -131,8 +134,41 @@ class ListingRepository {
                 input.unitPrice != null -> it[unitPrice] = input.unitPrice
             }
             input.expiresAt?.let { v -> it[expiresAt] = v }
+            input.category?.let { v -> it[category] = v }
+            input.quantityTotal?.let { v -> it[quantityTotal] = v }
+            input.contacts?.let { v -> it[contact] = v }
             it[updatedAt] = OffsetDateTime.now()
         }
+
+    /** 整体替换某 listing 的图片（编辑用）：删除原图，按顺序重新写入。 */
+    fun replaceImages(id: Long, blobKeys: List<String>) {
+        ListingImages.deleteWhere { ListingImages.listingId eq id }
+        blobKeys.forEachIndexed { index, key ->
+            ListingImages.insert {
+                it[listingId] = id
+                it[blobKey] = key
+                it[ord] = index
+            }
+        }
+    }
+
+    /** 写入/更新书籍信息（category=BOOK 时）：以 listing_id 为主键先删后插，幂等。 */
+    fun upsertBook(id: Long, book: BookInput?) {
+        ListingBooks.deleteWhere { ListingBooks.listingId eq id }
+        ListingBooks.insert {
+            it[listingId] = id
+            it[isbn] = book?.isbn
+            it[title] = book?.title
+            it[authors] = book?.authors
+            it[publisher] = book?.publisher
+            it[edition] = book?.edition
+        }
+    }
+
+    /** 删除某 listing 的书籍信息（类别改为非书籍时）。 */
+    fun deleteBook(id: Long) {
+        ListingBooks.deleteWhere { ListingBooks.listingId eq id }
+    }
 
     /** 更新售出数量（允许增减，范围由 Service 层校验保证）。返回受影响行数。 */
     fun updateQuantitySold(id: Long, newSold: Int): Int =

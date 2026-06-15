@@ -63,6 +63,13 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
                 pickupLocation = update.pickupLocation,
                 quantitySold = update.quantitySold,
                 expiresInDays = update.expiresInDays,
+                expiresAt = update.expiresAtIso,
+                category = update.category?.name,
+                quantityTotal = update.quantityTotal,
+                contacts = update.contacts?.map { ContactDto(it.channel, it.value) },
+                tags = update.tags,
+                imageKeys = update.imageKeys,
+                book = update.book?.toDto(),
             ),
         )
 

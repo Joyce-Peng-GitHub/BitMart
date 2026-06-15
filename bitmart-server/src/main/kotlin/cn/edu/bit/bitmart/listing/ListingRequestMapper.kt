@@ -40,16 +40,27 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
         )
     }
 
-    fun toUpdateInput(req: UpdateListingRequest, now: OffsetDateTime): UpdateListingInput =
-        UpdateListingInput(
+    fun toUpdateInput(req: UpdateListingRequest, now: OffsetDateTime): UpdateListingInput {
+        // 优先用绝对过期时间；否则按天数换算。两者皆缺省则不改动过期时间。
+        val absoluteExpiry = req.expiresAt?.let { parseExpiresAt(it) }
+        val expiresAt = absoluteExpiry ?: req.expiresInDays?.let { now.plusDays(it.toLong()) }
+        return UpdateListingInput(
             title = req.title,
             description = req.description,
             unitPrice = parsePrice(req.unitPrice),
             clearUnitPrice = req.clearUnitPrice,
             pickupLocation = req.pickupLocation,
             quantitySold = req.quantitySold,
-            expiresAt = req.expiresInDays?.let { now.plusDays(it.toLong()) },
+            expiresAt = expiresAt,
+            expiryIsAbsolute = absoluteExpiry != null,
+            category = req.category?.let { parseEnum<ListingCategory>(it, "category").ordinal },
+            quantityTotal = req.quantityTotal,
+            contacts = req.contacts?.map { it.toContact() },
+            tags = req.tags,
+            imageKeys = req.imageKeys,
+            book = req.book?.let { BookInput(it.isbn, it.title, it.authors, it.publisher, it.edition) },
         )
+    }
 
     private fun ContactDto.toContact(): Contact = Contact(channel, value)
 

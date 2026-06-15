@@ -5,6 +5,7 @@ import cn.edu.bit.bitmart.core.data.FakeContactPrefsStore
 import cn.edu.bit.bitmart.core.data.FakeLlmConfigStore
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
+import cn.edu.bit.bitmart.core.domain.model.Contact
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.model.ListingPage
@@ -29,6 +30,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneId
 
 class PublishViewModelTest {
@@ -43,17 +45,19 @@ class PublishViewModelTest {
         var batchResult: DomainResult<List<Long>> = DomainResult.Success(listOf(1L, 2L)),
         var uploadResult: DomainResult<String> = DomainResult.Success("blob-key"),
         var lookupResult: DomainResult<BookInfo?> = DomainResult.Success(null),
+        var detailResult: DomainResult<ListingDetail> = DomainResult.Failure("X", "n/a", 404),
         var tagsResult: DomainResult<List<cn.edu.bit.bitmart.core.domain.repository.TagInfo>> = DomainResult.Success(listOf(
             cn.edu.bit.bitmart.core.domain.repository.TagInfo(1L, "热门1"),
             cn.edu.bit.bitmart.core.domain.repository.TagInfo(2L, "热门2"),
         )),
     ) : ListingRepository {
         var lastBatchDrafts: List<PublishDraft>? = null
+        var lastUpdate: Pair<Long, cn.edu.bit.bitmart.core.domain.repository.UpdateDraft>? = null
         var uploadCalls = 0
 
         override suspend fun list(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
         override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
-        override suspend fun detail(id: Long): DomainResult<ListingDetail> = DomainResult.Failure("X", "n/a", 404)
+        override suspend fun detail(id: Long): DomainResult<ListingDetail> = detailResult
         override suspend fun publish(draft: PublishDraft) = publishResult
         override suspend fun publishBatch(drafts: List<PublishDraft>): DomainResult<List<Long>> {
             lastBatchDrafts = drafts; return batchResult
@@ -62,7 +66,9 @@ class PublishViewModelTest {
             uploadCalls++; return uploadResult
         }
         override suspend fun lookupBook(isbn: String) = lookupResult
-        override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft) = DomainResult.Success(Unit)
+        override suspend fun update(id: Long, update: cn.edu.bit.bitmart.core.domain.repository.UpdateDraft): DomainResult<Unit> {
+            lastUpdate = id to update; return DomainResult.Success(Unit)
+        }
         override suspend fun delete(id: Long) = DomainResult.Success(Unit)
         override suspend fun popularTags(limit: Int) = tagsResult
     }
@@ -577,5 +583,84 @@ class PublishViewModelTest {
         vm.onTitle("B"); vm.onContact("wx_decline")
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
         assertNull(vm.state.value.pendingSaveContact)
+    }
+
+    // —— 编辑模式（复用发布表单） ——
+
+    private fun detail(
+        type: ListingType = ListingType.SELL,
+        category: ListingCategory = ListingCategory.BOOK,
+        expiresAt: String = "2026-07-01T00:00:00Z",
+    ) = ListingDetail(
+        id = 7, type = type, category = category, userId = 5, nickname = "卖家",
+        title = "高数教材", description = "九成新", unitPrice = "30.00", quantityTotal = 4, quantitySold = 1,
+        pickupLocation = "三号楼", contacts = listOf(Contact("WECHAT", "wxid_x")), tags = listOf("教材"),
+        imageUrls = listOf("/static/2026/06/a.jpg"), expiresAt = expiresAt,
+        createdAt = "2026-06-02T00:00:00Z",
+        book = BookInfo("9787111407010", "高数", "作者", "机械工业", "第3版"),
+    )
+
+    private fun editVm(repo: FakeRepo) = PublishViewModel(
+        repo, FakeLlmClient(DomainResult.Success(LlmRecognition.General("", "", null, emptyList()))),
+        FakeLlmConfigStore(), FakeContactPrefsStore(),
+    )
+
+    @Test
+    fun `loadForEdit prefills draft from detail and enters edit mode`() = runTest {
+        val repo = FakeRepo(detailResult = DomainResult.Success(detail(type = ListingType.BUY)))
+        val vm = editVm(repo)
+        vm.loadForEdit(7); dispatcher.scheduler.advanceUntilIdle()
+
+        val s = vm.state.value
+        assertEquals(7L, s.editingId)
+        assertEquals(ListingType.BUY, s.type)
+        assertEquals(ListingCategory.BOOK, s.selectedCategory)
+        val d = s.currentDraft
+        assertEquals("高数教材", d.title)
+        assertEquals("30.00", d.unitPrice)
+        assertEquals("4", d.quantityTotal)
+        assertEquals("三号楼", d.pickupLocation)
+        assertEquals("wxid_x", d.contact)
+        assertEquals(listOf("教材"), d.tags)
+        assertEquals("9787111407010", d.isbn)
+        assertEquals(listOf("2026/06/a.jpg"), d.imageKeys) // /static/ 前缀已去除
+        assertEquals(ExpiryMode.DATE, d.expiryMode)        // 过期以日期模式预填
+    }
+
+    @Test
+    fun `saveEdit sends full UpdateDraft and marks saved`() = runTest {
+        // 过期取真实"现在 + 30 天"，避开日期校验窗口的时区/时钟敏感。
+        val repo = FakeRepo(detailResult = DomainResult.Success(
+            detail(category = ListingCategory.GENERAL, expiresAt = OffsetDateTime.now().plusDays(30).toString()),
+        ))
+        val vm = editVm(repo)
+        vm.loadForEdit(7); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onTitle("新标题"); vm.onQuantity("9")
+        vm.saveEdit(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.saved)
+        assertEquals(7L, repo.lastUpdate?.first)
+        val u = repo.lastUpdate!!.second
+        assertEquals("新标题", u.title)
+        assertEquals(9, u.quantityTotal)
+        assertEquals(ListingCategory.GENERAL, u.category)
+        assertEquals("wxid_x", u.contacts?.firstOrNull()?.value)
+        assertEquals(listOf("教材"), u.tags)
+        assertEquals(listOf("2026/06/a.jpg"), u.imageKeys)
+    }
+
+    @Test
+    fun `saveEdit blocked by invalid draft does not call update`() = runTest {
+        val repo = FakeRepo(detailResult = DomainResult.Success(detail()))
+        val vm = editVm(repo)
+        vm.loadForEdit(7); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onTitle("   ")
+        vm.saveEdit(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("请填写标题", vm.state.value.error)
+        assertNull(repo.lastUpdate)
+        assertFalse(vm.state.value.saved)
     }
 }

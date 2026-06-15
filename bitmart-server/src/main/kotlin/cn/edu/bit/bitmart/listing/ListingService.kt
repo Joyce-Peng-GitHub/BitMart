@@ -1,9 +1,11 @@
 package cn.edu.bit.bitmart.listing
 
 import cn.edu.bit.bitmart.config.TagConfig
+import cn.edu.bit.bitmart.domain.ListingCategory
 import cn.edu.bit.bitmart.domain.ListingFilter
 import cn.edu.bit.bitmart.domain.ListingInput
 import cn.edu.bit.bitmart.domain.ListingSummary
+import cn.edu.bit.bitmart.domain.ListingUpdateInput
 import cn.edu.bit.bitmart.domain.ListingValidator
 import cn.edu.bit.bitmart.domain.TagNormalizer
 import cn.edu.bit.bitmart.domain.UserRole
@@ -111,30 +113,32 @@ class ListingService(
             return@transaction UpdateResult.Forbidden
         }
 
-        // 延期校验。
-        input.expiresAt?.let {
-            val r = validator.validateExtension(it.toInstant(), now)
-            if (!r.isValid) {
-                log.warn("Update listing extension invalid id={} errors={}", id, r.errors)
-                return@transaction UpdateResult.ValidationFailed(r.errors)
-            }
-        }
-        // 价格校验（若显式改价）：与发布同规则（非负且不超过 NUMERIC(10,2) 上限）。
-        if (input.unitPrice != null) {
-            val r = validator.validatePriceField(input.unitPrice)
-            if (!r.isValid) {
-                log.warn("Update listing price invalid id={} errors={}", id, r.errors)
-                return@transaction UpdateResult.ValidationFailed(r.errors)
-            }
+        // 当前明细：已售出数量用于件数下界校验，类别用于书籍协调。
+        val current = listingRepository.findDetail(id) ?: return@transaction UpdateResult.NotFound
+
+        // 全字段校验：仅校验提供（非 null）的字段，与发布同规则。
+        val vr = validator.validateUpdate(input.toUpdateValidation(), current.quantitySold, now)
+        if (!vr.isValid) {
+            log.warn("Update listing invalid id={} errors={}", id, vr.errors)
+            return@transaction UpdateResult.ValidationFailed(vr.errors)
         }
 
-        // 普通字段更新。
+        // 标量字段（标题/描述/价格/取货地点/过期/类别/件数/联系方式）。
         if (hasFieldUpdates(input)) listingRepository.updateFields(id, input)
+        // 标签整体替换（差异更新）。
+        input.tags?.let { tagRepository.setTags(id, it) }
+        // 图片整体替换。
+        input.imageKeys?.let { listingRepository.replaceImages(id, it) }
+        // 类别/书籍协调：书籍则写入书籍信息，非书籍则删除。
+        input.category?.let { cat ->
+            if (cat == ListingCategory.BOOK.ordinal) listingRepository.upsertBook(id, input.book)
+            else listingRepository.deleteBook(id)
+        }
 
-        // 售出数量单调更新（独立施加并发约束）。
+        // 售出数量单调更新（独立施加并发约束）。注意以新件数（若同时改件数）为上界。
         input.quantitySold?.let { newSold ->
-            val detail = listingRepository.findDetail(id) ?: return@transaction UpdateResult.NotFound
-            val r = validator.validateQuantitySoldUpdate(detail.quantitySold, newSold, detail.quantityTotal)
+            val total = input.quantityTotal ?: current.quantityTotal
+            val r = validator.validateQuantitySoldUpdate(current.quantitySold, newSold, total)
             if (!r.isValid) return@transaction UpdateResult.ValidationFailed(r.errors)
             val affected = listingRepository.updateQuantitySold(id, newSold)
             if (affected == 0) return@transaction UpdateResult.QuantityConflict
@@ -188,7 +192,18 @@ class ListingService(
 
     private fun hasFieldUpdates(input: UpdateListingInput): Boolean =
         input.title != null || input.description != null || input.pickupLocation != null ||
-            input.expiresAt != null || input.unitPrice != null || input.clearUnitPrice
+            input.expiresAt != null || input.unitPrice != null || input.clearUnitPrice ||
+            input.category != null || input.quantityTotal != null || input.contacts != null
+
+    private fun UpdateListingInput.toUpdateValidation() = ListingUpdateInput(
+        title = title,
+        quantityTotal = quantityTotal,
+        unitPrice = unitPrice,
+        expiresAt = expiresAt?.toInstant(),
+        expiryIsAbsolute = expiryIsAbsolute,
+        contacts = contacts,
+        tags = tags,
+    )
 
     /** 在事务内插入 listing 及其标签关联（标签去重 + 上限已由校验保证）。 */
     private fun insertWithTags(input: CreateListingInput): Long {
