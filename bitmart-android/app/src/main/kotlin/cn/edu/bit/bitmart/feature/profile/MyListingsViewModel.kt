@@ -22,6 +22,7 @@ import javax.inject.Inject
 data class MyListingsUiState(
     val type: ListingType = ListingType.SELL,
     val items: List<ListingSummary> = emptyList(),
+    val query: String = "",
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
     /** 下拉刷新进行中（保留当前列表，仅驱动下拉指示器）。 */
@@ -56,6 +57,12 @@ class MyListingsViewModel @Inject constructor(
     fun setType(type: ListingType) {
         if (_state.value.type == type && _state.value.items.isNotEmpty()) return
         _state.update { it.copy(type = type) }
+        refresh()
+    }
+
+    /** 应用搜索词并重新查询（空串即取消搜索）。 */
+    fun applySearch(query: String) {
+        _state.update { it.copy(query = query.trim()) }
         refresh()
     }
 
@@ -132,6 +139,7 @@ class MyListingsViewModel @Inject constructor(
 
     private fun MyListingsUiState.toQuery(cursor: String?) = ListingQuery(
         type = type,
+        text = query.ifBlank { null },
         minPrice = minPrice.ifBlank { null },
         maxPrice = maxPrice.ifBlank { null },
         includeNoPrice = includeNoPrice,

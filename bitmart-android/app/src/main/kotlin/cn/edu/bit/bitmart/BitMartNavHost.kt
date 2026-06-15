@@ -233,6 +233,9 @@ fun BitMartNavHost(
                 // 详情/编辑为全屏同级页，使用外层导航控制器。
                 onItemClick = { id -> navController.navigate(Routes.detail(id)) },
                 onEditClick = { id -> navController.navigate(Routes.edit(id)) },
+                onPublishClick = {
+                    navController.navigate(Routes.publish(if (buy) ListingType.BUY else ListingType.SELL))
+                },
                 onBack = { navController.popBackStack() },
                 refreshSignal = changed,
                 onRefreshConsumed = { entry.savedStateHandle[Routes.LISTING_CHANGED_KEY] = false },

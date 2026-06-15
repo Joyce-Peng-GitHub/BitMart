@@ -95,6 +95,29 @@ class MyListingsViewModelTest {
     }
 
     @Test
+    fun `applySearch sets trimmed query and refreshes`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = MyListingsViewModel(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        vm.applySearch("  Java  ")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("Java", vm.state.value.query)
+        assertEquals("Java", repo.lastMyQuery?.text)
+    }
+
+    @Test
+    fun `applySearch with blank clears the text filter`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = MyListingsViewModel(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        vm.applySearch("书"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("书", repo.lastMyQuery?.text)
+        vm.applySearch("   "); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("", vm.state.value.query)
+        assertNull(repo.lastMyQuery?.text)
+    }
+
+    @Test
     fun `clearFilter restores owner defaults (sold and expired on)`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = MyListingsViewModel(repo)

@@ -3,7 +3,6 @@ package cn.edu.bit.bitmart.feature.feed
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,22 +10,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,7 +32,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,6 +42,7 @@ import cn.edu.bit.bitmart.core.ui.FilterState
 import cn.edu.bit.bitmart.core.ui.ListingCard
 import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.OwnedListingRow
+import cn.edu.bit.bitmart.core.ui.SearchDialog
 
 /**
  * 商品/求购列表屏。买/卖共用，文案随类型切换。右下角三枚悬浮按钮：搜索、筛选、发布（自上而下）。
@@ -205,40 +199,4 @@ fun ListingFeedScreen(
             },
         )
     }
-}
-
-/**
- * 搜索弹窗：单行搜索框 + 清空/取消/确认（与筛选弹窗一致）。
- * 回车（ImeAction.Search）或点击确认即应用搜索；清空即清除搜索词回到全部。
- */
-@Composable
-private fun SearchDialog(
-    initialQuery: String,
-    onDismiss: () -> Unit,
-    onClear: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var query by remember { mutableStateOf(initialQuery) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("搜索") },
-        text = {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("搜索商品名 / 描述") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onConfirm(query) }),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = { TextButton(onClick = { onConfirm(query) }) { Text("确认") } },
-        dismissButton = {
-            Row {
-                TextButton(onClick = onClear) { Text("清空") }
-                TextButton(onClick = onDismiss) { Text("取消") }
-            }
-        },
-    )
 }

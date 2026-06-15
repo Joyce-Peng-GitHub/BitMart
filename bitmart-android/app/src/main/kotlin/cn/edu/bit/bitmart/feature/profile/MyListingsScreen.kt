@@ -2,6 +2,7 @@ package cn.edu.bit.bitmart.feature.profile
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,12 +13,16 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -41,6 +46,7 @@ import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
 import cn.edu.bit.bitmart.core.ui.FilterState
 import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.OwnedListingRow
+import cn.edu.bit.bitmart.core.ui.SearchDialog
 
 /**
  * “我的商品 / 我的收购”管理页（架构 §6.2，GET /me/listings）。
@@ -49,6 +55,7 @@ import cn.edu.bit.bitmart.core.ui.OwnedListingRow
  * @param buy true 表示“我的收购”（BUY），false 表示“我的商品”（SELL）。
  * @param onItemClick 点击条目进入详情（使用外层导航控制器，详情为全屏同级页）。
  * @param onEditClick 点击编辑进入编辑页。
+ * @param onPublishClick 点击发布（跳转到当前类型的发布页）。
  * @param onBack 返回上一页。
  * @param refreshSignal 编辑/删除返回后置 true，触发列表刷新。
  * @param onRefreshConsumed 刷新触发后回调，由上层清除标记避免重复刷新。
@@ -59,6 +66,7 @@ fun MyListingsScreen(
     buy: Boolean,
     onItemClick: (Long) -> Unit,
     onEditClick: (Long) -> Unit,
+    onPublishClick: () -> Unit,
     onBack: () -> Unit,
     refreshSignal: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
@@ -69,6 +77,7 @@ fun MyListingsScreen(
     val title = if (buy) "我的收购" else "我的商品"
     var adjustTarget by remember { mutableStateOf<ListingSummary?>(null) }
     var showFilter by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(buy) { viewModel.setType(if (buy) ListingType.BUY else ListingType.SELL) }
@@ -107,12 +116,20 @@ fun MyListingsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                actions = {
-                    IconButton(onClick = { showFilter = true }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "筛选")
-                    }
-                },
             )
+        },
+        floatingActionButton = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SmallFloatingActionButton(onClick = { showSearch = true }) {
+                    Icon(Icons.Default.Search, contentDescription = "搜索")
+                }
+                SmallFloatingActionButton(onClick = { showFilter = true }) {
+                    Icon(Icons.Default.FilterList, contentDescription = "筛选")
+                }
+                FloatingActionButton(onClick = onPublishClick) {
+                    Icon(Icons.Default.Add, contentDescription = "发布")
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -196,6 +213,17 @@ fun MyListingsScreen(
             onDismiss = { showFilter = false },
             onClear = { viewModel.clearFilter() },
             onConfirm = { viewModel.applyFilter(it) },
+            // 我的列表默认含过期项，允许通过筛选收窄。
+            showExpiredToggle = true,
+        )
+    }
+
+    if (showSearch) {
+        SearchDialog(
+            initialQuery = state.query,
+            onDismiss = { showSearch = false },
+            onClear = { viewModel.applySearch(""); showSearch = false },
+            onConfirm = { viewModel.applySearch(it); showSearch = false },
         )
     }
 }
