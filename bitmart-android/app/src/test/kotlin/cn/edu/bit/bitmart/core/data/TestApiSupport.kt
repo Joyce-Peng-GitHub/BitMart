@@ -13,10 +13,20 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.Json
 
 /** 测试支持：构造 MockEngine 驱动的 BitMartApi，附带可控令牌。 */
 object TestApiSupport {
+
+    /** 用于测试的 no-op TokenStore；authBlock 在 401 时调用 clear()，忽略即可。 */
+    private val noopTokenStore = object : TokenStore {
+        override val tokenFlow: Flow<String?> = flowOf(null)
+        override suspend fun current(): String? = null
+        override suspend fun save(token: String) {}
+        override suspend fun clear() {}
+    }
 
     fun jsonHeaders() = headersOf(HttpHeaders.ContentType, "application/json")
 
@@ -28,7 +38,7 @@ object TestApiSupport {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }) }
             expectSuccess = false
         }
-        return BitMartApi(client, "http://test") { token }
+        return BitMartApi(client, "http://test", { token }, noopTokenStore)
     }
 
     /** 始终返回固定状态与体的便捷 API。 */

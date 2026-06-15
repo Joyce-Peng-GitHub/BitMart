@@ -96,7 +96,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideApi(client: HttpClient, tokenStore: TokenStore): BitMartApi =
-        BitMartApi(client, BuildConfig.API_BASE_URL) { tokenStore.current() }
+        BitMartApi(client, BuildConfig.API_BASE_URL, { tokenStore.current() }, tokenStore)
 }
 
 /** 绑定仓储接口到实现。 */

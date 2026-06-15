@@ -37,8 +37,12 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun resetPassword(
         verifyTicket: String, studentId: String, newPassword: String,
-    ): DomainResult<Unit> =
-        api.resetPassword(ResetPasswordRequest(verifyTicket, studentId, newPassword))
+    ): DomainResult<Unit> {
+        val result = api.resetPassword(ResetPasswordRequest(verifyTicket, studentId, newPassword))
+        // 后端修改密码时会撤销所有会话，本地必须同步清除令牌，否则后续请求全 401。
+        if (result is DomainResult.Success) tokenStore.clear()
+        return result
+    }
 
     override suspend fun logout(): DomainResult<Unit> {
         val result = api.logout()
