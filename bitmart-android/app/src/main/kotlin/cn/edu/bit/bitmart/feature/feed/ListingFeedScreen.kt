@@ -2,6 +2,7 @@ package cn.edu.bit.bitmart.feature.feed
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +19,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -99,23 +99,9 @@ fun ListingFeedScreen(
         }
     }
 
-    Scaffold(
-        floatingActionButton = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SmallFloatingActionButton(onClick = { showSearch = true }) {
-                    Icon(Icons.Default.Search, contentDescription = "搜索")
-                }
-                SmallFloatingActionButton(onClick = { showFilter = true }) {
-                    Icon(Icons.Default.FilterList, contentDescription = "筛选")
-                }
-                FloatingActionButton(onClick = onPublishClick) {
-                    Icon(Icons.Default.Add, contentDescription = "发布")
-                }
-            }
-        },
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 8.dp)) {
-            // 下拉刷新：保留当前列表重新拉取首屏，便于网络不佳时主动重试。
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 列表区：左右留白，上下紧贴边缘。
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
                 onRefresh = { viewModel.refresh(showSpinner = false) },
@@ -132,7 +118,6 @@ fun ListingFeedScreen(
                         modifier = Modifier.fillMaxSize().padding(top = 8.dp),
                     ) {
                         items(state.items, key = { it.id }) { item ->
-                            // 本人项支持左滑操作；他人项为普通卡片。
                             if (state.currentUserId != null && item.ownerId == state.currentUserId) {
                                 OwnedListingRow(
                                     item = item,
@@ -156,6 +141,23 @@ fun ListingFeedScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // 悬浮按钮：贴在右下角，悬浮在列表上方不挤占内容空间。
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+        ) {
+            SmallFloatingActionButton(onClick = { showSearch = true }) {
+                Icon(Icons.Default.Search, contentDescription = "搜索")
+            }
+            SmallFloatingActionButton(onClick = { showFilter = true }) {
+                Icon(Icons.Default.FilterList, contentDescription = "筛选")
+            }
+            FloatingActionButton(onClick = onPublishClick) {
+                Icon(Icons.Default.Add, contentDescription = "发布")
             }
         }
     }

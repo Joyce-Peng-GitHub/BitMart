@@ -107,38 +107,26 @@ fun MyListingsScreen(
         }.collect { (last, total) -> if (total > 0 && last >= total - 2) viewModel.loadMore() }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-            )
-        },
-        floatingActionButton = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SmallFloatingActionButton(onClick = { showSearch = true }) {
-                    Icon(Icons.Default.Search, contentDescription = "搜索")
-                }
-                SmallFloatingActionButton(onClick = { showFilter = true }) {
-                    Icon(Icons.Default.FilterList, contentDescription = "筛选")
-                }
-                FloatingActionButton(onClick = onPublishClick) {
-                    Icon(Icons.Default.Add, contentDescription = "发布")
-                }
-            }
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { padding ->
-        // 下拉刷新：保留列表重新拉取首屏，便于网络不佳时主动重试（空/错误态也可下拉）。
-        PullToRefreshBox(
-            isRefreshing = state.refreshing,
-            onRefresh = { viewModel.refresh(showSpinner = false) },
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(title) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    },
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { padding ->
+            // 下拉刷新：保留列表重新拉取首屏，便于网络不佳时主动重试（空/错误态也可下拉）。
+            PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = { viewModel.refresh(showSpinner = false) },
+                modifier = Modifier.fillMaxSize().padding(padding),
+            ) {
             when {
                 state.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 state.error != null && state.items.isEmpty() ->
@@ -182,6 +170,24 @@ fun MyListingsScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+
+        // 悬浮按钮：贴在右下角，悬浮在列表上方不挤占内容空间。
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+        ) {
+            SmallFloatingActionButton(onClick = { showSearch = true }) {
+                Icon(Icons.Default.Search, contentDescription = "搜索")
+            }
+            SmallFloatingActionButton(onClick = { showFilter = true }) {
+                Icon(Icons.Default.FilterList, contentDescription = "筛选")
+            }
+            FloatingActionButton(onClick = onPublishClick) {
+                Icon(Icons.Default.Add, contentDescription = "发布")
             }
         }
     }
