@@ -1,6 +1,7 @@
 package cn.edu.bit.bitmart.feature.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
+import cn.edu.bit.bitmart.core.ui.ImageViewer
 import cn.edu.bit.bitmart.core.ui.ListingTimeInfo
 import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
 import coil3.compose.AsyncImage
@@ -69,6 +71,7 @@ fun ListingDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAdjustDialog by remember { mutableStateOf(false) }
+    var viewerPage by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(listingId) { viewModel.load(listingId) }
 
@@ -103,7 +106,7 @@ fun ListingDetailScreen(
 
                 // 图片轮播
                 if (d.imageUrls.isNotEmpty()) {
-                    ImageCarousel(d.imageUrls)
+                    ImageCarousel(d.imageUrls, onImageClick = { viewerPage = it })
                     Spacer(Modifier.height(16.dp))
                 }
 
@@ -220,10 +223,23 @@ fun ListingDetailScreen(
             )
         }
     }
+
+    // 全屏图片查看器：单击缩略图打开，支持双指缩放与左右滑动切换。
+    viewerPage?.let { page ->
+        ImageViewer(
+            imageUrls = state.detail?.imageUrls?.mapNotNull { absoluteMediaUrl(it) } ?: emptyList(),
+            initialPage = page,
+            onDismiss = { viewerPage = null },
+        )
+    }
 }
 
 @Composable
-fun ImageCarousel(imageUrls: List<String>, modifier: Modifier = Modifier) {
+fun ImageCarousel(
+    imageUrls: List<String>,
+    onImageClick: (Int) -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     val pagerState = rememberPagerState(pageCount = { imageUrls.size })
 
     Box(modifier = modifier) {
@@ -231,7 +247,11 @@ fun ImageCarousel(imageUrls: List<String>, modifier: Modifier = Modifier) {
             AsyncImage(
                 model = absoluteMediaUrl(imageUrls[page]),
                 contentDescription = "商品图片 ${page + 1}",
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.medium),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(MaterialTheme.shapes.medium)
+                    .clickable { onImageClick(page) },
                 contentScale = ContentScale.Crop,
             )
         }
