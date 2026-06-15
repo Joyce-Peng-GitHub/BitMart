@@ -22,12 +22,12 @@ import cn.edu.bit.bitmart.core.domain.model.ListingType
 import coil3.compose.AsyncImage
 
 /**
- * 统一列表项卡片：首图缩略图 + 标题 / 价格 / 标签。买卖列表与“我的商品/收购”列表共用，
- * 保证两处视觉完全一致（架构 §6.3：取货地点仅详情页展示，列表不含）。
- * 价格文案随 [type] 切换（卖品=售价，求购=期望价）。
+ * 统一列表项卡片：首图缩略图 + 标题 / 价格 / 标签 / 数量 / 时间。
+ * 买卖列表与"我的商品/收购"列表共用，保证两处视觉完全一致。
+ * 买卖文案随 [type] 切换（卖品=售价/已售，求购=期望价/已收）。
  *
  * @param item 列表摘要。
- * @param type 当前列表类型，仅用于价格标签文案。
+ * @param type 当前列表类型，仅用于价格/数量标签文案。
  * @param onClick 点击卡片（通常进入详情）。
  * @param modifier 外部布局修饰；左滑容器通过它传入位移等。
  */
@@ -38,6 +38,7 @@ fun ListingCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val soldOut = item.quantitySold >= item.quantityTotal
     Card(modifier = modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             val imageUrl = absoluteMediaUrl(item.firstImageUrl)
@@ -58,6 +59,19 @@ fun ListingCard(
                 if (item.tags.isNotEmpty()) {
                     Text("标签：${item.tags.joinToString(" / ")}", style = MaterialTheme.typography.bodySmall)
                 }
+                // 数量：已售(收) X/Y，售罄时着色提示。
+                val soldVerb = if (type == ListingType.BUY) "已收" else "已售"
+                val soldLabel = if (type == ListingType.BUY) "已收满" else "售罄"
+                Text(
+                    "$soldVerb ${item.quantitySold}/${item.quantityTotal}" + if (soldOut) "（$soldLabel）" else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (soldOut) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // 发布/过期时间：过期或临期按相应着色。
+                ListingTimeInfo(
+                    createdAtIso = item.createdAt,
+                    expiresAtIso = item.expiresAt,
+                )
             }
         }
     }
