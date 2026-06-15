@@ -207,7 +207,7 @@ fun PublishScreen(
         // 当前编辑的草稿字段。
         val draft = state.currentDraft
         if (draft.category == ListingCategory.BOOK) {
-            // 书籍专属字段。
+            // 书籍专属字段：ISBN → 标题 → 作者 → 出版社 → 版本。
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = draft.isbn ?: "",
@@ -225,19 +225,20 @@ fun PublishScreen(
                     Icon(Icons.Default.QrCodeScanner, contentDescription = "扫码")
                 }
             }
+            OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text("作者") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text("出版社") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text("版本") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, modifier = Modifier.fillMaxWidth())
+        } else {
+            OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
         }
 
-        OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(draft.description, viewModel::onDescription, label = { Text("描述") }, minLines = 2, modifier = Modifier.fillMaxWidth())
 
+        OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, modifier = Modifier.fillMaxWidth())
         val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
         OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, modifier = Modifier.fillMaxWidth())
 
         // 有效期：下拉选择"有效天数 / 过期日期"，右侧输入随之切换（天数框 / 日期选择）。
         var expiryModeMenu by remember { mutableStateOf(false) }
