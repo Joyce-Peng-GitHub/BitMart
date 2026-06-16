@@ -387,32 +387,46 @@ private fun PublishFormColumn(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // 图片识别：拍照或从相册选图，自动识别其中的商品并分别生成草稿。独立卡片置于最上方。
+        // 识别通常耗时数十秒，进行中用转圈替换两个按钮与说明。
         FormSection("图片识别") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onRecognizeFromCamera,
-                    enabled = !state.llmRecognizing,
-                    modifier = Modifier.weight(1f),
+            if (state.llmRecognizing) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("拍照")
+                    CircularProgressIndicator()
+                    Text(
+                        "识别中…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                Button(
-                    onClick = onRecognizeFromGallery,
-                    enabled = !state.llmRecognizing,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("相册")
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onRecognizeFromCamera,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("拍照")
+                    }
+                    Button(
+                        onClick = onRecognizeFromGallery,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("相册")
+                    }
                 }
+                Text(
+                    "拍摄或选择一张图片，自动识别其中的商品并分别生成待发布草稿。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            Text(
-                "拍摄或选择一张图片，自动识别其中的商品并分别生成待发布草稿。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
 
         // 基本信息：类别 + 标题/书籍字段 + 描述。
@@ -686,14 +700,14 @@ private fun PublishFormColumn(
             )
         }
 
-        if (state.uploadingImage || state.llmRecognizing || state.lookingUpBook) {
+        // 识别进度由顶部「图片识别」卡承载，这里只覆盖上传 / 查询书籍。
+        if (state.uploadingImage || state.lookingUpBook) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(modifier = Modifier.height(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when {
                         state.uploadingImage -> "上传中..."
-                        state.llmRecognizing -> "识别中..."
                         state.lookingUpBook -> "查询书籍中..."
                         else -> ""
                     },
