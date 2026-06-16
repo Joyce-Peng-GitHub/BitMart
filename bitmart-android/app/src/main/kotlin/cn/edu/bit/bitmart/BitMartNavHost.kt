@@ -152,6 +152,7 @@ fun BitMartNavHost(
                 .collectAsStateWithLifecycle()
             ListingDetailScreen(
                 listingId = id,
+                onBack = { navController.popBackStack() },
                 onEditClick = { editId -> navController.navigate(Routes.edit(editId)) },
                 onDeleteSuccess = {
                     // 通知上一页（“我的”列表）刷新，然后返回。

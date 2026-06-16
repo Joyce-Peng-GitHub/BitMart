@@ -13,30 +13,40 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,21 +57,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.core.domain.model.BookInfo
+import cn.edu.bit.bitmart.core.domain.model.ListingCategory
+import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
+import cn.edu.bit.bitmart.core.ui.ExpiryStatus
+import cn.edu.bit.bitmart.core.ui.ExpiryWarnColor
 import cn.edu.bit.bitmart.core.ui.ImageViewer
 import cn.edu.bit.bitmart.core.ui.ListingTimeInfo
 import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
+import cn.edu.bit.bitmart.core.ui.expiryStatusOf
 import coil3.compose.AsyncImage
 
 /** 详情屏。展示卖家昵称、联系方式、完整描述、书籍信息；含防诈骗提示、图片轮播、调整数量/编辑/删除按钮。 */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListingDetailScreen(
     listingId: Long,
+    onBack: () -> Unit = {},
     onEditClick: (Long) -> Unit = {},
     onDeleteSuccess: () -> Unit = {},
     refreshSignal: Boolean = false,
@@ -89,98 +109,62 @@ fun ListingDetailScreen(
         }
     }
 
-    Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { innerPadding ->
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(innerPadding)
-            .padding(horizontal = 16.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        when {
-            state.loading -> CircularProgressIndicator()
-            state.needLogin -> Text("请登录后查看详情", color = MaterialTheme.colorScheme.error)
-            state.error != null -> Text(state.error!!, color = MaterialTheme.colorScheme.error)
-            state.detail != null -> {
-                val d = state.detail!!
+    val isBuy = state.detail?.type == ListingType.BUY
 
-                // 图片轮播
-                if (d.imageUrls.isNotEmpty()) {
-                    ImageCarousel(d.imageUrls, onImageClick = { viewerPage = it })
-                    Spacer(Modifier.height(16.dp))
-                }
-
-                // 标题与操作按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(d.title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+    Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = {
+            TopAppBar(
+                title = { Text(if (isBuy) "求购详情" else "商品详情") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
                     if (state.isOwner) {
                         if (state.adjusting) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
                         } else {
                             IconButton(onClick = { showAdjustDialog = true }) {
                                 Icon(Icons.Default.Numbers, contentDescription = "调整数量")
                             }
                         }
-                        IconButton(onClick = { onEditClick(d.id) }) {
+                        IconButton(onClick = { state.detail?.let { onEditClick(it.id) } }) {
                             Icon(Icons.Default.Edit, contentDescription = "编辑")
                         }
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
                         }
                     }
-                }
-
-                Spacer(Modifier.height(8.dp))
-                val isBuy = d.type == ListingType.BUY
-                val priceLabel = if (isBuy) "期望价" else "售价"
-                Text("$priceLabel：${d.unitPrice?.let { "￥$it" } ?: "面议"}")
-                d.originalPrice?.let { Text("原价：￥$it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                val soldVerb = if (isBuy) "已收" else "已售"
-                Text("数量：${d.quantitySold}/${d.quantityTotal} $soldVerb")
-                d.pickupLocation?.let { Text("取货地点：$it") }
-                Text("发布者：${d.nickname ?: "匿名"}")
-                Spacer(Modifier.height(4.dp))
-                ListingTimeInfo(
-                    createdAtIso = d.createdAt,
-                    expiresAtIso = d.expiresAt,
-                    style = MaterialTheme.typography.bodyMedium,
+                },
+            )
+        },
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            when {
+                state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.needLogin -> Text(
+                    "请登录后查看详情",
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.align(Alignment.Center),
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(d.description, style = MaterialTheme.typography.bodyMedium)
-
-                if (d.book != null) {
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
-                    Text("书籍信息", style = MaterialTheme.typography.titleSmall)
-                    d.book.title?.let { Text("书名：$it") }
-                    d.book.authors?.let { Text("作者：$it") }
-                    d.book.publisher?.let { Text("出版社：$it") }
-                    d.book.isbn?.let { Text("ISBN：$it") }
-                }
-
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Text("联系方式", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(4.dp))
-
-                // 多渠道联系方式展示
-                d.contacts.forEach { ContactItem(it.value) }
-
-                // 隐私提示横幅
-                Spacer(Modifier.height(8.dp))
-                PrivacyReminderBanner()
+                state.error != null -> Text(
+                    state.error!!,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                )
+                state.detail != null -> DetailContent(
+                    detail = state.detail!!,
+                    onImageClick = { viewerPage = it },
+                )
             }
         }
-    }
     }
 
     // 删除确认对话框
     if (showDeleteDialog) {
-        val isBuy = state.detail?.type == ListingType.BUY
         val noun = if (isBuy) "收购" else "商品"
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -235,12 +219,238 @@ fun ListingDetailScreen(
     }
 }
 
+/** 详情正文：全宽轮播 + 概要/信息/描述/书籍/联系方式分组卡片。 */
+@Composable
+private fun DetailContent(
+    detail: ListingDetail,
+    onImageClick: (Int) -> Unit,
+) {
+    val d = detail
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // 图片轮播（全宽）。
+        ImageCarousel(d.imageUrls, onImageClick = onImageClick)
+
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SummaryCard(d)
+            InfoCard(d)
+            TimeCard(d)
+            d.book?.let { BookCard(it) }
+            PrivacyReminderBanner()
+        }
+    }
+}
+
+/** 概要卡：徽章 + 标题 + 放大价格 + 数量进度 + 标签。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SummaryCard(d: ListingDetail) {
+    val isBuy = d.type == ListingType.BUY
+    val soldOut = d.quantitySold >= d.quantityTotal
+    val expiryStatus = expiryStatusOf(d.expiresAt)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // 徽章行：类型 / 品类 / 状态。
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val cs = MaterialTheme.colorScheme
+                if (isBuy) {
+                    Pill("求购", cs.tertiaryContainer, cs.onTertiaryContainer)
+                } else {
+                    Pill("出售", cs.primaryContainer, cs.onPrimaryContainer)
+                }
+                Pill(
+                    if (d.category == ListingCategory.BOOK) "书籍" else "物品",
+                    cs.secondaryContainer,
+                    cs.onSecondaryContainer,
+                )
+                if (soldOut) {
+                    Pill(if (isBuy) "已收满" else "售罄", cs.error, cs.onError)
+                }
+                when (expiryStatus) {
+                    ExpiryStatus.EXPIRED -> Pill("已过期", cs.error, cs.onError)
+                    ExpiryStatus.NEAR_EXPIRY -> Pill("临期", ExpiryWarnColor, Color.White)
+                    ExpiryStatus.NORMAL -> Unit
+                }
+            }
+
+            Text(d.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+
+            // 价格行：大号售价 + 删除线原价。
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column {
+                    Text(
+                        if (isBuy) "期望价" else "售价",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        d.unitPrice?.let { "￥$it" } ?: "面议",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                d.originalPrice?.let {
+                    Text(
+                        "原价￥$it",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
+            }
+
+            // 数量进度。
+            val soldVerb = if (isBuy) "已收" else "已售"
+            val qtyColor = if (soldOut) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("$soldVerb ${d.quantitySold}/${d.quantityTotal}", style = MaterialTheme.typography.bodyMedium, color = qtyColor)
+                val progress = if (d.quantityTotal > 0) (d.quantitySold.toFloat() / d.quantityTotal).coerceIn(0f, 1f) else 0f
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (soldOut) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            // 标签（只读展示）。
+            if (d.tags.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val cs = MaterialTheme.colorScheme
+                    d.tags.forEach { Pill("# $it", cs.surfaceVariant, cs.onSurfaceVariant) }
+                }
+            }
+
+            // 描述（标签下方）。
+            if (d.description.isNotBlank()) {
+                Text(d.description, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+/** 信息卡：发布者 / 联系方式 / 交易地点。 */
+@Composable
+private fun InfoCard(d: ListingDetail) {
+    SectionCard {
+        InfoRow(Icons.Default.Person, "发布者", d.nickname ?: "匿名")
+        d.contacts.forEach { c ->
+            val label = channelLabel(c.channel)
+            InfoRow(Icons.Default.Phone, "联系方式", label?.let { "$it：${c.value}" } ?: c.value)
+        }
+        d.pickupLocation?.let { InfoRow(Icons.Default.LocationOn, "交易地点", it) }
+    }
+}
+
+/** 时间卡：发布时间 / 过期时间（含临期、过期着色）。 */
+@Composable
+private fun TimeCard(d: ListingDetail) {
+    SectionCard {
+        ListingTimeInfo(
+            createdAtIso = d.createdAt,
+            expiresAtIso = d.expiresAt,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+/** 书籍信息卡。 */
+@Composable
+private fun BookCard(book: BookInfo) {
+    SectionCard(title = "书籍信息") {
+        book.title?.let { InfoLine("书名", it) }
+        book.authors?.let { InfoLine("作者", it) }
+        book.publisher?.let { InfoLine("出版社", it) }
+        book.edition?.let { InfoLine("版次", it) }
+        book.isbn?.let { InfoLine("ISBN", it) }
+    }
+}
+
+/** 统一卡片容器：可选小节标题。 */
+@Composable
+private fun SectionCard(
+    title: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (title != null) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            }
+            content()
+        }
+    }
+}
+
+/** 带前置图标的「标签 + 值」行。 */
+@Composable
+private fun InfoRow(icon: ImageVector, label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** 无图标的「标签：值」行（书籍信息用）。 */
+@Composable
+private fun InfoLine(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("$label：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** 小药丸：徽章 / 渠道标签 / 标签共用。 */
+@Composable
+private fun Pill(text: String, container: Color, contentColor: Color) {
+    Surface(color = container, shape = CircleShape, contentColor = contentColor) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+    }
+}
+
+/** 渠道字符串 → 中文标签；未知/空返回 null（不显示药丸）。 */
+private fun channelLabel(channel: String): String? = when (channel.trim().uppercase()) {
+    "WECHAT" -> "微信"
+    "QQ" -> "QQ"
+    "PHONE" -> "手机"
+    "EMAIL" -> "邮箱"
+    "OTHER" -> "其他"
+    else -> null
+}
+
 @Composable
 fun ImageCarousel(
     imageUrls: List<String>,
     onImageClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // 无图：占位框，避免顶部空白。
+    if (imageUrls.isEmpty()) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("暂无图片", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+
     val pagerState = rememberPagerState(pageCount = { imageUrls.size })
 
     Box(modifier = modifier) {
@@ -251,38 +461,30 @@ fun ImageCarousel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .clip(MaterialTheme.shapes.medium)
                     .clickable { onImageClick(page) },
                 contentScale = ContentScale.Crop,
             )
         }
 
-        // 页面指示器
+        // 页面指示器：当前页加宽为药丸。
         if (imageUrls.size > 1) {
             Row(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 repeat(imageUrls.size) { index ->
+                    val active = index == pagerState.currentPage
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (index == pagerState.currentPage) Color.White else Color.White.copy(alpha = 0.5f)),
+                            .height(6.dp)
+                            .width(if (active) 18.dp else 6.dp)
+                            .clip(if (active) RoundedCornerShape(3.dp) else CircleShape)
+                            .background(if (active) Color.White else Color.White.copy(alpha = 0.5f)),
                     )
                 }
             }
         }
     }
-}
-
-@Composable
-fun ContactItem(value: String) {
-    Text(
-        text = value,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-    )
 }
 
 @Composable
