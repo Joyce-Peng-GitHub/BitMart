@@ -126,6 +126,7 @@ fun BitMartNavHost(
                 },
                 onNavigateToLlmSettings = { navController.navigate(Routes.LLM_SETTINGS) },
                 onNavigateToBookScan = { navController.navigate(Routes.BOOK_SCAN) },
+                onBack = { navController.popBackStack() },
                 scannedIsbn = scannedIsbn,
                 onIsbnConsumed = { entry.savedStateHandle.remove<String>("isbn_result") },
             )
@@ -184,6 +185,7 @@ fun BitMartNavHost(
                 },
                 onNavigateToLlmSettings = { navController.navigate(Routes.LLM_SETTINGS) },
                 onNavigateToBookScan = { navController.navigate(Routes.BOOK_SCAN) },
+                onBack = { navController.popBackStack() },
                 scannedIsbn = scannedIsbn,
                 onIsbnConsumed = { entry.savedStateHandle.remove<String>("isbn_result") },
             )

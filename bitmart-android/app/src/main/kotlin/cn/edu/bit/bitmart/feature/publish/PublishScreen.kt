@@ -29,13 +29,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -67,6 +68,7 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -122,6 +124,7 @@ fun PublishScreen(
     onPublished: () -> Unit,
     onNavigateToLlmSettings: () -> Unit,
     onNavigateToBookScan: () -> Unit,
+    onBack: () -> Unit = {},
     /** 非空表示编辑模式：编辑该 listing（字段与发布页相同）。 */
     editListingId: Long? = null,
     /** 从条码扫描页回传的 ISBN（NavHost 观察 savedStateHandle 后传入）。 */
@@ -193,9 +196,26 @@ fun PublishScreen(
     val onPickImage = { imagePicker.launch("image/*"); Unit }
     val onRecognize = { recognizePicker.launch("image/*"); Unit }
 
+    val screenTitle = when {
+        editMode && state.type == ListingType.BUY -> "编辑收购"
+        editMode -> "编辑商品"
+        state.type == ListingType.BUY -> "发布收购（批量）"
+        else -> "发布商品（批量）"
+    }
+    val topBar: @Composable () -> Unit = {
+        TopAppBar(
+            title = { Text(screenTitle) },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                }
+            },
+        )
+    }
+
     if (editMode) {
         // 编辑模式：单条编辑保存，无暂存区/悬浮按钮/抽屉。
-        Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { innerPadding ->
+        Scaffold(contentWindowInsets = WindowInsets.safeDrawing, topBar = topBar) { innerPadding ->
             PublishFormColumn(
                 state = state,
                 viewModel = viewModel,
@@ -259,6 +279,7 @@ fun PublishScreen(
             CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                 Scaffold(
                     contentWindowInsets = WindowInsets.safeDrawing,
+                    topBar = topBar,
                     floatingActionButton = {
                         FloatingActionButton(onClick = { scope.launch { drawerState.open() } }) {
                             BadgedBox(badge = {
@@ -300,181 +321,205 @@ private fun PublishFormColumn(
     onPickImage: () -> Unit,
     onRecognize: () -> Unit,
 ) {
+    val draft = state.currentDraft
     Column(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // 类型由入口决定（商品/收购），标题随之；页内不再提供卖/买切换。编辑模式标题为"编辑…"。
-        Text(
-            when {
-                editMode && state.type == ListingType.BUY -> "编辑收购"
-                editMode -> "编辑商品"
-                state.type == ListingType.BUY -> "发布收购（批量）"
-                else -> "发布商品（批量）"
-            },
-            style = MaterialTheme.typography.headlineSmall,
-        )
-
-        // 书籍/一般商品 类别选择。
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                state.selectedCategory == ListingCategory.GENERAL,
-                { viewModel.setCategory(ListingCategory.GENERAL) },
-                { Text("一般商品") },
-            )
-            FilterChip(
-                state.selectedCategory == ListingCategory.BOOK,
-                { viewModel.setCategory(ListingCategory.BOOK) },
-                { Text("书籍") },
-            )
-        }
-
-        // 当前编辑的草稿字段。
-        val draft = state.currentDraft
-        if (draft.category == ListingCategory.BOOK) {
-            // 书籍专属字段：ISBN → 标题 → 作者 → 出版社 → 版本。
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = draft.isbn ?: "",
-                    onValueChange = viewModel::onIsbn,
-                    label = { Text("ISBN") },
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(
-                    onClick = { draft.isbn?.takeIf { it.isNotBlank() }?.let(viewModel::lookupBook) },
-                    enabled = !state.lookingUpBook && !draft.isbn.isNullOrBlank(),
-                ) {
-                    Icon(Icons.Default.Search, contentDescription = "查询书籍")
-                }
-                IconButton(onClick = viewModel::openBookScan) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = "扫码")
-                }
-            }
-            OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text("作者") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text("出版社") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text("版本") }, modifier = Modifier.fillMaxWidth())
-        } else {
-            OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
-        }
-
-        OutlinedTextField(draft.description, viewModel::onDescription, label = { Text("描述") }, minLines = 2, modifier = Modifier.fillMaxWidth())
-
-        OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, modifier = Modifier.fillMaxWidth())
-        val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
-        OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, modifier = Modifier.fillMaxWidth())
-
-        // 有效期：下拉选择"有效天数 / 过期日期"，右侧输入随之切换（天数框 / 日期选择）。
-        var expiryModeMenu by remember { mutableStateOf(false) }
-        var showDatePicker by remember { mutableStateOf(false) }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box {
-                OutlinedButton(onClick = { expiryModeMenu = true }) {
-                    Text(if (draft.expiryMode == ExpiryMode.DAYS) "有效天数" else "过期日期")
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = "切换有效期方式")
-                }
-                DropdownMenu(expanded = expiryModeMenu, onDismissRequest = { expiryModeMenu = false }) {
-                    DropdownMenuItem(text = { Text("有效天数") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DAYS); expiryModeMenu = false })
-                    DropdownMenuItem(text = { Text("过期日期") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DATE); expiryModeMenu = false })
-                }
-            }
-            when (draft.expiryMode) {
-                ExpiryMode.DAYS -> OutlinedTextField(
-                    draft.expiresInDays,
-                    viewModel::onExpiresInDays,
-                    label = { Text("默认${PublishConfig.EXPIRY_DEFAULT_DAYS}天") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                ExpiryMode.DATE -> OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
-                    Text(draft.expiresOn ?: "选择过期日期")
-                }
-            }
-        }
-        if (showDatePicker) {
-            val today = remember { LocalDate.now() }
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = draft.expiresOn?.let {
-                    runCatching { LocalDate.parse(it).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull()
-                },
-                // DatePicker 的毫秒按 UTC 解读，故此处用 UTC 还原日期再做边界判断。
-                selectableDates = object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                        val d = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
-                        return d.isAfter(today) && !d.isAfter(today.plusDays(PublishConfig.EXPIRY_MAX_DAYS.toLong()))
-                    }
-                },
-            )
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            val picked = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
-                            viewModel.onExpiresOn(picked.toString())
-                        }
-                        showDatePicker = false
-                    }) { Text("确定") }
-                },
-                dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
+        // 图片识别：选一张图片，自动识别其中的商品并分别生成草稿。独立卡片置于最上方。
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                DatePicker(state = datePickerState)
+                Button(
+                    onClick = onRecognize,
+                    enabled = !state.llmRecognizing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (state.llmRecognizing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.ImageSearch, contentDescription = null)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("图片识别")
+                }
+                Text(
+                    "选择一张图片，自动识别其中的商品并分别生成待发布草稿。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
-        OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
 
-        // 常用联系方式快速填入（来自"我的-常用联系方式"，仅本机）。空列表时不展示。显示在输入框上方。
-        if (state.commonContacts.isNotEmpty()) {
-            Text("常用联系方式（点击填入）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.commonContacts.forEach { c ->
-                    FilterChip(
-                        selected = draft.contact.trim() == c,
-                        onClick = { viewModel.onContact(c) },
-                        label = { Text(c) },
+        // 基本信息：类别 + 标题/书籍字段 + 描述。
+        FormSection("基本信息") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    state.selectedCategory == ListingCategory.GENERAL,
+                    { viewModel.setCategory(ListingCategory.GENERAL) },
+                    { Text("一般商品") },
+                )
+                FilterChip(
+                    state.selectedCategory == ListingCategory.BOOK,
+                    { viewModel.setCategory(ListingCategory.BOOK) },
+                    { Text("书籍") },
+                )
+            }
+            if (draft.category == ListingCategory.BOOK) {
+                // 书籍专属字段：ISBN → 标题 → 作者 → 出版社 → 版本。
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft.isbn ?: "",
+                        onValueChange = viewModel::onIsbn,
+                        label = { Text("ISBN") },
+                        modifier = Modifier.weight(1f),
                     )
+                    IconButton(
+                        onClick = { draft.isbn?.takeIf { it.isNotBlank() }?.let(viewModel::lookupBook) },
+                        enabled = !state.lookingUpBook && !draft.isbn.isNullOrBlank(),
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = "查询书籍")
+                    }
+                    IconButton(onClick = viewModel::openBookScan) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "扫码")
+                    }
+                }
+                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text("作者") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text("出版社") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text("版本") }, modifier = Modifier.fillMaxWidth())
+            } else {
+                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
+            }
+            OutlinedTextField(draft.description, viewModel::onDescription, label = { Text("描述") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+        }
+
+        // 价格与数量：原价/售价并排 + 件数 + 有效期。
+        FormSection("价格与数量") {
+            val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, singleLine = true, modifier = Modifier.weight(1f))
+            }
+            OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+            // 有效期：下拉选择"有效天数 / 过期日期"，右侧输入随之切换（天数框 / 日期选择）。
+            var expiryModeMenu by remember { mutableStateOf(false) }
+            var showDatePicker by remember { mutableStateOf(false) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box {
+                    OutlinedButton(onClick = { expiryModeMenu = true }) {
+                        Text(if (draft.expiryMode == ExpiryMode.DAYS) "有效天数" else "过期日期")
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "切换有效期方式")
+                    }
+                    DropdownMenu(expanded = expiryModeMenu, onDismissRequest = { expiryModeMenu = false }) {
+                        DropdownMenuItem(text = { Text("有效天数") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DAYS); expiryModeMenu = false })
+                        DropdownMenuItem(text = { Text("过期日期") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DATE); expiryModeMenu = false })
+                    }
+                }
+                when (draft.expiryMode) {
+                    ExpiryMode.DAYS -> OutlinedTextField(
+                        draft.expiresInDays,
+                        viewModel::onExpiresInDays,
+                        label = { Text("默认${PublishConfig.EXPIRY_DEFAULT_DAYS}天") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ExpiryMode.DATE -> OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
+                        Text(draft.expiresOn ?: "选择过期日期")
+                    }
+                }
+            }
+            if (showDatePicker) {
+                val today = remember { LocalDate.now() }
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = draft.expiresOn?.let {
+                        runCatching { LocalDate.parse(it).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull()
+                    },
+                    // DatePicker 的毫秒按 UTC 解读，故此处用 UTC 还原日期再做边界判断。
+                    selectableDates = object : SelectableDates {
+                        override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                            val d = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                            return d.isAfter(today) && !d.isAfter(today.plusDays(PublishConfig.EXPIRY_MAX_DAYS.toLong()))
+                        }
+                    },
+                )
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            datePickerState.selectedDateMillis?.let { millis ->
+                                val picked = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                                viewModel.onExpiresOn(picked.toString())
+                            }
+                            showDatePicker = false
+                        }) { Text("确定") }
+                    },
+                    dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
+                ) {
+                    DatePicker(state = datePickerState)
                 }
             }
         }
-        OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式（微信/QQ/手机号等）") }, modifier = Modifier.fillMaxWidth())
+
+        // 交易信息：取货地点 + 联系方式。
+        FormSection("交易信息") {
+            OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
+
+            // 常用联系方式快速填入（来自"我的-常用联系方式"，仅本机）。空列表时不展示。显示在输入框上方。
+            if (state.commonContacts.isNotEmpty()) {
+                Text("常用联系方式（点击填入）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.commonContacts.forEach { c ->
+                        FilterChip(
+                            selected = draft.contact.trim() == c,
+                            onClick = { viewModel.onContact(c) },
+                            label = { Text(c) },
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式（微信/QQ/手机号等）") }, modifier = Modifier.fillMaxWidth())
+        }
 
         // 标签（热门 + 自定义）。
-        Text("标签（最多${PublishConfig.MAX_TAGS}个）", style = MaterialTheme.typography.titleSmall)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.popularTags.forEach { tag ->
-                FilterChip(tag in draft.tags, { viewModel.toggleTag(tag) }, { Text(tag) })
+        FormSection("标签（最多${PublishConfig.MAX_TAGS}个）") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.popularTags.forEach { tag ->
+                    FilterChip(tag in draft.tags, { viewModel.toggleTag(tag) }, { Text(tag) })
+                }
             }
-        }
-        var customTagInput by remember { mutableStateOf("") }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = customTagInput,
-                onValueChange = { customTagInput = it },
-                label = { Text("自定义标签") },
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                onClick = { viewModel.addCustomTag(customTagInput); customTagInput = "" },
-                enabled = customTagInput.isNotBlank() && draft.tags.size < PublishConfig.MAX_TAGS,
-            ) {
-                Text("添加")
+            var customTagInput by remember { mutableStateOf("") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = customTagInput,
+                    onValueChange = { customTagInput = it },
+                    label = { Text("自定义标签") },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = { viewModel.addCustomTag(customTagInput); customTagInput = "" },
+                    enabled = customTagInput.isNotBlank() && draft.tags.size < PublishConfig.MAX_TAGS,
+                ) {
+                    Text("添加")
+                }
             }
-        }
-        if (draft.tags.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                draft.tags.forEach { tag ->
-                    FilterChip(true, { viewModel.toggleTag(tag) }, { Text(tag) })
+            if (draft.tags.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    draft.tags.forEach { tag ->
+                        FilterChip(true, { viewModel.toggleTag(tag) }, { Text(tag) })
+                    }
                 }
             }
         }
 
-        // 图片上传 / LLM 识别。达到张数上限后两个入口都禁用。
-        val canAddImage = draft.imageKeys.size < PublishConfig.MAX_IMAGES
-        Text("图片（${draft.imageKeys.size}/${PublishConfig.MAX_IMAGES}）", style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 图片上传。达到张数上限后入口禁用。
+        FormSection("图片（${draft.imageKeys.size}/${PublishConfig.MAX_IMAGES}）") {
+            val canAddImage = draft.imageKeys.size < PublishConfig.MAX_IMAGES
             OutlinedButton(
                 onClick = onPickImage,
                 enabled = !state.uploadingImage && canAddImage,
@@ -483,71 +528,63 @@ private fun PublishFormColumn(
                 Spacer(Modifier.width(4.dp))
                 Text("选择图片")
             }
-            OutlinedButton(
-                onClick = onRecognize,
-                enabled = !state.llmRecognizing && canAddImage,
-            ) {
-                Icon(Icons.Default.CameraAlt, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text("拍照识别")
-            }
-        }
 
-        // 已上传图片缩略图：点击放大预览，右上角垃圾桶删除。
-        var previewImageKey by remember { mutableStateOf<String?>(null) }
-        if (draft.imageKeys.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                draft.imageKeys.forEachIndexed { index, key ->
-                    Box {
-                        AsyncImage(
-                            model = blobKeyToMediaUrl(key),
-                            contentDescription = "图片${index + 1}",
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(MaterialTheme.shapes.small)
-                                .clickable { previewImageKey = key },
-                            contentScale = ContentScale.Crop,
-                        )
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "删除图片${index + 1}",
-                            tint = Color.White,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(2.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .clickable { viewModel.removeImage(index) }
-                                .padding(6.dp)
-                                .size(18.dp),
-                        )
+            // 已上传图片缩略图：点击放大预览，右上角垃圾桶删除。
+            var previewImageKey by remember { mutableStateOf<String?>(null) }
+            if (draft.imageKeys.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    draft.imageKeys.forEachIndexed { index, key ->
+                        Box {
+                            AsyncImage(
+                                model = blobKeyToMediaUrl(key),
+                                contentDescription = "图片${index + 1}",
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(MaterialTheme.shapes.small)
+                                    .clickable { previewImageKey = key },
+                                contentScale = ContentScale.Crop,
+                            )
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "删除图片${index + 1}",
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(2.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.5f))
+                                    .clickable { viewModel.removeImage(index) }
+                                    .padding(6.dp)
+                                    .size(18.dp),
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        // 全屏图片预览（点击任意处关闭）。
-        previewImageKey?.let { key ->
-            Dialog(
-                onDismissRequest = { previewImageKey = null },
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.9f))
-                        .clickable { previewImageKey = null },
-                    contentAlignment = Alignment.Center,
+            // 全屏图片预览（点击任意处关闭）。
+            previewImageKey?.let { key ->
+                Dialog(
+                    onDismissRequest = { previewImageKey = null },
+                    properties = DialogProperties(usePlatformDefaultWidth = false),
                 ) {
-                    AsyncImage(
-                        model = blobKeyToMediaUrl(key),
-                        contentDescription = "图片预览",
-                        modifier = Modifier.fillMaxWidth(),
-                        contentScale = ContentScale.Fit,
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.9f))
+                            .clickable { previewImageKey = null },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        AsyncImage(
+                            model = blobKeyToMediaUrl(key),
+                            contentDescription = "图片预览",
+                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
                 }
             }
         }
@@ -613,6 +650,23 @@ private fun PublishFormColumn(
             }
             // 底部留白，避免最后一个按钮被悬浮按钮遮挡。
             Spacer(Modifier.height(72.dp))
+        }
+    }
+}
+
+/** 表单分区卡片：小节标题 + 字段列。 */
+@Composable
+private fun FormSection(
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            content()
         }
     }
 }
