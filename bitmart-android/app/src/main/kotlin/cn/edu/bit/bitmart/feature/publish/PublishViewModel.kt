@@ -303,30 +303,59 @@ class PublishViewModel @Inject constructor(
         }
     }
 
-    /** 确认把识别用的图片加入识别出的商品：上传后将 blobKey 附到末尾 recognizedCount 条草稿。 */
-    fun confirmAttachRecognitionImage() {
-        val bytes = _state.value.pendingRecognitionImage ?: return
+    /**
+     * 识别后批量填充：把对话框中填写的公共字段统一应用到刚识别出的末尾 [recognizedCount] 条草稿。
+     * - 仅非空字段覆盖各项原值（留空表示该字段保持识别结果不变）；填了有效天数则同时切到"按天"模式。
+     * - 标签做并集，用户统一填写的标签排在 LLM 标签之前；去重并限长 [PublishConfig.MAX_TAGS]（超出时优先舍弃 LLM 标签）。
+     * - [attachImage] 为真时上传该识别图并附到这些草稿（每项不超过 [PublishConfig.MAX_IMAGES] 张）。
+     * 应用后清空待确认状态（关闭对话框）。
+     */
+    fun applyToRecognized(
+        attachImage: Boolean,
+        originalPrice: String = "",
+        unitPrice: String = "",
+        expiresInDays: String = "",
+        pickupLocation: String = "",
+        contact: String = "",
+        tags: List<String> = emptyList(),
+    ) {
+        val bytes = _state.value.pendingRecognitionImage
         val count = _state.value.recognizedCount
-        _state.update { it.copy(pendingRecognitionImage = null) }
-        if (count <= 0) return
-        viewModelScope.launch {
-            _state.update { it.copy(uploadingImage = true, error = null) }
-            when (val r = listingRepository.uploadImage(bytes, "image.jpg")) {
-                is DomainResult.Success -> _state.update { st ->
-                    val from = (st.draftBatch.size - count).coerceAtLeast(0)
-                    val updated = st.draftBatch.mapIndexed { i, d ->
-                        if (i >= from && d.imageKeys.size < PublishConfig.MAX_IMAGES) d.copy(imageKeys = d.imageKeys + r.data) else d
+        _state.update { st ->
+            val from = (st.draftBatch.size - count).coerceAtLeast(0)
+            val updated = st.draftBatch.mapIndexed { i, d ->
+                if (i < from) d else d.copy(
+                    originalPrice = originalPrice.ifBlank { d.originalPrice },
+                    unitPrice = unitPrice.ifBlank { d.unitPrice },
+                    expiresInDays = expiresInDays.ifBlank { d.expiresInDays },
+                    expiryMode = if (expiresInDays.isNotBlank()) ExpiryMode.DAYS else d.expiryMode,
+                    pickupLocation = pickupLocation.ifBlank { d.pickupLocation },
+                    contact = contact.ifBlank { d.contact },
+                    tags = if (tags.isEmpty()) d.tags else (tags + d.tags).distinct().take(PublishConfig.MAX_TAGS),
+                )
+            }
+            st.copy(draftBatch = updated, pendingRecognitionImage = null)
+        }
+        if (attachImage && bytes != null && count > 0) {
+            viewModelScope.launch {
+                _state.update { it.copy(uploadingImage = true, error = null) }
+                when (val r = listingRepository.uploadImage(bytes, "image.jpg")) {
+                    is DomainResult.Success -> _state.update { st ->
+                        val from = (st.draftBatch.size - count).coerceAtLeast(0)
+                        val updated = st.draftBatch.mapIndexed { i, d ->
+                            if (i >= from && d.imageKeys.size < PublishConfig.MAX_IMAGES) d.copy(imageKeys = d.imageKeys + r.data) else d
+                        }
+                        st.copy(uploadingImage = false, draftBatch = updated)
                     }
-                    st.copy(uploadingImage = false, draftBatch = updated)
+                    is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
+                    is DomainResult.InvalidResponse -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
+                    is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
                 }
-                is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
             }
         }
     }
 
-    /** 放弃把识别用的图片加入商品：仅清空待确认状态。 */
+    /** 放弃批量填充：仅清空待确认状态（识别出的草稿保持原样）。 */
     fun dismissRecognitionImage() {
         _state.update { it.copy(pendingRecognitionImage = null) }
     }

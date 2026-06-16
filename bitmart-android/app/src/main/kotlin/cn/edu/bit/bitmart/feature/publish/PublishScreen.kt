@@ -44,6 +44,7 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -562,14 +563,17 @@ private fun PublishFormColumn(
             )
         }
 
-        // 识别完成后询问是否把这张图作为识别出商品的图片。
+        // 识别完成后批量填充：勾选是否附图，并可统一填写原价/价格/有效期/交易地点/联系方式/标签。
         if (state.pendingRecognitionImage != null) {
-            AlertDialog(
-                onDismissRequest = { viewModel.dismissRecognitionImage() },
-                title = { Text("添加图片？") },
-                text = { Text("已识别 ${state.recognizedCount} 项，是否将这张图片作为它们的商品图片？") },
-                confirmButton = { TextButton(onClick = { viewModel.confirmAttachRecognitionImage() }) { Text("添加") } },
-                dismissButton = { TextButton(onClick = { viewModel.dismissRecognitionImage() }) { Text("暂不") } },
+            RecognitionBatchDialog(
+                count = state.recognizedCount,
+                isBuy = state.type == ListingType.BUY,
+                commonContacts = state.commonContacts,
+                popularTags = state.popularTags,
+                onApply = { attach, originalPrice, unitPrice, days, pickup, contact, tags ->
+                    viewModel.applyToRecognized(attach, originalPrice, unitPrice, days, pickup, contact, tags)
+                },
+                onDismiss = { viewModel.dismissRecognitionImage() },
             )
         }
 
@@ -742,6 +746,129 @@ private fun stagingCurrentIndex(state: PublishUiState): Int? = when {
 private fun draftSubtitle(item: DraftItem): String {
     val category = if (item.category == ListingCategory.BOOK) "书籍" else "一般商品"
     return "$category · ${item.quantityTotal}件"
+}
+
+/**
+ * 识别完成后的批量填充对话框：勾选是否把识别图作为所有项的图片，并可统一填写
+ * 原价/售价(期望价)/有效天数/交易地点/联系方式/标签。留空的字段不覆盖各项原值。
+ */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun RecognitionBatchDialog(
+    count: Int,
+    isBuy: Boolean,
+    commonContacts: List<String>,
+    popularTags: List<String>,
+    onApply: (
+        attachImage: Boolean,
+        originalPrice: String,
+        unitPrice: String,
+        expiresInDays: String,
+        pickupLocation: String,
+        contact: String,
+        tags: List<String>,
+    ) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var attachImage by remember { mutableStateOf(true) }
+    var originalPrice by remember { mutableStateOf("") }
+    var unitPrice by remember { mutableStateOf("") }
+    var expiresInDays by remember { mutableStateOf("") }
+    var pickupLocation by remember { mutableStateOf("") }
+    var contact by remember { mutableStateOf("") }
+    var tags by remember { mutableStateOf(emptyList<String>()) }
+    var customTagInput by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("识别完成 · 批量填写（$count 项）") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "以下信息将统一应用到识别出的 $count 项；留空的项保持不变。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { attachImage = !attachImage },
+                ) {
+                    Checkbox(checked = attachImage, onCheckedChange = { attachImage = it })
+                    Text("将这张图片作为所有项的图片")
+                }
+                OutlinedTextField(originalPrice, { originalPrice = it }, label = { Text("原价") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    unitPrice,
+                    { unitPrice = it },
+                    label = { Text(if (isBuy) "期望价（可留空面议）" else "售价（可留空面议）") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(expiresInDays, { expiresInDays = it }, label = { Text("有效天数") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(pickupLocation, { pickupLocation = it }, label = { Text("交易地点") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (commonContacts.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        commonContacts.forEach { c ->
+                            FilterChip(selected = contact.trim() == c, onClick = { contact = c }, label = { Text(c) })
+                        }
+                    }
+                }
+                OutlinedTextField(contact, { contact = it }, label = { Text("联系方式（微信/QQ/手机号等）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                // 标签：与发布页一致——热门标签可点选，自定义标签输入后"添加"，已选标签点击移除。
+                Text("标签（最多${PublishConfig.MAX_TAGS}个）", style = MaterialTheme.typography.titleSmall)
+                if (popularTags.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        popularTags.forEach { tag ->
+                            FilterChip(
+                                selected = tag in tags,
+                                onClick = {
+                                    tags = if (tag in tags) tags - tag
+                                    else if (tags.size >= PublishConfig.MAX_TAGS) tags else tags + tag
+                                },
+                                label = { Text(tag) },
+                            )
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = customTagInput,
+                        onValueChange = { customTagInput = it },
+                        label = { Text("自定义标签") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = {
+                            val t = customTagInput.trim()
+                            if (t.isNotEmpty() && t !in tags && tags.size < PublishConfig.MAX_TAGS) tags = tags + t
+                            customTagInput = ""
+                        },
+                        enabled = customTagInput.isNotBlank() && tags.size < PublishConfig.MAX_TAGS,
+                    ) {
+                        Text("添加")
+                    }
+                }
+                if (tags.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        tags.forEach { tag ->
+                            FilterChip(selected = true, onClick = { tags = tags - tag }, label = { Text(tag) })
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onApply(attachImage, originalPrice, unitPrice, expiresInDays, pickupLocation, contact, tags)
+            }) { Text("应用") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("跳过") } },
+    )
 }
 
 /** 压缩并转换图片为 JPEG 字节（1024px 上限，80% 质量）。 */

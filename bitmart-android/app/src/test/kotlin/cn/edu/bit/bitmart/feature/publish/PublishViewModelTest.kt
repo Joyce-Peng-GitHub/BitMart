@@ -496,7 +496,7 @@ class PublishViewModelTest {
     }
 
     @Test
-    fun `confirmAttachRecognitionImage uploads and attaches blobKey to the recognized drafts`() = runTest {
+    fun `applyToRecognized with attachImage uploads and attaches blobKey to all recognized drafts`() = runTest {
         val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
         val repo = FakeRepo(uploadResult = DomainResult.Success("blob-xyz"))
         val llm = FakeLlmClient(DomainResult.Success(listOf(
@@ -507,12 +507,86 @@ class PublishViewModelTest {
         vm.setCategory(ListingCategory.GENERAL)
         vm.recognizeWithLlm(byteArrayOf(1)); dispatcher.scheduler.advanceUntilIdle()
 
-        vm.confirmAttachRecognitionImage(); dispatcher.scheduler.advanceUntilIdle()
+        vm.applyToRecognized(attachImage = true); dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(1, repo.uploadCalls)
         assertEquals(listOf("blob-xyz"), vm.state.value.draftBatch[0].imageKeys)
         assertEquals(listOf("blob-xyz"), vm.state.value.draftBatch[1].imageKeys)
         assertNull(vm.state.value.pendingRecognitionImage)
+    }
+
+    @Test
+    fun `applyToRecognized fills common fields on every recognized draft, union-merging tags`() = runTest {
+        val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
+        val repo = FakeRepo(uploadResult = DomainResult.Success("blob-xyz"))
+        val llm = FakeLlmClient(DomainResult.Success(listOf(
+            LlmRecognition.General("台灯", "九成新", "20", listOf("家居")),
+            LlmRecognition.General("水杯", "全新", null, emptyList()),
+        )))
+        val vm = PublishViewModel(repo, llm, store, FakeContactPrefsStore())
+        vm.setCategory(ListingCategory.GENERAL)
+        vm.recognizeWithLlm(byteArrayOf(1)); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.applyToRecognized(
+            attachImage = true,
+            originalPrice = "",        // 留空 → 各项保留原值
+            unitPrice = "30",
+            expiresInDays = "15",
+            pickupLocation = "三号楼",
+            contact = "wxid_x",
+            tags = listOf("二手"),
+        ); dispatcher.scheduler.advanceUntilIdle()
+
+        val b = vm.state.value.draftBatch
+        assertEquals("30", b[0].unitPrice); assertEquals("30", b[1].unitPrice)
+        assertEquals("15", b[0].expiresInDays); assertEquals(ExpiryMode.DAYS, b[0].expiryMode)
+        assertEquals("三号楼", b[0].pickupLocation); assertEquals("wxid_x", b[1].contact)
+        // 原价留空 → 各自保留（台灯 20，水杯 空）。
+        assertEquals("20", b[0].originalPrice); assertEquals("", b[1].originalPrice)
+        // 标签并集：保留识别出的"家居"，并入统一的"二手"。
+        assertTrue(b[0].tags.containsAll(listOf("家居", "二手"))); assertEquals(listOf("二手"), b[1].tags)
+        // 勾选附图 → 都带上传得到的 blobKey。
+        assertEquals(listOf("blob-xyz"), b[0].imageKeys); assertEquals(listOf("blob-xyz"), b[1].imageKeys)
+        assertNull(vm.state.value.pendingRecognitionImage)
+    }
+
+    @Test
+    fun `applyToRecognized without attachImage does not upload`() = runTest {
+        val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
+        val repo = FakeRepo()
+        val llm = FakeLlmClient(DomainResult.Success(listOf(
+            LlmRecognition.General("台灯", "九成新", "", emptyList()),
+        )))
+        val vm = PublishViewModel(repo, llm, store, FakeContactPrefsStore())
+        vm.setCategory(ListingCategory.GENERAL)
+        vm.recognizeWithLlm(byteArrayOf(1)); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.applyToRecognized(attachImage = false, unitPrice = "30"); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, repo.uploadCalls)
+        assertTrue(vm.state.value.draftBatch[0].imageKeys.isEmpty())
+        assertEquals("30", vm.state.value.draftBatch[0].unitPrice)
+        assertNull(vm.state.value.pendingRecognitionImage)
+    }
+
+    @Test
+    fun `applyToRecognized puts uniform tags before LLM tags, dropping LLM ones over the cap`() = runTest {
+        val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
+        // LLM 已给满上限的标签。
+        val llmTags = (1..PublishConfig.MAX_TAGS).map { "llm$it" }
+        val llm = FakeLlmClient(DomainResult.Success(listOf(
+            LlmRecognition.General("台灯", "九成新", null, llmTags),
+        )))
+        val vm = PublishViewModel(FakeRepo(), llm, store, FakeContactPrefsStore())
+        vm.setCategory(ListingCategory.GENERAL)
+        vm.recognizeWithLlm(byteArrayOf(1)); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.applyToRecognized(attachImage = false, tags = listOf("用户A", "用户B")); dispatcher.scheduler.advanceUntilIdle()
+
+        val tags = vm.state.value.draftBatch[0].tags
+        assertEquals(PublishConfig.MAX_TAGS, tags.size)         // 仍受上限约束
+        assertEquals("用户A", tags[0]); assertEquals("用户B", tags[1]) // 用户标签优先在前
+        assertFalse(tags.contains("llm${PublishConfig.MAX_TAGS}")) // 末尾的 LLM 标签被舍弃
     }
 
     @Test
