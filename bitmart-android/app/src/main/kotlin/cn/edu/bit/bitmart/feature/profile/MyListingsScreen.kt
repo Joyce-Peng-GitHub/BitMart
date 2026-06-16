@@ -48,6 +48,9 @@ import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.OwnedListingRow
 import cn.edu.bit.bitmart.core.ui.SearchDialog
 
+/** 触底预取距离：最后可见项进入列表末尾该数量内即加载下一页。 */
+private const val MY_LISTINGS_LOAD_MORE_PREFETCH = 2
+
 /**
  * “我的商品 / 我的收购”管理页（架构 §6.2，GET /me/listings）。
  * 列表卡片与“买卖”页完全一致（[OwnedListingRow] 复用统一卡片）；区别仅在于顶部保留返回键与
@@ -104,7 +107,7 @@ fun MyListingsScreen(
         snapshotFlow {
             val info = listState.layoutInfo
             (info.visibleItemsInfo.lastOrNull()?.index ?: -1) to info.totalItemsCount
-        }.collect { (last, total) -> if (total > 0 && last >= total - 2) viewModel.loadMore() }
+        }.collect { (last, total) -> if (total > 0 && last >= total - MY_LISTINGS_LOAD_MORE_PREFETCH) viewModel.loadMore() }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

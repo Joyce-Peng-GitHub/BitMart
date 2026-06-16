@@ -34,6 +34,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.Notification
 import cn.edu.bit.bitmart.core.ui.formatTimestampMinute
 
+/** 触底预取距离：最后可见项进入列表末尾该数量内即加载下一页。 */
+private const val NOTIFICATIONS_LOAD_MORE_PREFETCH = 3
+
 /**
  * 通知页：公告与个人提醒（如过期提醒）合并展示。点击未读项标记已读。
  * 列表滑动到底部时自动加载下一页（若有游标）。
@@ -52,7 +55,7 @@ fun NotificationsScreen(
     val shouldLoadMore by remember {
         androidx.compose.runtime.derivedStateOf {
             val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            last >= state.items.size - 3 && state.canLoadMore
+            last >= state.items.size - NOTIFICATIONS_LOAD_MORE_PREFETCH && state.canLoadMore
         }
     }
     androidx.compose.runtime.LaunchedEffect(shouldLoadMore) {

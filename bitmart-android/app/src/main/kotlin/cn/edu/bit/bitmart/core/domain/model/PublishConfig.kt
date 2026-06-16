@@ -8,8 +8,17 @@ object PublishConfig {
     /** 标签个数上限（用户可选择热门标签 + 自定义标签，总计不超过此数）。 */
     const val MAX_TAGS = 8
 
+    /** 发布页"热门标签"快捷区拉取/展示的标签数量上限。 */
+    const val POPULAR_TAGS_LIMIT = 20
+
     /** 单条发布项的图片张数上限。 */
     const val MAX_IMAGES = 9
+
+    /** 上传前图片压缩的最长边（像素）：超过则等比缩小。 */
+    const val IMAGE_MAX_DIMENSION_PX = 1024
+
+    /** 上传前图片 JPEG 压缩质量（0–100）。 */
+    const val IMAGE_JPEG_QUALITY = 80
 
     /**
      * 单条发布的件数上限，与服务端 ListingValidator.MAX_QUANTITY 保持一致。

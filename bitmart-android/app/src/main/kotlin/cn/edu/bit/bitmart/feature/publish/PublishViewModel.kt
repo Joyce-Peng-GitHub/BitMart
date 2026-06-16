@@ -196,7 +196,7 @@ class PublishViewModel @Inject constructor(
 
     private fun loadPopularTags() {
         viewModelScope.launch {
-            when (val r = listingRepository.popularTags(20)) {
+            when (val r = listingRepository.popularTags(PublishConfig.POPULAR_TAGS_LIMIT)) {
                 is DomainResult.Success -> _state.update { it.copy(popularTags = r.data.map { t -> t.name }) }
                 else -> {} // 失败降级为空列表，不阻塞发布流程。
             }

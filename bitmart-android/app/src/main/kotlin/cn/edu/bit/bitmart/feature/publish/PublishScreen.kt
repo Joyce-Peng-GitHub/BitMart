@@ -751,7 +751,7 @@ private fun compressImage(context: Context, uri: Uri): ByteArray? {
         val originalBitmap = BitmapFactory.decodeStream(inputStream)
         inputStream.close()
 
-        val maxDimension = 1024
+        val maxDimension = PublishConfig.IMAGE_MAX_DIMENSION_PX
         val scaledBitmap = if (originalBitmap.width > maxDimension || originalBitmap.height > maxDimension) {
             val scale = maxDimension.toFloat() / maxOf(originalBitmap.width, originalBitmap.height)
             val newWidth = (originalBitmap.width * scale).toInt()
@@ -762,7 +762,7 @@ private fun compressImage(context: Context, uri: Uri): ByteArray? {
         } else originalBitmap
 
         val outputStream = ByteArrayOutputStream()
-        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, PublishConfig.IMAGE_JPEG_QUALITY, outputStream)
         scaledBitmap.recycle()
 
         outputStream.toByteArray()

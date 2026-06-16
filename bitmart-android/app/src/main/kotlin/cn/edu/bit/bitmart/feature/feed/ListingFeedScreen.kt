@@ -44,6 +44,9 @@ import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.OwnedListingRow
 import cn.edu.bit.bitmart.core.ui.SearchDialog
 
+/** 触底预取距离：最后可见项进入列表末尾该数量内即加载下一页。 */
+private const val FEED_LOAD_MORE_PREFETCH = 2
+
 /**
  * 商品/求购列表屏。买/卖共用，文案随类型切换。右下角三枚悬浮按钮：搜索、筛选、发布（自上而下）。
  * 列表项中属于当前登录用户（item.ownerId == currentUserId）的项支持左滑显露
@@ -95,7 +98,7 @@ fun ListingFeedScreen(
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
             last to info.totalItemsCount
         }.collect { (last, total) ->
-            if (total > 0 && last >= total - 2) viewModel.loadMore()
+            if (total > 0 && last >= total - FEED_LOAD_MORE_PREFETCH) viewModel.loadMore()
         }
     }
 

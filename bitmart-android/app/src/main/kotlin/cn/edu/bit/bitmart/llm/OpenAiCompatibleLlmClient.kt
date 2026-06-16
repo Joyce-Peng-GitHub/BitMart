@@ -163,14 +163,17 @@ class OpenAiCompatibleLlmClient(
     /** 剥离 Markdown ``` 代码块围栏（沿用参考实现的策略）。 */
     private fun stripMarkdownFence(text: String): String {
         val trimmed = text.trim()
-        if (!trimmed.startsWith("```")) return trimmed
+        if (!trimmed.startsWith(MARKDOWN_FENCE)) return trimmed
         val firstNewline = trimmed.indexOf('\n')
         if (firstNewline == -1) return trimmed
         val withoutStart = trimmed.substring(firstNewline + 1)
-        return if (withoutStart.endsWith("```")) withoutStart.dropLast(3).trim() else withoutStart.trim()
+        return if (withoutStart.endsWith(MARKDOWN_FENCE)) withoutStart.dropLast(MARKDOWN_FENCE.length).trim() else withoutStart.trim()
     }
 
     private companion object {
+        /** Markdown 代码块围栏标记，用于识别与剥离模型输出可能包裹的 ``` 围栏。 */
+        const val MARKDOWN_FENCE = "```"
+
         const val BOOK_SCHEMA = """
             {"type":"json_schema","json_schema":{"name":"book_list","strict":true,"schema":{
             "type":"object","properties":{

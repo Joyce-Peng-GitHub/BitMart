@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.domain.model.PublishConfig
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
@@ -216,7 +217,7 @@ class ListingFeedViewModel @Inject constructor(
     )
 
     /** 拉取热门标签供筛选弹窗展示（失败则返回空列表，弹窗自行降级）。 */
-    suspend fun loadPopularTags(limit: Int = 20): List<TagInfo> =
+    suspend fun loadPopularTags(limit: Int = PublishConfig.POPULAR_TAGS_LIMIT): List<TagInfo> =
         when (val r = listingRepository.popularTags(limit)) {
             is DomainResult.Success -> r.data
             else -> emptyList()
