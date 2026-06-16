@@ -1,6 +1,8 @@
 package cn.edu.bit.bitmart.feature.publish
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -35,8 +37,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.ImageSearch
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -90,6 +92,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.graphics.scale
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -103,6 +107,7 @@ import cn.edu.bit.bitmart.core.ui.blobKeyToMediaUrl
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -175,7 +180,7 @@ fun PublishScreen(
         }
     }
 
-    // 仅上传图片（加入当前草稿的 imageKeys）。
+    // 从相册选取上传（加入当前草稿的 imageKeys）。
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             val bytes = compressImage(context, it)
@@ -183,7 +188,7 @@ fun PublishScreen(
         }
     }
 
-    // 拍照识别：识别图中所有项 → 各成一条草稿入暂存区；是否把该图作为商品图由识别后的确认弹窗决定。
+    // 从相册选取识别：识别图中所有项 → 各成一条草稿入暂存区；是否把该图作为商品图由识别后的确认弹窗决定。
     val recognizePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             val bytes = compressImage(context, it)
@@ -193,8 +198,55 @@ fun PublishScreen(
         }
     }
 
-    val onPickImage = { imagePicker.launch("image/*"); Unit }
-    val onRecognize = { recognizePicker.launch("image/*"); Unit }
+    // 相机拍摄：写入临时文件的 content URI，拍摄成功后读取压缩。识图与加图各一个启动器，共用最近一次的 URI。
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+    val takePhotoForUpload = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val uri = cameraImageUri
+        if (success && uri != null) {
+            val bytes = compressImage(context, uri)
+            if (bytes != null) viewModel.uploadImage(bytes, "image.jpg")
+        }
+    }
+    val takePhotoForRecognize = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val uri = cameraImageUri
+        if (success && uri != null) {
+            val bytes = compressImage(context, uri)
+            if (bytes != null) viewModel.recognizeWithLlm(bytes)
+        }
+    }
+
+    // 拍照需运行时相机权限（清单已声明 CAMERA，ACTION_IMAGE_CAPTURE 因此要求授权）。授权后执行挂起的拍摄动作。
+    var pendingCameraAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) pendingCameraAction?.invoke()
+        else Toast.makeText(context, "需要相机权限才能拍照", Toast.LENGTH_SHORT).show()
+        pendingCameraAction = null
+    }
+    val ensureCameraThen = { action: () -> Unit ->
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            action()
+        } else {
+            pendingCameraAction = action
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    val onPickImageFromGallery = { imagePicker.launch("image/*"); Unit }
+    val onRecognizeFromGallery = { recognizePicker.launch("image/*"); Unit }
+    val onPickImageFromCamera = {
+        ensureCameraThen {
+            val uri = createCaptureUri(context)
+            cameraImageUri = uri
+            takePhotoForUpload.launch(uri)
+        }
+    }
+    val onRecognizeFromCamera = {
+        ensureCameraThen {
+            val uri = createCaptureUri(context)
+            cameraImageUri = uri
+            takePhotoForRecognize.launch(uri)
+        }
+    }
 
     val screenTitle = when {
         editMode && state.type == ListingType.BUY -> "编辑收购"
@@ -221,8 +273,10 @@ fun PublishScreen(
                 viewModel = viewModel,
                 editMode = true,
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
-                onPickImage = onPickImage,
-                onRecognize = onRecognize,
+                onPickImageFromGallery = onPickImageFromGallery,
+                onPickImageFromCamera = onPickImageFromCamera,
+                onRecognizeFromGallery = onRecognizeFromGallery,
+                onRecognizeFromCamera = onRecognizeFromCamera,
             )
         }
         return
@@ -298,8 +352,10 @@ fun PublishScreen(
                         viewModel = viewModel,
                         editMode = false,
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        onPickImage = onPickImage,
-                        onRecognize = onRecognize,
+                        onPickImageFromGallery = onPickImageFromGallery,
+                        onPickImageFromCamera = onPickImageFromCamera,
+                        onRecognizeFromGallery = onRecognizeFromGallery,
+                        onRecognizeFromCamera = onRecognizeFromCamera,
                     )
                 }
             }
@@ -318,8 +374,10 @@ private fun PublishFormColumn(
     viewModel: PublishViewModel,
     editMode: Boolean,
     modifier: Modifier,
-    onPickImage: () -> Unit,
-    onRecognize: () -> Unit,
+    onPickImageFromGallery: () -> Unit,
+    onPickImageFromCamera: () -> Unit,
+    onRecognizeFromGallery: () -> Unit,
+    onRecognizeFromCamera: () -> Unit,
 ) {
     val draft = state.currentDraft
     Column(
@@ -328,31 +386,33 @@ private fun PublishFormColumn(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // 图片识别：选一张图片，自动识别其中的商品并分别生成草稿。独立卡片置于最上方。
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        // 图片识别：拍照或从相册选图，自动识别其中的商品并分别生成草稿。独立卡片置于最上方。
+        FormSection("图片识别") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = onRecognize,
+                    onClick = onRecognizeFromCamera,
                     enabled = !state.llmRecognizing,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1f),
                 ) {
-                    if (state.llmRecognizing) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Default.ImageSearch, contentDescription = null)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text("图片识别")
+                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("拍照")
                 }
-                Text(
-                    "选择一张图片，自动识别其中的商品并分别生成待发布草稿。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Button(
+                    onClick = onRecognizeFromGallery,
+                    enabled = !state.llmRecognizing,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("相册")
+                }
             }
+            Text(
+                "拍摄或选择一张图片，自动识别其中的商品并分别生成待发布草稿。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         // 基本信息：类别 + 标题/书籍字段 + 描述。
@@ -520,13 +580,25 @@ private fun PublishFormColumn(
         // 图片上传。达到张数上限后入口禁用。
         FormSection("图片（${draft.imageKeys.size}/${PublishConfig.MAX_IMAGES}）") {
             val canAddImage = draft.imageKeys.size < PublishConfig.MAX_IMAGES
-            OutlinedButton(
-                onClick = onPickImage,
-                enabled = !state.uploadingImage && canAddImage,
-            ) {
-                Icon(Icons.Default.Image, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text("选择图片")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onPickImageFromCamera,
+                    enabled = !state.uploadingImage && canAddImage,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("拍照")
+                }
+                OutlinedButton(
+                    onClick = onPickImageFromGallery,
+                    enabled = !state.uploadingImage && canAddImage,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("相册")
+                }
             }
 
             // 已上传图片缩略图：点击放大预览，右上角垃圾桶删除。
@@ -923,6 +995,13 @@ private fun RecognitionBatchDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("跳过") } },
     )
+}
+
+/** 在缓存目录新建临时文件并返回其 FileProvider content URI，供相机应用写入拍摄结果。 */
+private fun createCaptureUri(context: Context): Uri {
+    val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+    val file = File.createTempFile("capture_", ".jpg", dir)
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }
 
 /** 压缩并转换图片为 JPEG 字节（1024px 上限，80% 质量）。 */
