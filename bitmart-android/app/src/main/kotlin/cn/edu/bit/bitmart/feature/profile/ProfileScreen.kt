@@ -3,16 +3,26 @@ package cn.edu.bit.bitmart.feature.profile
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -22,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -30,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -99,15 +111,23 @@ fun ProfileScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 ProfileHeader(state = state, onLoginClick = onLoginClick)
 
-                SectionRow("常用联系方式", onClick = onContactsClick)
-                SectionRow("我的商品", onClick = { onMyListingsClick(false) })
-                SectionRow("我的收购", onClick = { onMyListingsClick(true) })
-                SectionRow("设置", onClick = onSettingsClick)
-                SectionRow("关于", onClick = onAboutClick)
+                MenuCard {
+                    MenuRow(Icons.Default.Storefront, "我的商品", onClick = { onMyListingsClick(false) })
+                    MenuRow(Icons.Default.ShoppingCart, "我的收购", onClick = { onMyListingsClick(true) })
+                    MenuRow(Icons.Default.Contacts, "常用联系方式", onClick = onContactsClick, showDivider = false)
+                }
+                MenuCard {
+                    MenuRow(Icons.Default.Settings, "设置", onClick = onSettingsClick)
+                    MenuRow(Icons.Default.Info, "关于", onClick = onAboutClick, showDivider = false)
+                }
             }
         }
     }
@@ -116,36 +136,93 @@ fun ProfileScreen(
 @Composable
 private fun ProfileHeader(state: ProfileUiState, onLoginClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(16.dp).let {
+        modifier = Modifier.fillMaxWidth().let {
             if (!state.loggedIn) it.clickable(onClick = onLoginClick) else it
         },
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-            if (state.loggedIn) {
-                val user = state.user
-                Text(user?.displayName ?: "我的", style = MaterialTheme.typography.headlineSmall)
-                if (user != null) {
-                    Text("昵称：${user.nickname ?: "匿名"}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
-                    Text("学号：${user.studentId}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-                    Text("ID：${user.id}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            val user = state.user
+            val displayName = user?.nickname?.takeIf { it.isNotBlank() } ?: user?.displayName
+            ProfileAvatar(text = if (state.loggedIn) displayName else null)
+            Column(modifier = Modifier.weight(1f)) {
+                if (state.loggedIn) {
+                    Text(displayName ?: "我的", style = MaterialTheme.typography.titleLarge)
+                    if (user != null) {
+                        Text(
+                            "学号 ${user.studentId} · ID ${user.id}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                } else {
+                    Text("未登录", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "点击登录",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
-            } else {
-                Text("未登录", style = MaterialTheme.typography.titleLarge)
-                Text("点击登录", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }
 }
 
+/** 圆形头像：已登录显示名字首字符，否则显示人形图标。 */
 @Composable
-private fun SectionRow(title: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+private fun ProfileAvatar(text: String?) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = Modifier.size(64.dp),
     ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge)
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        Box(contentAlignment = Alignment.Center) {
+            val initial = text?.trim()?.takeIf { it.isNotEmpty() }?.substring(0, 1)
+            if (initial != null) {
+                Text(initial, style = MaterialTheme.typography.headlineMedium)
+            } else {
+                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(32.dp))
+            }
+        }
     }
-    HorizontalDivider()
+}
+
+/** 菜单分组卡：包裹若干 [MenuRow]。 */
+@Composable
+private fun MenuCard(content: @Composable () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column { content() }
+    }
+}
+
+/** 菜单行：前置图标 + 标题 + 右箭头；[showDivider] 控制底部内缩分隔线（分组内最后一行置 false）。 */
+@Composable
+private fun MenuRow(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    showDivider: Boolean = true,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.size(16.dp))
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (showDivider) {
+        HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+    }
 }
