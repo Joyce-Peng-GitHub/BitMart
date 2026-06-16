@@ -17,7 +17,9 @@ object ApiResponseMapper {
 
     suspend inline fun <reified T> handle(response: HttpResponse): DomainResult<T> {
         return if (response.status.isSuccess()) {
-            DomainResult.Success(response.body<T>())
+            // 2xx 但响应体反序列化失败 → InvalidResponse（而非沿用旧路径被上层 try/catch 误判为 NetworkError）。
+            runCatching { DomainResult.Success(response.body<T>()) }
+                .getOrElse { DomainResult.InvalidResponse("无法解析服务器响应", it) }
         } else {
             parseError(response.status.value, response.bodyAsText())
         }

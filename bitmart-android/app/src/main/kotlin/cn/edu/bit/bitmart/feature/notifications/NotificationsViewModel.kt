@@ -53,6 +53,7 @@ class NotificationsViewModel @Inject constructor(
                     it.copy(loading = false, items = r.data.items, nextCursor = r.data.nextCursor)
                 }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }
@@ -69,6 +70,7 @@ class NotificationsViewModel @Inject constructor(
                     it.copy(loadingMore = false, items = it.items + r.data.items, nextCursor = r.data.nextCursor)
                 }
                 is DomainResult.Failure -> _state.update { it.copy(loadingMore = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loadingMore = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loadingMore = false, error = "网络异常：${r.message}") }
             }
         }
@@ -84,6 +86,7 @@ class NotificationsViewModel @Inject constructor(
                     s.copy(items = s.items.map { if (it.id == id) it.copy(read = true) else it })
                 }
                 is DomainResult.Failure -> _state.update { it.copy(error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(error = "网络异常：${r.message}") }
             }
         }

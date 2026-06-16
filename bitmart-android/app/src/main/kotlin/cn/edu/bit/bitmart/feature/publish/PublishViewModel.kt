@@ -251,6 +251,7 @@ class PublishViewModel @Inject constructor(
                     }
                 }
                 is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
             }
         }
@@ -295,6 +296,7 @@ class PublishViewModel @Inject constructor(
                     }
                 }
                 is DomainResult.Failure -> _state.update { it.copy(llmRecognizing = false, error = "识别失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(llmRecognizing = false, error = "识别失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(llmRecognizing = false, error = "网络异常：${r.message}") }
             }
         }
@@ -317,6 +319,7 @@ class PublishViewModel @Inject constructor(
                     st.copy(uploadingImage = false, draftBatch = updated)
                 }
                 is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
             }
         }
@@ -373,6 +376,7 @@ class PublishViewModel @Inject constructor(
                     }
                 }
                 is DomainResult.Failure -> _state.update { it.copy(lookingUpBook = false, error = "查询失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(lookingUpBook = false, error = "查询失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(lookingUpBook = false, error = "网络异常：${r.message}") }
             }
         }
@@ -509,6 +513,7 @@ class PublishViewModel @Inject constructor(
             when (val r = listingRepository.publishBatch(drafts)) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, batchSubmitted = true) }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }
@@ -567,6 +572,7 @@ class PublishViewModel @Inject constructor(
                 }
                 is DomainResult.Failure ->
                     _state.update { it.copy(loading = false, error = if (r.httpStatus == 401) "请登录后编辑" else r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }
@@ -583,6 +589,7 @@ class PublishViewModel @Inject constructor(
             when (val r = listingRepository.update(id, draft.toUpdateDraft())) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, saved = true) }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = "保存失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = "保存失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }

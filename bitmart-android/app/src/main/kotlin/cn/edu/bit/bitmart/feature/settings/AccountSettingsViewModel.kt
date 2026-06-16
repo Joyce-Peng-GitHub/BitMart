@@ -53,6 +53,7 @@ class AccountSettingsViewModel @Inject constructor(
             when (val r = profileRepository.getMe()) {
                 is DomainResult.Success -> _state.update { it.copy(user = r.data) }
                 is DomainResult.Failure -> _state.update { it.copy(error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(error = "网络异常：${r.message}") }
             }
         }
@@ -65,6 +66,7 @@ class AccountSettingsViewModel @Inject constructor(
             when (val r = profileRepository.updateNickname(nickname.ifBlank { null })) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, user = r.data, message = "昵称已更新") }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }
@@ -88,10 +90,12 @@ class AccountSettingsViewModel @Inject constructor(
                     when (val reset = authRepository.resetPassword(verify.data, studentId, newPassword)) {
                         is DomainResult.Success -> _state.update { it.copy(loading = false, message = "密码已修改") }
                         is DomainResult.Failure -> _state.update { it.copy(loading = false, error = reset.message) }
+                        is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = reset.message) }
                         is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${reset.message}") }
                     }
                 }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = verify.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = verify.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${verify.message}") }
             }
         }
@@ -104,6 +108,7 @@ class AccountSettingsViewModel @Inject constructor(
             when (val r = authRepository.logout()) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, loggedOut = true) }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }
@@ -116,6 +121,7 @@ class AccountSettingsViewModel @Inject constructor(
             when (val r = authRepository.deleteAccount()) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, loggedOut = true) }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }

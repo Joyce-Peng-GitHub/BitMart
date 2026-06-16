@@ -73,6 +73,7 @@ class ProfileViewModel @Inject constructor(
         when (r) {
             is DomainResult.Success -> it.copy(user = r.data)
             is DomainResult.Failure -> it.copy(error = r.message)
+            is DomainResult.InvalidResponse -> it.copy(error = r.message)
             is DomainResult.NetworkError -> it.copy(error = "网络异常：${r.message}")
         }
     }

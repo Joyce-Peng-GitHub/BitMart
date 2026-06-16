@@ -63,6 +63,7 @@ class ListingDetailViewModel @Inject constructor(
                 is DomainResult.Failure ->
                     if (r.httpStatus == 401) _state.update { it.copy(loading = false, needLogin = true) }
                     else _state.update { it.copy(loading = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
             }
         }
@@ -81,6 +82,7 @@ class ListingDetailViewModel @Inject constructor(
                     st.copy(adjusting = false, detail = st.detail?.copy(quantitySold = quantitySold))
                 }
                 is DomainResult.Failure -> _state.update { it.copy(adjusting = false, error = "调整失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(adjusting = false, error = "调整失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(adjusting = false, error = "网络异常：${r.message}") }
             }
         }
@@ -92,6 +94,7 @@ class ListingDetailViewModel @Inject constructor(
             when (val r = listingRepository.delete(id)) {
                 is DomainResult.Success -> _state.update { it.copy(deleteInProgress = false, deleteSuccess = true) }
                 is DomainResult.Failure -> _state.update { it.copy(deleteInProgress = false, error = "删除失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(deleteInProgress = false, error = "删除失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(deleteInProgress = false, error = "网络异常：${r.message}") }
             }
         }

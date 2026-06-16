@@ -68,6 +68,7 @@ class AuthViewModel @Inject constructor(
                     applyResult(reg)
                 }
                 is DomainResult.Failure -> _state.update { it.copy(loading = false, error = verify.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = verify.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${verify.message}") }
             }
         }
@@ -85,6 +86,7 @@ class AuthViewModel @Inject constructor(
             when (result) {
                 is DomainResult.Success -> it.copy(loading = false, loggedIn = true, error = null)
                 is DomainResult.Failure -> it.copy(loading = false, error = result.message)
+                is DomainResult.InvalidResponse -> it.copy(loading = false, error = result.message)
                 is DomainResult.NetworkError -> it.copy(loading = false, error = "网络异常：${result.message}")
             }
         }

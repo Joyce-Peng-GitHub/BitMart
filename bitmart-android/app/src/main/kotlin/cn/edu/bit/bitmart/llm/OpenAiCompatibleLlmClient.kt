@@ -77,7 +77,7 @@ class OpenAiCompatibleLlmClient(
         }
     } catch (e: Exception) {
         android.util.Log.e(tag, "LLM recognize error: ${e.message}", e)
-        DomainResult.NetworkError(e.message ?: "网络异常")
+        DomainResult.NetworkError(e.message ?: "网络异常", e)
     }
 
     /** 组装 chat/completions 请求体：system 提示词 + 携带 data URL 图片的 user 消息 + json_schema。 */
@@ -116,7 +116,7 @@ class OpenAiCompatibleLlmClient(
         val content = runCatching {
             json.parseToJsonElement(body).jsonObject["choices"]!!.jsonArray[0]
                 .jsonObject["message"]!!.jsonObject["content"]!!.jsonPrimitive.content
-        }.getOrNull() ?: return DomainResult.Failure("LLM_PARSE_ERROR", "无法解析识别服务的响应结构", 200)
+        }.getOrNull() ?: return DomainResult.InvalidResponse("无法解析识别服务的响应结构")
 
         val cleaned = stripMarkdownFence(content)
         return runCatching {
@@ -126,7 +126,7 @@ class OpenAiCompatibleLlmClient(
             }
         }.fold(
             onSuccess = { DomainResult.Success(it) },
-            onFailure = { DomainResult.Failure("LLM_PARSE_ERROR", "识别结果不是预期的 JSON 格式", 200) },
+            onFailure = { DomainResult.InvalidResponse("识别结果不是预期的 JSON 格式", it) },
         )
     }
 

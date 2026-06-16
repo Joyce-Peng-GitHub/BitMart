@@ -181,17 +181,18 @@ class OpenAiCompatibleLlmClientTest {
     }
 
     @Test
-    fun `malformed content maps to failure`() = runBlocking {
+    fun `malformed content maps to InvalidResponse`() = runBlocking {
         val (client, _) = clientReturning(HttpStatusCode.OK, envelope("not even json {{{"))
         val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
-        assertTrue(r is DomainResult.Failure)
+        // HTTP 成功（2xx）但内容无法解析 → InvalidResponse，而非带合成状态码的 Failure。
+        assertTrue("expected InvalidResponse but was $r", r is DomainResult.InvalidResponse)
     }
 
     @Test
-    fun `missing choices structure maps to failure`() = runBlocking {
+    fun `missing choices structure maps to InvalidResponse`() = runBlocking {
         val (client, _) = clientReturning(HttpStatusCode.OK, """{"unexpected":true}""")
         val r = client.recognize(config, byteArrayOf(1), ListingCategory.BOOK)
-        assertTrue(r is DomainResult.Failure)
+        assertTrue("expected InvalidResponse but was $r", r is DomainResult.InvalidResponse)
     }
 
     @Test

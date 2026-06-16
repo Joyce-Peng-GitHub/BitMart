@@ -86,6 +86,7 @@ class MyListingsViewModel @Inject constructor(
                 is DomainResult.Failure ->
                     if (r.httpStatus == 401) _state.update { it.copy(loading = false, refreshing = false, error = "请登录后查看") }
                     else _state.update { it.copy(loading = false, refreshing = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, refreshing = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loading = false, refreshing = false, error = "网络异常：${r.message}") }
             }
         }
@@ -102,6 +103,7 @@ class MyListingsViewModel @Inject constructor(
                     it.copy(loadingMore = false, items = it.items + r.data.items, nextCursor = r.data.nextCursor, endReached = r.data.nextCursor == null)
                 }
                 is DomainResult.Failure -> _state.update { it.copy(loadingMore = false, error = r.message) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loadingMore = false, error = r.message) }
                 is DomainResult.NetworkError -> _state.update { it.copy(loadingMore = false, error = "网络异常：${r.message}") }
             }
         }
@@ -122,6 +124,7 @@ class MyListingsViewModel @Inject constructor(
                     )
                 }
                 is DomainResult.Failure -> _state.update { it.copy(adjustingId = null, error = "调整失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(adjustingId = null, error = "调整失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(adjustingId = null, error = "网络异常：${r.message}") }
             }
         }
@@ -133,6 +136,7 @@ class MyListingsViewModel @Inject constructor(
             when (val r = listingRepository.delete(id)) {
                 is DomainResult.Success -> _state.update { st -> st.copy(items = st.items.filterNot { it.id == id }) }
                 is DomainResult.Failure -> _state.update { it.copy(error = "删除失败：${r.message}") }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(error = "删除失败：${r.message}") }
                 is DomainResult.NetworkError -> _state.update { it.copy(error = "网络异常：${r.message}") }
             }
         }

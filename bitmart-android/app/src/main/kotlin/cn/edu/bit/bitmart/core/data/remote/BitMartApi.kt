@@ -2,6 +2,7 @@ package cn.edu.bit.bitmart.core.data.remote
 
 import cn.edu.bit.bitmart.core.data.local.TokenStore
 import cn.edu.bit.bitmart.core.domain.DomainResult
+import cn.edu.bit.bitmart.core.domain.isUnauthorized
 import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
@@ -173,7 +174,7 @@ class BitMartApi(
      */
     private suspend inline fun <T> authBlock(block: () -> DomainResult<T>): DomainResult<T> {
         val result = safe(block)
-        if (result is DomainResult.Failure && result.httpStatus == 401) {
+        if (result.isUnauthorized()) {
             tokenStore.clear()
         }
         return result
