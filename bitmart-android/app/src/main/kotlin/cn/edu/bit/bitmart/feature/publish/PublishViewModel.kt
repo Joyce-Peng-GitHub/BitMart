@@ -281,7 +281,8 @@ class PublishViewModel @Inject constructor(
             val category = _state.value.selectedCategory
             when (val r = llmClient.recognize(config, imageBytes, category)) {
                 is DomainResult.Success -> {
-                    val newDrafts = r.data.map { it.toDraftItem() }
+                    // 丢弃完全空白的识别项：模型可能产出全空字段的占位项，归一化也可能把非 items 对象兜底成一条空项。
+                    val newDrafts = r.data.map { it.toDraftItem() }.filterNot { it.isBlankDraft() }
                     if (newDrafts.isEmpty()) {
                         _state.update { it.copy(llmRecognizing = false, error = "未识别到可发布的商品") }
                     } else {

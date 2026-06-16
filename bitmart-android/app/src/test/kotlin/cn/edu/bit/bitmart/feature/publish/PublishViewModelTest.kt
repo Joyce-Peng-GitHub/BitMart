@@ -462,6 +462,40 @@ class PublishViewModelTest {
     }
 
     @Test
+    fun `recognizeWithLlm drops fully blank recognized items`() = runTest {
+        // 模型可能返回全空字段的占位项；这些应被过滤，不进入暂存区。
+        val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
+        val llm = FakeLlmClient(DomainResult.Success(listOf(
+            LlmRecognition.Book("算法导论", "CLRS", "机械工业", "第3版", "9787111407010", null),
+            LlmRecognition.Book("", "", "", "", null, null), // 全空占位项
+        )))
+        val vm = PublishViewModel(FakeRepo(), llm, store, FakeContactPrefsStore())
+        vm.setCategory(ListingCategory.BOOK)
+
+        vm.recognizeWithLlm(byteArrayOf(1)); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, vm.state.value.draftBatch.size)
+        assertEquals("算法导论", vm.state.value.draftBatch[0].title)
+        assertEquals(1, vm.state.value.recognizedCount) // 计数也只算保留的项。
+    }
+
+    @Test
+    fun `recognizeWithLlm with only blank items reports error and adds nothing`() = runTest {
+        val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
+        val llm = FakeLlmClient(DomainResult.Success(listOf(
+            LlmRecognition.General("", "", null, emptyList()),
+        )))
+        val vm = PublishViewModel(FakeRepo(), llm, store, FakeContactPrefsStore())
+        vm.setCategory(ListingCategory.GENERAL)
+
+        vm.recognizeWithLlm(byteArrayOf(1)); dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.draftBatch.isEmpty())
+        assertEquals("未识别到可发布的商品", vm.state.value.error)
+        assertNull(vm.state.value.pendingRecognitionImage)
+    }
+
+    @Test
     fun `confirmAttachRecognitionImage uploads and attaches blobKey to the recognized drafts`() = runTest {
         val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
         val repo = FakeRepo(uploadResult = DomainResult.Success("blob-xyz"))
