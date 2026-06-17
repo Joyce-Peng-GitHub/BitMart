@@ -114,6 +114,15 @@ fun ListingFeedScreen(
                     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
                     }
+                } else if (state.items.isEmpty()) {
+                    // 空列表占位：包成可滚动列表，使空态也能下拉刷新（与"我的商品/收购"一致）。
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        item {
+                            Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(if (state.type == ListingType.BUY) "还没有收购" else "还没有商品")
+                            }
+                        }
+                    }
                 } else {
                     LazyColumn(
                         state = listState,
