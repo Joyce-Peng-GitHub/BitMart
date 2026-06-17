@@ -233,8 +233,10 @@ private fun DetailContent(
             .padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // 图片轮播（全宽）。
-        ImageCarousel(d.imageUrls, onImageClick = onImageClick)
+        // 图片轮播（全宽，无图时不渲染）。
+        if (d.imageUrls.isNotEmpty()) {
+            ImageCarousel(d.imageUrls, onImageClick = onImageClick)
+        }
 
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -437,20 +439,6 @@ fun ImageCarousel(
     onImageClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // 无图：占位框，避免顶部空白。
-    if (imageUrls.isEmpty()) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("暂无图片", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        return
-    }
-
     val pagerState = rememberPagerState(pageCount = { imageUrls.size })
 
     Box(modifier = modifier) {
