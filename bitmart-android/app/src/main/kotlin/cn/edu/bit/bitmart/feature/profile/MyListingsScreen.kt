@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart.feature.profile
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,11 +21,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -37,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -81,7 +80,7 @@ fun MyListingsScreen(
     var adjustTarget by remember { mutableStateOf<ListingSummary?>(null) }
     var showFilter by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(buy) { viewModel.setType(if (buy) ListingType.BUY else ListingType.SELL) }
 
@@ -93,12 +92,10 @@ fun MyListingsScreen(
         }
     }
 
-    // 列表非空时的操作错误（调整已售/删除/409 冲突）通过 Snackbar 展示，
-    // 避免被仅在空列表时渲染的内联错误吞掉；展示后清空。空列表的加载错误见下方内联分支。
+    // 异常（加载失败/调整已售/删除/409 冲突等）统一用 Toast 提示，与公共列表一致；展示后清空。
     LaunchedEffect(state.error) {
-        val err = state.error
-        if (err != null && state.items.isNotEmpty()) {
-            snackbarHostState.showSnackbar(err)
+        state.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             viewModel.consumeError()
         }
     }
@@ -121,7 +118,6 @@ fun MyListingsScreen(
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         // 悬浮按钮放入 Scaffold 槽位，由其自动应用系统栏 inset，避免与手势/三键导航栏重叠。
         floatingActionButton = {
             Column(
@@ -148,15 +144,6 @@ fun MyListingsScreen(
         ) {
             when {
                 state.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                state.error != null && state.items.isEmpty() ->
-                    // 包成可滚动列表，使错误态也能下拉重试。
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        item {
-                            Box(Modifier.fillParentMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text(state.error!!, color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
                 state.items.isEmpty() ->
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         item {
