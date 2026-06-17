@@ -2,10 +2,13 @@ package cn.edu.bit.bitmart.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -82,6 +86,18 @@ fun AccountSettingsScreen(
         ) {
             state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+            // 账号信息：学号与账号 ID 仅可查看、框选复制，不可修改。
+            state.user?.let { user ->
+                Text("账号信息", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                SelectionContainer {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        AccountInfoRow("学号", user.studentId)
+                        AccountInfoRow("账号 ID", user.id.toString())
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            }
 
             Text("修改昵称", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
             OutlinedTextField(
@@ -143,6 +159,20 @@ fun AccountSettingsScreen(
             },
             dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("取消") } },
         )
+    }
+}
+
+/** 账号信息只读行：标签 + 可框选复制的值。 */
+@Composable
+private fun AccountInfoRow(label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(72.dp),
+        )
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
