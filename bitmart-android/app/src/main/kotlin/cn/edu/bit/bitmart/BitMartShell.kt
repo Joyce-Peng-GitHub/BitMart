@@ -38,6 +38,7 @@ private enum class ShellTab(val route: String, val label: String, val icon: Imag
  * @param onLoginClick “我的” 页未登录时点击登录。
  * @param onNotificationsClick 进入通知页。
  * @param onContactsClick 进入常用联系方式页。
+ * @param onAccountClick 点击账号信息卡（已登录）进入账号设置页。
  * @param onMyListingsClick 进入“我的商品/收购”管理页（buy=true 为收购）。
  * @param onSettingsClick 进入设置页。
  * @param onAboutClick 进入关于页。
@@ -51,6 +52,7 @@ fun BitMartShell(
     onLoginClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onContactsClick: () -> Unit,
+    onAccountClick: () -> Unit,
     onMyListingsClick: (Boolean) -> Unit,
     onSettingsClick: () -> Unit,
     onAboutClick: () -> Unit,
@@ -102,6 +104,7 @@ fun BitMartShell(
                     onLoginClick = onLoginClick,
                     onNotificationsClick = onNotificationsClick,
                     onContactsClick = onContactsClick,
+                    onAccountClick = onAccountClick,
                     onMyListingsClick = onMyListingsClick,
                     onSettingsClick = onSettingsClick,
                     onAboutClick = onAboutClick,

@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  * @param onLoginClick 未登录时点击进入登录页。
  * @param onNotificationsClick 进入通知页。
  * @param onContactsClick 进入常用联系方式页。
+ * @param onAccountClick 已登录时点击账号信息卡进入账号设置页。
  * @param onMyListingsClick 进入“我的商品”（参数 false）/“我的收购”（参数 true）管理页（占位，#36）。
  * @param onSettingsClick 进入设置页。
  * @param onAboutClick 进入关于页。
@@ -63,6 +64,7 @@ fun ProfileScreen(
     onLoginClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onContactsClick: () -> Unit,
+    onAccountClick: () -> Unit,
     onMyListingsClick: (buy: Boolean) -> Unit,
     onSettingsClick: () -> Unit,
     onAboutClick: () -> Unit,
@@ -117,7 +119,7 @@ fun ProfileScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                ProfileHeader(state = state, onLoginClick = onLoginClick)
+                ProfileHeader(state = state, onLoginClick = onLoginClick, onAccountClick = onAccountClick)
 
                 MenuCard {
                     MenuRow(Icons.Default.Storefront, "我的商品", onClick = { onMyListingsClick(false) })
@@ -134,11 +136,9 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileHeader(state: ProfileUiState, onLoginClick: () -> Unit) {
+private fun ProfileHeader(state: ProfileUiState, onLoginClick: () -> Unit, onAccountClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().let {
-            if (!state.loggedIn) it.clickable(onClick = onLoginClick) else it
-        },
+        modifier = Modifier.fillMaxWidth().clickable(onClick = if (state.loggedIn) onAccountClick else onLoginClick),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(20.dp),

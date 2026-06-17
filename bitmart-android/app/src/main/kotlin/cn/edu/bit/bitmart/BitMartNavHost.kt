@@ -95,6 +95,7 @@ fun BitMartNavHost(
                 },
                 onNotificationsClick = { navController.navigate(Routes.NOTIFICATIONS) },
                 onContactsClick = { navController.navigate(Routes.CONTACTS) },
+                onAccountClick = { navController.navigate(Routes.ACCOUNT_SETTINGS) },
                 onMyListingsClick = { buy -> navController.navigate(Routes.myListings(buy)) },
                 onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                 onAboutClick = { navController.navigate(Routes.ABOUT) },
