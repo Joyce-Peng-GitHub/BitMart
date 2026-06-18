@@ -62,7 +62,7 @@ data class ListingFilter(
     val type: ListingType? = null,        // null = 不限买卖（我的列表可用）
     val category: ListingCategory? = null,
     val query: String? = null,
-    val tagIds: List<Long> = emptyList(),
+    val tagNames: List<String> = emptyList(),
     val minPrice: BigDecimal? = null,
     val maxPrice: BigDecimal? = null,
     val includeNoPrice: Boolean = true,

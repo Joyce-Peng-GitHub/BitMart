@@ -105,7 +105,7 @@ private fun ListingQuery.toParams(): Map<String, String?> = buildMap {
     put("type", type.name)
     category?.let { put("category", it) }
     text?.let { put("q", it) }
-    if (tagIds.isNotEmpty()) put("tagIds", tagIds.joinToString(","))
+    if (tagNames.isNotEmpty()) put("tags", tagNames.joinToString(","))
     minPrice?.let { put("minPrice", it) }
     maxPrice?.let { put("maxPrice", it) }
     put("includeNoPrice", includeNoPrice.toString())

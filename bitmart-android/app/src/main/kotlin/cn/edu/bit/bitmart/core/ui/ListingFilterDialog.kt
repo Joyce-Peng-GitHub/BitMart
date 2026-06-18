@@ -44,7 +44,7 @@ data class FilterState(
     val includeNoPrice: Boolean = true,
     val includeSold: Boolean = false,
     val includeExpired: Boolean = false,
-    val selectedTagIds: List<Long> = emptyList(),
+    val selectedTags: List<String> = emptyList(),
 )
 
 /**
@@ -72,8 +72,9 @@ fun ListingFilterDialog(
     var includeNoPrice by remember { mutableStateOf(initial.includeNoPrice) }
     var includeSold by remember { mutableStateOf(initial.includeSold) }
     var includeExpired by remember { mutableStateOf(initial.includeExpired) }
-    val selectedTagIds = remember { mutableStateListOf<Long>().apply { addAll(initial.selectedTagIds) } }
+    val selectedTags = remember { mutableStateListOf<String>().apply { addAll(initial.selectedTags) } }
     var popularTags by remember { mutableStateOf<List<TagInfo>>(emptyList()) }
+    var customTagInput by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) { popularTags = loadTags() }
 
@@ -127,11 +128,45 @@ fun ListingFilterDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         popularTags.forEach { tag ->
-                            val selected = tag.id in selectedTagIds
+                            val selected = tag.name in selectedTags
                             FilterChip(
                                 selected = selected,
-                                onClick = { if (selected) selectedTagIds.remove(tag.id) else selectedTagIds.add(tag.id) },
+                                onClick = { if (selected) selectedTags.remove(tag.name) else selectedTags.add(tag.name) },
                                 label = { Text(tag.name) },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = customTagInput,
+                        onValueChange = { customTagInput = it },
+                        label = { Text("自定义标签") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = {
+                            val name = customTagInput.trim()
+                            if (name.isNotEmpty() && name !in selectedTags) selectedTags.add(name)
+                            customTagInput = ""
+                        },
+                        enabled = customTagInput.isNotBlank(),
+                    ) { Text("添加") }
+                }
+
+                if (selectedTags.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        selectedTags.forEach { name ->
+                            FilterChip(
+                                selected = true,
+                                onClick = { selectedTags.remove(name) },
+                                label = { Text(name) },
                             )
                         }
                     }
@@ -147,7 +182,7 @@ fun ListingFilterDialog(
                         includeNoPrice = includeNoPrice,
                         includeSold = includeSold,
                         includeExpired = includeExpired,
-                        selectedTagIds = selectedTagIds.toList(),
+                        selectedTags = selectedTags.toList(),
                     ),
                 )
                 onDismiss()

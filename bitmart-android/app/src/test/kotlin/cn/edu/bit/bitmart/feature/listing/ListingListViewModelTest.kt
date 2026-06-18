@@ -210,19 +210,19 @@ class ListingListViewModelTest {
     fun `applyFilter wires price and flags into query and refreshes`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = publicVm(repo)
-        vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L, 2L)))
+        vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTags = listOf("教材", "考研")))
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals("10", vm.state.value.minPrice)
         assertEquals("50", vm.state.value.maxPrice)
         assertEquals(false, vm.state.value.includeNoPrice)
         assertTrue(vm.state.value.includeSold)
-        assertEquals(listOf(1L, 2L), vm.state.value.selectedTagIds)
+        assertEquals(listOf("教材", "考研"), vm.state.value.selectedTags)
         assertEquals("10", repo.lastQuery?.minPrice)
         assertEquals("50", repo.lastQuery?.maxPrice)
         assertEquals(false, repo.lastQuery?.includeNoPrice)
         assertEquals(true, repo.lastQuery?.includeSold)
         assertEquals(false, repo.lastQuery?.includeExpired)
-        assertEquals(listOf(1L, 2L), repo.lastQuery?.tagIds)
+        assertEquals(listOf("教材", "考研"), repo.lastQuery?.tagNames)
     }
 
     @Test
@@ -238,7 +238,7 @@ class ListingListViewModelTest {
     fun `blank price filters map to null in query`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = publicVm(repo)
-        vm.applyFilter(FilterState(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTagIds = emptyList()))
+        vm.applyFilter(FilterState(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTags = emptyList()))
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(repo.lastQuery?.minPrice)
         assertNull(repo.lastQuery?.maxPrice)
@@ -248,7 +248,7 @@ class ListingListViewModelTest {
     fun `public clearFilter resets filter state and reloads with defaults`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = publicVm(repo)
-        vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L)))
+        vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTags = listOf("教材")))
         dispatcher.scheduler.advanceUntilIdle()
         vm.clearFilter()
         dispatcher.scheduler.advanceUntilIdle()
@@ -256,7 +256,7 @@ class ListingListViewModelTest {
         assertEquals("", vm.state.value.maxPrice)
         assertTrue(vm.state.value.includeNoPrice)
         assertEquals(false, vm.state.value.includeSold)
-        assertTrue(vm.state.value.selectedTagIds.isEmpty())
+        assertTrue(vm.state.value.selectedTags.isEmpty())
         assertNull(repo.lastQuery?.minPrice)
         assertEquals(true, repo.lastQuery?.includeNoPrice)
         assertEquals(false, repo.lastQuery?.includeSold)
@@ -375,12 +375,12 @@ class ListingListViewModelTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
         val vm = mineVm(repo)
         vm.setType(ListingType.SELL)
-        vm.applyFilter(FilterState(includeSold = false, includeExpired = false, selectedTagIds = listOf(3L)))
+        vm.applyFilter(FilterState(includeSold = false, includeExpired = false, selectedTags = listOf("二手")))
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(false, vm.state.value.includeExpired)
         assertEquals(false, repo.lastMyQuery?.includeSold)
         assertEquals(false, repo.lastMyQuery?.includeExpired)
-        assertEquals(listOf(3L), repo.lastMyQuery?.tagIds)
+        assertEquals(listOf("二手"), repo.lastMyQuery?.tagNames)
     }
 
     @Test

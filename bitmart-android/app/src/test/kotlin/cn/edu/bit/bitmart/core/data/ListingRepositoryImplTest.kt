@@ -31,7 +31,7 @@ class ListingRepositoryImplTest {
         val repo = ListingRepositoryImpl(api)
 
         val result = repo.list(
-            ListingQuery(type = ListingType.SELL, text = "代数", minPrice = "10", includeSold = true, includeExpired = true),
+            ListingQuery(type = ListingType.SELL, text = "代数", tagNames = listOf("教材", "考研"), minPrice = "10", includeSold = true, includeExpired = true),
         )
 
         assertTrue(result is DomainResult.Success)
@@ -42,6 +42,7 @@ class ListingRepositoryImplTest {
         val params = captured!!.url.parameters
         assertEquals("SELL", params["type"])
         assertEquals("代数", params["q"])
+        assertEquals("教材,考研", params["tags"])
         assertEquals("10", params["minPrice"])
         assertEquals("true", params["includeSold"])
         assertEquals("true", params["includeExpired"])

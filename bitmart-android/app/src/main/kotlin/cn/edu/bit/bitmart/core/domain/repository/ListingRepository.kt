@@ -13,7 +13,7 @@ data class ListingQuery(
     val type: ListingType,
     val category: String? = null,
     val text: String? = null,
-    val tagIds: List<Long> = emptyList(),
+    val tagNames: List<String> = emptyList(),
     val minPrice: String? = null,
     val maxPrice: String? = null,
     val includeNoPrice: Boolean = true,

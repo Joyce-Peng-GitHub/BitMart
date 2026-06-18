@@ -8,6 +8,7 @@ import cn.edu.bit.bitmart.auth.VerifyRequest
 import cn.edu.bit.bitmart.auth.VerifyResponse
 import cn.edu.bit.bitmart.configureApp
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
@@ -405,6 +406,38 @@ class ListingRoutesTest : FunSpec({
             }
             resp.status shouldBe HttpStatusCode.Created
             resp.body<BatchCreatedResponse>().ids.size shouldBe 2
+        }
+    }
+
+    test("按标签名过滤：仅返回含该标签的项；未用过的名匹配为空；名归一化大小写不敏感") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "标签过滤教材项", tags = listOf("教材")))
+            }.status shouldBe HttpStatusCode.Created
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "标签过滤小说项", tags = listOf("小说")))
+            }.status shouldBe HttpStatusCode.Created
+            // 大小写归一化验证项：发布 "ABC" 存为 "abc"。
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "标签过滤大小写项", tags = listOf("ABC")))
+            }.status shouldBe HttpStatusCode.Created
+
+            // 按 "教材" 过滤：含教材项，不含小说项。
+            val byJiaocai = client.get("/api/v1/listings?type=SELL&tags=教材").body<ListingPageDto>()
+            byJiaocai.items.map { it.title } shouldContain "标签过滤教材项"
+            (byJiaocai.items.none { it.title == "标签过滤小说项" }) shouldBe true
+
+            // 从未发布过的标签名匹配为空。
+            val byUnknown = client.get("/api/v1/listings?type=SELL&tags=不存在的标签").body<ListingPageDto>()
+            byUnknown.items.shouldBeEmpty()
+
+            // 大小写不敏感：以 "ABC" 过滤命中存为 "abc" 的项。
+            val byAbc = client.get("/api/v1/listings?type=SELL&tags=ABC").body<ListingPageDto>()
+            byAbc.items.map { it.title } shouldContain "标签过滤大小写项"
         }
     }
 

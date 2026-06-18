@@ -195,7 +195,7 @@ fun ListingFeedScreen(
                 maxPrice = state.maxPrice,
                 includeNoPrice = state.includeNoPrice,
                 includeSold = state.includeSold,
-                selectedTagIds = state.selectedTagIds,
+                selectedTags = state.selectedTags,
             ),
             loadTags = { viewModel.loadPopularTags() },
             onDismiss = { showFilter = false },

@@ -7,6 +7,7 @@ import cn.edu.bit.bitmart.domain.ListingCategory
 import cn.edu.bit.bitmart.domain.ListingCursor
 import cn.edu.bit.bitmart.domain.ListingFilter
 import cn.edu.bit.bitmart.domain.ListingType
+import cn.edu.bit.bitmart.domain.TagNormalizer
 import cn.edu.bit.bitmart.domain.UserRole
 import cn.edu.bit.bitmart.domain.ValidationError
 import cn.edu.bit.bitmart.shared.ApiError
@@ -209,7 +210,7 @@ private fun ApplicationCall.parseListingFilter(
     val q = request.queryParameters
     val type = q["type"]?.let { raw -> ListingType.entries.firstOrNull { it.name.equals(raw, true) } } ?: defaultType
     val category = q["category"]?.let { raw -> ListingCategory.entries.firstOrNull { it.name.equals(raw, true) } }
-    val tagIds = q["tagIds"]?.split(",")?.mapNotNull { it.trim().toLongOrNull() } ?: emptyList()
+    val tagNames = q["tags"]?.split(",")?.let { TagNormalizer.normalizeDistinct(it) } ?: emptyList()
     val minPrice = q["minPrice"]?.toBigDecimalOrNull()
     val maxPrice = q["maxPrice"]?.toBigDecimalOrNull()
     val includeNoPrice = q["includeNoPrice"]?.toBooleanStrictOrNull() ?: true
@@ -218,7 +219,7 @@ private fun ApplicationCall.parseListingFilter(
     val limit = (q["limit"]?.toIntOrNull() ?: pagination.defaultPageSize).coerceIn(1, pagination.maxPageSize)
     val cursor = q["cursor"]?.let { parseCursor(it) ?: return null }
     return ListingFilter(
-        type = type, category = category, query = q["q"], tagIds = tagIds,
+        type = type, category = category, query = q["q"], tagNames = tagNames,
         minPrice = minPrice, maxPrice = maxPrice, includeNoPrice = includeNoPrice,
         includeSold = includeSold, includeExpired = includeExpired, cursor = cursor, limit = limit,
     )

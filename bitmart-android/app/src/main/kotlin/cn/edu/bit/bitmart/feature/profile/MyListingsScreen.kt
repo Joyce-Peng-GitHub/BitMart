@@ -206,7 +206,7 @@ fun MyListingsScreen(
                 includeNoPrice = state.includeNoPrice,
                 includeSold = state.includeSold,
                 includeExpired = state.includeExpired,
-                selectedTagIds = state.selectedTagIds,
+                selectedTags = state.selectedTags,
             ),
             loadTags = { viewModel.loadPopularTags() },
             onDismiss = { showFilter = false },

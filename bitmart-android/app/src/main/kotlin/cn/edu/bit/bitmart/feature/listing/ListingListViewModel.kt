@@ -55,7 +55,7 @@ data class ListingListUiState(
     val includeSold: Boolean = false,
     /** 仅 MINE 有意义：是否含过期项（公开列表恒不含，忽略此字段）。 */
     val includeExpired: Boolean = false,
-    val selectedTagIds: List<Long> = emptyList(),
+    val selectedTags: List<String> = emptyList(),
 )
 
 /**
@@ -179,7 +179,7 @@ class ListingListViewModel @AssistedInject constructor(
                 includeNoPrice = filter.includeNoPrice,
                 includeSold = filter.includeSold,
                 includeExpired = if (scope == ListingScope.MINE) filter.includeExpired else false,
-                selectedTagIds = filter.selectedTagIds,
+                selectedTags = filter.selectedTags,
             )
         }
         refresh()
@@ -194,7 +194,7 @@ class ListingListViewModel @AssistedInject constructor(
                 includeNoPrice = true,
                 includeSold = defaultSold,
                 includeExpired = defaultExpired,
-                selectedTagIds = emptyList(),
+                selectedTags = emptyList(),
             )
         }
         refresh()
@@ -259,7 +259,7 @@ class ListingListViewModel @AssistedInject constructor(
         includeSold = includeSold,
         // 公开列表恒不含过期项（后端亦强制）；"我的列表"采纳状态。
         includeExpired = scope == ListingScope.MINE && includeExpired,
-        tagIds = selectedTagIds,
+        tagNames = selectedTags,
         cursor = cursor,
     )
 

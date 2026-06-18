@@ -242,10 +242,10 @@ class ListingRepository {
         } else if (!filter.includeNoPrice) {
             sql.append("\n  AND l.unit_price IS NOT NULL")
         }
-        if (filter.tagIds.isNotEmpty()) {
-            val placeholders = filter.tagIds.joinToString(",") { "?" }
-            sql.append("\n  AND EXISTS (SELECT 1 FROM listing_tag lt WHERE lt.listing_id = l.id AND lt.tag_id IN ($placeholders))")
-            filter.tagIds.forEach { params += longType to it }
+        if (filter.tagNames.isNotEmpty()) {
+            val placeholders = filter.tagNames.joinToString(",") { "?" }
+            sql.append("\n  AND EXISTS (SELECT 1 FROM listing_tag lt JOIN tag t ON t.id = lt.tag_id WHERE lt.listing_id = l.id AND t.name IN ($placeholders))")
+            filter.tagNames.forEach { params += textType to it }
         }
         if (!filter.query.isNullOrBlank()) {
             sql.append(
