@@ -562,9 +562,12 @@ private fun PublishFormColumn(
 
         // 标签（热门 + 自定义）。
         FormSection("标签（最多${PublishConfig.MAX_TAGS}个）") {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.popularTags.forEach { tag ->
-                    FilterChip(tag in draft.tags, { viewModel.toggleTag(tag) }, { Text(tag) })
+            if (state.popularTags.isNotEmpty()) {
+                Text("热门标签", style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.popularTags.forEach { tag ->
+                        FilterChip(tag in draft.tags, { viewModel.toggleTag(tag) }, { Text(tag) })
+                    }
                 }
             }
             var customTagInput by remember { mutableStateOf("") }
@@ -961,6 +964,7 @@ private fun RecognitionBatchDialog(
                 // 标签：与发布页一致——热门标签可点选，自定义标签输入后"添加"，已选标签点击移除。
                 Text("标签（最多${PublishConfig.MAX_TAGS}个）", style = MaterialTheme.typography.titleSmall)
                 if (popularTags.isNotEmpty()) {
+                    Text("热门标签", style = MaterialTheme.typography.labelMedium)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         popularTags.forEach { tag ->
                             FilterChip(

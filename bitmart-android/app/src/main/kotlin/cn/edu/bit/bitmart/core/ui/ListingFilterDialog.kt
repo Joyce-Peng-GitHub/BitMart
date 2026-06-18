@@ -121,7 +121,7 @@ fun ListingFilterDialog(
 
                 if (popularTags.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text("标签", style = MaterialTheme.typography.labelMedium)
+                    Text("热门标签", style = MaterialTheme.typography.labelMedium)
                     FlowRow(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
