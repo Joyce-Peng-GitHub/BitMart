@@ -1,6 +1,6 @@
 ## Mandatory Workflow: impl-test-review Loop
 
-For every request that involves adding or modifying anything in the project (code, docs, config, etc.), you MUST execute the following loop via sub-agents before reporting back. Do NOT skip or short-circuit any phase.
+For every request that involves adding or modifying anything in the project (code, docs, config, etc.), you MUST execute the following loop via **SUB-AGENTS** before reporting back. Do NOT skip or short-circuit any phase.
 
 ---
 
