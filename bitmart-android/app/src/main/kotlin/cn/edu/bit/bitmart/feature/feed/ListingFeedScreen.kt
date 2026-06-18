@@ -43,6 +43,8 @@ import cn.edu.bit.bitmart.core.ui.ListingCard
 import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.OwnedListingRow
 import cn.edu.bit.bitmart.core.ui.SearchDialog
+import cn.edu.bit.bitmart.feature.listing.ListingListViewModel
+import cn.edu.bit.bitmart.feature.listing.ListingScope
 
 /** 触底预取距离：最后可见项进入列表末尾该数量内即加载下一页。 */
 private const val FEED_LOAD_MORE_PREFETCH = 2
@@ -64,7 +66,10 @@ fun ListingFeedScreen(
     onEditClick: (Long) -> Unit = {},
     refreshSignal: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
-    viewModel: ListingFeedViewModel = hiltViewModel(),
+    viewModel: ListingListViewModel = hiltViewModel(
+        key = "listing_${ListingScope.PUBLIC.name}",
+        creationCallback = { factory: ListingListViewModel.Factory -> factory.create(ListingScope.PUBLIC) },
+    ),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showFilter by remember { mutableStateOf(false) }

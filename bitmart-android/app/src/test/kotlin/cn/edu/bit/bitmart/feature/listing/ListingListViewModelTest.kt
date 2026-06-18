@@ -1,9 +1,9 @@
-package cn.edu.bit.bitmart.feature.feed
+package cn.edu.bit.bitmart.feature.listing
 
 import cn.edu.bit.bitmart.core.domain.DomainResult
+import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingPage
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
-import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.NotificationPage
 import cn.edu.bit.bitmart.core.domain.model.User
@@ -11,6 +11,8 @@ import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
+import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
 import cn.edu.bit.bitmart.core.ui.FilterState
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +29,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-class ListingFeedViewModelTest {
+/**
+ * 统一列表 ViewModel 测试，覆盖两种来源（[ListingScope.PUBLIC] 公开买卖列表 /
+ * [ListingScope.MINE] 我的商品/收购）。两者共用大部分逻辑，差异路径单独断言。
+ */
+class ListingListViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     @Before fun setup() = Dispatchers.setMain(dispatcher)
@@ -39,32 +45,41 @@ class ListingFeedViewModelTest {
 
     private fun user(id: Long) = User(id, "212$id", "昵称$id", "昵称$id", "USER")
 
-    /** 记录最近一次查询/更新/删除并按脚本返回页。listResult 非空时 list() 改为返回它（用于测错误路径）。 */
+    /**
+     * 记录公开/本人查询与 update/delete 调用并按脚本返回页。
+     * listResult 非空时 list() 改为返回它（测公开列表错误路径）；myResult 同理用于本人列表。
+     */
     private class FakeRepo(
         val pages: List<ListingPage>,
         val listResult: DomainResult<ListingPage>? = null,
+        val myResult: DomainResult<ListingPage>? = null,
         val updateResult: DomainResult<Unit> = DomainResult.Success(Unit),
         val deleteResult: DomainResult<Unit> = DomainResult.Success(Unit),
     ) : ListingRepository {
         var lastQuery: ListingQuery? = null
+        var lastMyQuery: ListingQuery? = null
         var lastUpdate: Pair<Long, UpdateDraft>? = null
         var deletedId: Long? = null
         private var call = 0
+        private var myCall = 0
         override suspend fun list(query: ListingQuery): DomainResult<ListingPage> {
             lastQuery = query
             return listResult ?: DomainResult.Success(pages[call++.coerceAtMost(pages.size - 1)])
         }
-        override suspend fun myListings(query: ListingQuery) = DomainResult.Success(ListingPage(emptyList(), null))
+        override suspend fun myListings(query: ListingQuery): DomainResult<ListingPage> {
+            lastMyQuery = query
+            return myResult ?: DomainResult.Success(pages[myCall++.coerceAtMost(pages.size - 1)])
+        }
         override suspend fun detail(id: Long) = DomainResult.Failure("X", "n/a", 404)
-        override suspend fun publish(draft: cn.edu.bit.bitmart.core.domain.repository.PublishDraft) = DomainResult.Success(1L)
-        override suspend fun publishBatch(drafts: List<cn.edu.bit.bitmart.core.domain.repository.PublishDraft>) = DomainResult.Success(listOf(1L))
+        override suspend fun publish(draft: PublishDraft) = DomainResult.Success(1L)
+        override suspend fun publishBatch(drafts: List<PublishDraft>) = DomainResult.Success(listOf(1L))
         override suspend fun uploadImage(bytes: ByteArray, filename: String) = DomainResult.Success("blob-key")
         override suspend fun lookupBook(isbn: String) = DomainResult.Success(null)
         override suspend fun update(id: Long, update: UpdateDraft): DomainResult<Unit> {
             lastUpdate = id to update; return updateResult
         }
         override suspend fun delete(id: Long): DomainResult<Unit> { deletedId = id; return deleteResult }
-        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<cn.edu.bit.bitmart.core.domain.repository.TagInfo>())
+        override suspend fun popularTags(limit: Int) = DomainResult.Success(emptyList<TagInfo>())
     }
 
     private class FakeProfileRepo(private val me: User?) : ProfileRepository {
@@ -88,14 +103,20 @@ class ListingFeedViewModelTest {
         override suspend fun deleteAccount() = DomainResult.Success(Unit)
     }
 
-    /** 构造 VM。默认未登录（currentUserId 解析为 null）。 */
-    private fun feedVm(repo: ListingRepository, me: User? = null, loggedIn: Boolean = false) =
-        ListingFeedViewModel(repo, FakeProfileRepo(me), FakeAuthRepo(loggedIn, me))
+    /** 构造公开列表 VM。默认未登录（currentUserId 解析为 null）。 */
+    private fun publicVm(repo: ListingRepository, me: User? = null, loggedIn: Boolean = false) =
+        ListingListViewModel(repo, FakeProfileRepo(me), FakeAuthRepo(loggedIn, me), ListingScope.PUBLIC)
+
+    /** 构造"我的列表" VM。MINE 不解析本人 id，profile/auth 仅占位。 */
+    private fun mineVm(repo: ListingRepository) =
+        ListingListViewModel(repo, FakeProfileRepo(null), FakeAuthRepo(loggedIn = true), ListingScope.MINE)
+
+    // —— 公开列表（PUBLIC） ——
 
     @Test
-    fun `refresh loads first page`() = runTest {
+    fun `public refresh loads first page`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(listOf(summary(1), summary(2)), nextCursor = "c1")))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.refresh()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(2, vm.state.value.items.size)
@@ -103,12 +124,12 @@ class ListingFeedViewModelTest {
     }
 
     @Test
-    fun `loadMore appends next page and uses cursor`() = runTest {
+    fun `public loadMore appends next page and uses cursor`() = runTest {
         val repo = FakeRepo(listOf(
             ListingPage(listOf(summary(1)), nextCursor = "c1"),
             ListingPage(listOf(summary(2)), nextCursor = null),
         ))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         vm.loadMore(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(2, vm.state.value.items.size)
@@ -119,30 +140,24 @@ class ListingFeedViewModelTest {
     @Test
     fun `consumeError clears error so the same error can fire again`() = runTest {
         val repo = FakeRepo(emptyList(), listResult = DomainResult.NetworkError("断网"))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals("网络异常：断网", vm.state.value.error)
-
-        // UI 以 Toast 展示后消费置空。
         vm.consumeError()
         assertNull(vm.state.value.error)
-
-        // 相同错误可再次置位（从而再次弹 Toast）。
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals("网络异常：断网", vm.state.value.error)
     }
 
     @Test
-    fun `pull refresh reloads first page and clears refreshing`() = runTest {
+    fun `public pull refresh reloads first page and clears refreshing`() = runTest {
         val repo = FakeRepo(listOf(
             ListingPage(listOf(summary(1)), nextCursor = null),
             ListingPage(listOf(summary(2), summary(3)), nextCursor = null),
         ))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vm.state.value.items.size)
-
-        // 下拉刷新（showSpinner=false）：重新拉首屏，结束后 refreshing/loading 均为 false。
         vm.refresh(showSpinner = false); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(2, vm.state.value.items.size)
         assertEquals(false, vm.state.value.refreshing)
@@ -152,7 +167,7 @@ class ListingFeedViewModelTest {
     @Test
     fun `applySearch sets trimmed query and refreshes`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.applySearch("  线性代数  ")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals("线性代数", vm.state.value.query)
@@ -162,19 +177,18 @@ class ListingFeedViewModelTest {
     @Test
     fun `applySearch with blank clears the text filter`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.applySearch("书"); dispatcher.scheduler.advanceUntilIdle()
         assertEquals("书", repo.lastQuery?.text)
-        // 清空：空串 → toQuery 用 null（无文字筛选）。
         vm.applySearch("   "); dispatcher.scheduler.advanceUntilIdle()
         assertEquals("", vm.state.value.query)
         assertNull(repo.lastQuery?.text)
     }
 
     @Test
-    fun `setType switches type and reloads`() = runTest {
+    fun `public setType switches type and reloads`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.setType(ListingType.BUY)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(ListingType.BUY, vm.state.value.type)
@@ -182,9 +196,20 @@ class ListingFeedViewModelTest {
     }
 
     @Test
+    fun `public setType reloads even for same type (shared across tabs)`() = runTest {
+        // PUBLIC 买/卖共用一个实例：即便类型相同也重新加载（与 MINE 的跳过行为相反）。
+        val repo = FakeRepo(listOf(ListingPage(listOf(summary(1)), null)))
+        val vm = publicVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        repo.lastQuery = null
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(ListingType.SELL, repo.lastQuery?.type)
+    }
+
+    @Test
     fun `applyFilter wires price and flags into query and refreshes`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L, 2L)))
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals("10", vm.state.value.minPrice)
@@ -196,16 +221,14 @@ class ListingFeedViewModelTest {
         assertEquals("50", repo.lastQuery?.maxPrice)
         assertEquals(false, repo.lastQuery?.includeNoPrice)
         assertEquals(true, repo.lastQuery?.includeSold)
-        // 公开列表恒不含过期项。
         assertEquals(false, repo.lastQuery?.includeExpired)
         assertEquals(listOf(1L, 2L), repo.lastQuery?.tagIds)
     }
 
     @Test
-    fun `applyFilter never includes expired even if FilterState says so`() = runTest {
+    fun `public applyFilter never includes expired even if FilterState says so`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
-        val vm = feedVm(repo)
-        // 即便 FilterState.includeExpired=true（公开页弹窗本不展示该开关），查询也不应包含过期项。
+        val vm = publicVm(repo)
         vm.applyFilter(FilterState(includeExpired = true))
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(false, repo.lastQuery?.includeExpired)
@@ -214,7 +237,7 @@ class ListingFeedViewModelTest {
     @Test
     fun `blank price filters map to null in query`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.applyFilter(FilterState(minPrice = "  ", maxPrice = "", includeNoPrice = true, includeSold = false, selectedTagIds = emptyList()))
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(repo.lastQuery?.minPrice)
@@ -222,9 +245,9 @@ class ListingFeedViewModelTest {
     }
 
     @Test
-    fun `clearFilter resets filter state and reloads with defaults`() = runTest {
+    fun `public clearFilter resets filter state and reloads with defaults`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
-        val vm = feedVm(repo)
+        val vm = publicVm(repo)
         vm.applyFilter(FilterState(minPrice = "10", maxPrice = "50", includeNoPrice = false, includeSold = true, selectedTagIds = listOf(1L)))
         dispatcher.scheduler.advanceUntilIdle()
         vm.clearFilter()
@@ -239,12 +262,12 @@ class ListingFeedViewModelTest {
         assertEquals(false, repo.lastQuery?.includeSold)
     }
 
-    // —— 本人项识别与左滑操作 ——
+    // —— 本人项识别与左滑操作（PUBLIC） ——
 
     @Test
     fun `currentUserId resolves from getMe when logged in`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(listOf(summary(1, ownerId = 7)), null)))
-        val vm = feedVm(repo, me = user(7), loggedIn = true)
+        val vm = publicVm(repo, me = user(7), loggedIn = true)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(7L, vm.state.value.currentUserId)
     }
@@ -252,15 +275,13 @@ class ListingFeedViewModelTest {
     @Test
     fun `currentUserId stays null when logged out`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(listOf(summary(1, ownerId = 7)), null)))
-        // 未登录：即便有用户也不解析（isLoggedIn=false）。
-        val vm = feedVm(repo, me = user(7), loggedIn = false)
+        val vm = publicVm(repo, me = user(7), loggedIn = false)
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(vm.state.value.currentUserId)
     }
 
     @Test
     fun `currentUserId resolves on a later refresh after an initial getMe failure`() = runTest {
-        // 首启 getMe 失败一次（模拟离线），之后成功；联网后下拉刷新应补解析本人 id。
         val profile = object : ProfileRepository {
             var calls = 0
             override suspend fun getMe(): DomainResult<User> =
@@ -271,19 +292,17 @@ class ListingFeedViewModelTest {
             override suspend fun unreadNotificationCount() = DomainResult.Success(0)
         }
         val repo = FakeRepo(listOf(ListingPage(listOf(summary(1, ownerId = 9)), null)))
-        val vm = ListingFeedViewModel(repo, profile, FakeAuthRepo(loggedIn = true, me = user(9)))
+        val vm = ListingListViewModel(repo, profile, FakeAuthRepo(loggedIn = true, me = user(9)), ListingScope.PUBLIC)
         dispatcher.scheduler.advanceUntilIdle()
-        // init 的首次 getMe 失败 → 仍为 null。
         assertNull(vm.state.value.currentUserId)
-        // 再次 refresh（如联网后下拉）→ 补解析成功。
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(9L, vm.state.value.currentUserId)
     }
 
     @Test
-    fun `delete removes own item locally and calls repo`() = runTest {
+    fun `public delete removes own item locally and calls repo`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(listOf(summary(1, ownerId = 7), summary(2, ownerId = 7)), null)))
-        val vm = feedVm(repo, me = user(7), loggedIn = true)
+        val vm = publicVm(repo, me = user(7), loggedIn = true)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         vm.delete(1); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1L, repo.deletedId)
@@ -291,9 +310,9 @@ class ListingFeedViewModelTest {
     }
 
     @Test
-    fun `adjustSold updates own item locally and calls repo`() = runTest {
+    fun `public adjustSold updates own item locally and calls repo`() = runTest {
         val repo = FakeRepo(listOf(ListingPage(listOf(summary(1, ownerId = 7, total = 5, sold = 0)), null)))
-        val vm = feedVm(repo, me = user(7), loggedIn = true)
+        val vm = publicVm(repo, me = user(7), loggedIn = true)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         vm.adjustSold(1, 3); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1L, repo.lastUpdate?.first)
@@ -303,15 +322,184 @@ class ListingFeedViewModelTest {
     }
 
     @Test
-    fun `delete failure surfaces error and keeps item`() = runTest {
+    fun `public delete failure surfaces error and keeps item`() = runTest {
         val repo = FakeRepo(
             listOf(ListingPage(listOf(summary(1, ownerId = 7), summary(2, ownerId = 7)), null)),
             deleteResult = DomainResult.Failure("FORBIDDEN", "无权删除", 403),
         )
-        val vm = feedVm(repo, me = user(7), loggedIn = true)
+        val vm = publicVm(repo, me = user(7), loggedIn = true)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         vm.delete(1); dispatcher.scheduler.advanceUntilIdle()
         assertEquals("删除失败：无权删除", vm.state.value.error)
         assertEquals(listOf(1L, 2L), vm.state.value.items.map { it.id })
+    }
+
+    // —— 我的列表（MINE） ——
+
+    @Test
+    fun `mine setType loads own listings of given type`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(listOf(summary(1), summary(2)), nextCursor = "c1")))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.BUY)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(ListingType.BUY, vm.state.value.type)
+        assertEquals(ListingType.BUY, repo.lastMyQuery?.type)
+        assertEquals(2, vm.state.value.items.size)
+        assertEquals("c1", vm.state.value.nextCursor)
+    }
+
+    @Test
+    fun `mine defaults to including sold and expired`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, repo.lastMyQuery?.includeSold)
+        assertEquals(true, repo.lastMyQuery?.includeExpired)
+    }
+
+    @Test
+    fun `mine setType skips reload for same type when already loaded`() = runTest {
+        // MINE 为分离入口、各自独立实例：同类型且已有数据时不重复加载首屏。
+        val repo = FakeRepo(listOf(ListingPage(listOf(summary(1)), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.items.size)
+        repo.lastMyQuery = null
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(repo.lastMyQuery)
+    }
+
+    @Test
+    fun `mine applyFilter can hide expired and sold`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL)
+        vm.applyFilter(FilterState(includeSold = false, includeExpired = false, selectedTagIds = listOf(3L)))
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.state.value.includeExpired)
+        assertEquals(false, repo.lastMyQuery?.includeSold)
+        assertEquals(false, repo.lastMyQuery?.includeExpired)
+        assertEquals(listOf(3L), repo.lastMyQuery?.tagIds)
+    }
+
+    @Test
+    fun `mine clearFilter restores owner defaults (sold and expired on)`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL)
+        vm.applyFilter(FilterState(includeSold = false, includeExpired = false))
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.clearFilter()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.state.value.includeSold)
+        assertEquals(true, vm.state.value.includeExpired)
+        assertEquals(true, repo.lastMyQuery?.includeSold)
+        assertEquals(true, repo.lastMyQuery?.includeExpired)
+    }
+
+    @Test
+    fun `mine loadMore appends next page using cursor`() = runTest {
+        val repo = FakeRepo(listOf(
+            ListingPage(listOf(summary(1)), nextCursor = "c1"),
+            ListingPage(listOf(summary(2)), nextCursor = null),
+        ))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        vm.loadMore(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, vm.state.value.items.size)
+        assertEquals("c1", repo.lastMyQuery?.cursor)
+        assertTrue(vm.state.value.endReached)
+    }
+
+    @Test
+    fun `mine empty result yields no items and endReached`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.items.isEmpty())
+        assertTrue(vm.state.value.endReached)
+        assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `mine adjustSold failure surfaces error and keeps item unchanged`() = runTest {
+        val repo = FakeRepo(
+            listOf(ListingPage(listOf(summary(1, total = 5, sold = 3)), null)),
+            updateResult = DomainResult.Failure("CONFLICT", "售出数量冲突，请刷新后重试", 409),
+        )
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        vm.adjustSold(1, 1); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("调整失败：售出数量冲突，请刷新后重试", vm.state.value.error)
+        assertNull(vm.state.value.adjustingId)
+        assertEquals(3, vm.state.value.items.first { it.id == 1L }.quantitySold)
+    }
+
+    @Test
+    fun `mine refresh maps 401 to a login prompt`() = runTest {
+        // 我的列表需登录：401 给出明确引导文案（公开列表无此分支）。
+        val repo = FakeRepo(emptyList(), myResult = DomainResult.Failure("UNAUTH", "未登录", 401))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("请登录后查看", vm.state.value.error)
+    }
+
+    @Test
+    fun `mine does not resolve currentUserId`() = runTest {
+        // MINE 全为本人项，不解析本人 id（currentUserId 恒为 null）。
+        val repo = FakeRepo(listOf(ListingPage(listOf(summary(1)), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.state.value.currentUserId)
+    }
+
+    @Test
+    fun `mine pull refresh reloads first page and clears refreshing`() = runTest {
+        val repo = FakeRepo(listOf(
+            ListingPage(listOf(summary(1)), nextCursor = null),
+            ListingPage(listOf(summary(2), summary(3)), nextCursor = null),
+        ))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.items.size)
+        vm.refresh(showSpinner = false); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, vm.state.value.items.size)
+        assertEquals(false, vm.state.value.refreshing)
+        assertEquals(false, vm.state.value.loading)
+    }
+
+    @Test
+    fun `mine delete removes item from list`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(listOf(summary(1), summary(2)), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        vm.delete(1); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1L, repo.deletedId)
+        assertEquals(listOf(2L), vm.state.value.items.map { it.id })
+    }
+
+    @Test
+    fun `mine applySearch routes to myListings with trimmed text`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        vm.applySearch("  高数  ")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("高数", vm.state.value.query)
+        assertEquals("高数", repo.lastMyQuery?.text)
+        assertNull(repo.lastQuery?.text) // 不应走公开 list()
+    }
+
+    @Test
+    fun `mine applySearch blank clears text and routes to myListings`() = runTest {
+        val repo = FakeRepo(listOf(ListingPage(emptyList(), null)))
+        val vm = mineVm(repo)
+        vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
+        vm.applySearch("书"); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("书", repo.lastMyQuery?.text)
+        vm.applySearch("   "); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals("", vm.state.value.query)
+        assertNull(repo.lastMyQuery?.text)
     }
 }

@@ -46,6 +46,8 @@ import cn.edu.bit.bitmart.core.ui.FilterState
 import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.OwnedListingRow
 import cn.edu.bit.bitmart.core.ui.SearchDialog
+import cn.edu.bit.bitmart.feature.listing.ListingListViewModel
+import cn.edu.bit.bitmart.feature.listing.ListingScope
 
 /** 触底预取距离：最后可见项进入列表末尾该数量内即加载下一页。 */
 private const val MY_LISTINGS_LOAD_MORE_PREFETCH = 2
@@ -72,7 +74,10 @@ fun MyListingsScreen(
     onBack: () -> Unit,
     refreshSignal: Boolean = false,
     onRefreshConsumed: () -> Unit = {},
-    viewModel: MyListingsViewModel = hiltViewModel(),
+    viewModel: ListingListViewModel = hiltViewModel(
+        key = "listing_${ListingScope.MINE.name}",
+        creationCallback = { factory: ListingListViewModel.Factory -> factory.create(ListingScope.MINE) },
+    ),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()

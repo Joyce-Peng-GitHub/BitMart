@@ -12,12 +12,13 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.feature.feed.ListingFeedScreen
-import cn.edu.bit.bitmart.feature.feed.ListingFeedViewModel
+import cn.edu.bit.bitmart.feature.listing.ListingListViewModel
+import cn.edu.bit.bitmart.feature.listing.ListingScope
 
 /**
  * “买卖”页：顶部 “商品”/“收购” 两个 tab，界面基本相同，复用 [ListingFeedScreen]。
  * 两 tab 分别对应 [ListingType.SELL]（商品）与 [ListingType.BUY]（收购），
- * 切换 tab 时驱动 [ListingFeedViewModel.setType]。共享同一 ViewModel 使 tab 与列表类型保持一致。
+ * 切换 tab 时驱动 [ListingListViewModel.setType]。共享同一 ViewModel 使 tab 与列表类型保持一致。
  *
  * @param onEditClick 在列表中左滑“编辑”本人项时进入编辑页。
  * @param listingChanged 本人项编辑返回后置 true，向下透传触发列表刷新。
@@ -30,7 +31,10 @@ fun TradeScreen(
     onEditClick: (Long) -> Unit = {},
     listingChanged: Boolean = false,
     onListingChangeConsumed: () -> Unit = {},
-    viewModel: ListingFeedViewModel = hiltViewModel(),
+    viewModel: ListingListViewModel = hiltViewModel(
+        key = "listing_${ListingScope.PUBLIC.name}",
+        creationCallback = { factory: ListingListViewModel.Factory -> factory.create(ListingScope.PUBLIC) },
+    ),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selectedIndex = if (state.type == ListingType.BUY) 1 else 0
