@@ -306,7 +306,7 @@ class PublishViewModel @Inject constructor(
     /**
      * 识别后批量填充：把对话框中填写的公共字段统一应用到刚识别出的末尾 [recognizedCount] 条草稿。
      * - 仅非空字段覆盖各项原值（留空表示该字段保持识别结果不变）；填了有效天数则同时切到"按天"模式。
-     * - 标签做并集，用户统一填写的标签排在 LLM 标签之前；去重并限长 [PublishConfig.MAX_TAGS]（超出时优先舍弃 LLM 标签）。
+     * - 标签同样覆盖：用户统一填写标签时丢弃各项 LLM 标签，仅用统一标签（去重并限长 [PublishConfig.MAX_TAGS]）；留空则各项保留 LLM 标签。
      * - [attachImage] 为真时上传该识别图并附到这些草稿（每项不超过 [PublishConfig.MAX_IMAGES] 张）。
      * 应用后清空待确认状态（关闭对话框）。
      */
@@ -331,7 +331,7 @@ class PublishViewModel @Inject constructor(
                     expiryMode = if (expiresInDays.isNotBlank()) ExpiryMode.DAYS else d.expiryMode,
                     pickupLocation = pickupLocation.ifBlank { d.pickupLocation },
                     contact = contact.ifBlank { d.contact },
-                    tags = if (tags.isEmpty()) d.tags else (tags + d.tags).distinct().take(PublishConfig.MAX_TAGS),
+                    tags = if (tags.isEmpty()) d.tags else tags.distinct().take(PublishConfig.MAX_TAGS),
                 )
             }
             st.copy(draftBatch = updated, pendingRecognitionImage = null)

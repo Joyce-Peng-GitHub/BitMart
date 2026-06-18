@@ -516,7 +516,7 @@ class PublishViewModelTest {
     }
 
     @Test
-    fun `applyToRecognized fills common fields on every recognized draft, union-merging tags`() = runTest {
+    fun `applyToRecognized fills common fields on every recognized draft, overriding tags`() = runTest {
         val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
         val repo = FakeRepo(uploadResult = DomainResult.Success("blob-xyz"))
         val llm = FakeLlmClient(DomainResult.Success(listOf(
@@ -543,8 +543,8 @@ class PublishViewModelTest {
         assertEquals("三号楼", b[0].pickupLocation); assertEquals("wxid_x", b[1].contact)
         // 原价留空 → 各自保留（台灯 20，水杯 空）。
         assertEquals("20", b[0].originalPrice); assertEquals("", b[1].originalPrice)
-        // 标签并集：保留识别出的"家居"，并入统一的"二手"。
-        assertTrue(b[0].tags.containsAll(listOf("家居", "二手"))); assertEquals(listOf("二手"), b[1].tags)
+        // 标签覆盖：丢弃识别出的"家居"，仅用统一填写的"二手"。
+        assertEquals(listOf("二手"), b[0].tags); assertEquals(listOf("二手"), b[1].tags)
         // 勾选附图 → 都带上传得到的 blobKey。
         assertEquals(listOf("blob-xyz"), b[0].imageKeys); assertEquals(listOf("blob-xyz"), b[1].imageKeys)
         assertNull(vm.state.value.pendingRecognitionImage)
@@ -570,7 +570,7 @@ class PublishViewModelTest {
     }
 
     @Test
-    fun `applyToRecognized puts uniform tags before LLM tags, dropping LLM ones over the cap`() = runTest {
+    fun `applyToRecognized overrides LLM tags with uniform tags, discarding all LLM ones`() = runTest {
         val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
         // LLM 已给满上限的标签。
         val llmTags = (1..PublishConfig.MAX_TAGS).map { "llm$it" }
@@ -584,9 +584,26 @@ class PublishViewModelTest {
         vm.applyToRecognized(attachImage = false, tags = listOf("用户A", "用户B")); dispatcher.scheduler.advanceUntilIdle()
 
         val tags = vm.state.value.draftBatch[0].tags
-        assertEquals(PublishConfig.MAX_TAGS, tags.size)         // 仍受上限约束
-        assertEquals("用户A", tags[0]); assertEquals("用户B", tags[1]) // 用户标签优先在前
-        assertFalse(tags.contains("llm${PublishConfig.MAX_TAGS}")) // 末尾的 LLM 标签被舍弃
+        assertEquals(listOf("用户A", "用户B"), tags)               // 仅保留统一标签，全部 LLM 标签被舍弃
+        assertTrue(tags.none { it.startsWith("llm") })
+    }
+
+    @Test
+    fun `applyToRecognized with blank tags keeps each draft's own LLM tags`() = runTest {
+        val store = FakeLlmConfigStore(LlmConfig(baseUrl = "x", apiKey = "y", model = "z"))
+        val llm = FakeLlmClient(DomainResult.Success(listOf(
+            LlmRecognition.General("台灯", "九成新", null, listOf("家居")),
+            LlmRecognition.General("水杯", "全新", null, emptyList()),
+        )))
+        val vm = PublishViewModel(FakeRepo(), llm, store, FakeContactPrefsStore())
+        vm.setCategory(ListingCategory.GENERAL)
+        vm.recognizeWithLlm(byteArrayOf(1)); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.applyToRecognized(attachImage = false, contact = "wxid_x"); dispatcher.scheduler.advanceUntilIdle()
+
+        val b = vm.state.value.draftBatch
+        assertEquals(listOf("家居"), b[0].tags)   // 统一标签留空 → 保留各自 LLM 标签
+        assertEquals(emptyList<String>(), b[1].tags)
     }
 
     @Test
