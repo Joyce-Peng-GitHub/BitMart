@@ -168,4 +168,43 @@ class AuthRoutesTest : FunSpec({
             }.status shouldBe HttpStatusCode.Unauthorized
         }
     }
+
+    test("注销后用同一学号重新注册：返回新用户而非 500") {
+        testApp { client ->
+            val studentId = sid()
+
+            // 1. 验证 → 注册（旧号）
+            val ticket1 = client.post("/api/v1/auth/bit101/verify") {
+                contentType(ContentType.Application.Json)
+                setBody(VerifyRequest(studentId, "pw"))
+            }.body<VerifyResponse>().verifyTicket
+            val token1 = client.post("/api/v1/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody(RegisterRequest(ticket1, studentId, "Secret123", "旧号"))
+            }.body<AuthResponse>().token
+
+            // 2. 注销
+            client.delete("/api/v1/auth/account") { bearerAuth(token1) }.status shouldBe HttpStatusCode.OK
+
+            // 3. 用同一学号重新注册（新号）—— 修复前会因唯一约束冲突抛 500
+            val ticket2 = client.post("/api/v1/auth/bit101/verify") {
+                contentType(ContentType.Application.Json)
+                setBody(VerifyRequest(studentId, "pw"))
+            }.body<VerifyResponse>().verifyTicket
+            val register2 = client.post("/api/v1/auth/register") {
+                contentType(ContentType.Application.Json)
+                setBody(RegisterRequest(ticket2, studentId, "Secret456", "新号"))
+            }
+            register2.status shouldBe HttpStatusCode.OK
+            val auth2 = register2.body<AuthResponse>()
+            auth2.user.studentId shouldBe studentId
+            auth2.user.displayName shouldBe "新号"
+
+            // 4. 用新密码登录成功
+            client.post("/api/v1/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest(studentId, "Secret456"))
+            }.status shouldBe HttpStatusCode.OK
+        }
+    }
 })
