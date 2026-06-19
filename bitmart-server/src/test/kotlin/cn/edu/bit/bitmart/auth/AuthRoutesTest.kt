@@ -95,6 +95,29 @@ class AuthRoutesTest : FunSpec({
         }
     }
 
+    test("弱密码重置 → 400 且带结构化 details") {
+        testApp { client ->
+            val studentId = sid()
+            val ticket = client.post("/api/v1/auth/bit101/verify") {
+                contentType(ContentType.Application.Json)
+                setBody(VerifyRequest(studentId, "pw"))
+            }.body<VerifyResponse>().verifyTicket
+
+            val resp = client.post("/api/v1/auth/reset-password") {
+                contentType(ContentType.Application.Json)
+                setBody(ResetPasswordRequest(ticket, studentId, "weak"))   // 太短且单一字符类
+            }
+            resp.status shouldBe HttpStatusCode.BadRequest
+            val err = resp.body<cn.edu.bit.bitmart.shared.ApiError>()
+            err.error.code shouldBe "VALIDATION_FAILED"
+            val codes = err.error.details.orEmpty().map { it.code }
+            codes shouldContain "PASSWORD_TOO_SHORT"
+            codes shouldContain "PASSWORD_TOO_SIMPLE"
+            val tooSimple = err.error.details.orEmpty().first { it.code == "PASSWORD_TOO_SIMPLE" }
+            tooSimple.params["minCharClasses"] shouldBe "2"
+        }
+    }
+
     test("伪造/过期票注册 → 401") {
         testApp { client ->
             val resp = client.post("/api/v1/auth/register") {
