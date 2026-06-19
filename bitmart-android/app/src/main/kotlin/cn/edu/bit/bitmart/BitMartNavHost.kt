@@ -104,10 +104,13 @@ fun BitMartNavHost(
             )
         }
         composable(Routes.AUTH) {
-            AuthScreen(onAuthenticated = {
-                Log.i(NAV_TAG, "auth: login success")
-                navController.popBackStack(Routes.SHELL, inclusive = false)
-            })
+            AuthScreen(
+                onAuthenticated = {
+                    Log.i(NAV_TAG, "auth: login success")
+                    navController.popBackStack(Routes.SHELL, inclusive = false)
+                },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(
             route = "${Routes.PUBLISH}/{${Routes.PUBLISH_ARG}}",
