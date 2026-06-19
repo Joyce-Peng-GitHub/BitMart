@@ -108,10 +108,11 @@ class AccountSettingsViewModelTest {
         val auth = FakeAuthRepo()
         val vm = AccountSettingsViewModel(auth, profileRepo())
         dispatcher.scheduler.advanceUntilIdle()
-        vm.changePassword("1120201234", "unifiedPwd", "newPwd")
+        vm.changePassword("1120201234", "unifiedPwd", "newPwd", "newPwd")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf("verify", "reset:ticket-1"), auth.calls)
         assertEquals(UiText.Res(R.string.account_msg_password_changed), vm.state.value.message)
+        assertTrue(vm.state.value.passwordChanged)
     }
 
     @Test
@@ -119,7 +120,7 @@ class AccountSettingsViewModelTest {
         val auth = FakeAuthRepo(verifyResult = DomainResult.Failure("UNAUTHORIZED", "认证失败", 401))
         val vm = AccountSettingsViewModel(auth, profileRepo())
         dispatcher.scheduler.advanceUntilIdle()
-        vm.changePassword("1120201234", "wrong", "newPwd")
+        vm.changePassword("1120201234", "wrong", "newPwd", "newPwd")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf("verify"), auth.calls) // 未调用 reset
         assertEquals(UiText.Res(R.string.error_unauthorized), vm.state.value.error)
@@ -130,10 +131,21 @@ class AccountSettingsViewModelTest {
         val auth = FakeAuthRepo()
         val vm = AccountSettingsViewModel(auth, profileRepo())
         dispatcher.scheduler.advanceUntilIdle()
-        vm.changePassword("", "", "")
+        vm.changePassword("", "", "", "")
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(auth.calls.isEmpty())
         assertEquals(UiText.Res(R.string.account_error_fill_password_fields), vm.state.value.error)
+    }
+
+    @Test
+    fun `changePassword rejects mismatched confirm without calling repo`() = runTest {
+        val auth = FakeAuthRepo()
+        val vm = AccountSettingsViewModel(auth, profileRepo())
+        dispatcher.scheduler.advanceUntilIdle()
+        vm.changePassword("1120201234", "unifiedPwd", "newPwd", "different")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(auth.calls.isEmpty())
+        assertEquals(UiText.Res(R.string.auth_error_password_mismatch), vm.state.value.error)
     }
 
     @Test

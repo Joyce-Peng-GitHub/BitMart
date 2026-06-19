@@ -34,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +45,7 @@ import cn.edu.bit.bitmart.R
  * @param onBack 返回上一页。
  * @param onRequireLogin 未登录时跳转登录页。
  * @param onLoggedOut 退出登录 / 注销成功后的回调（通常返回上一页）。
+ * @param onChangePassword 跳转到修改密码全屏页。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +53,7 @@ fun AccountSettingsScreen(
     onBack: () -> Unit,
     onRequireLogin: () -> Unit,
     onLoggedOut: () -> Unit,
+    onChangePassword: () -> Unit,
     viewModel: AccountSettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -68,7 +69,6 @@ fun AccountSettingsScreen(
     }
 
     var nickname by remember(state.user?.id) { mutableStateOf(state.user?.nickname ?: "") }
-    var showPasswordDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -119,7 +119,7 @@ fun AccountSettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             Button(
-                onClick = { showPasswordDialog = true },
+                onClick = { onChangePassword() },
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.account_change_password)) }
@@ -136,17 +136,6 @@ fun AccountSettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             ) { Text(stringResource(R.string.account_delete), color = MaterialTheme.colorScheme.error) }
         }
-    }
-
-    if (showPasswordDialog) {
-        ChangePasswordDialog(
-            defaultStudentId = state.user?.studentId ?: "",
-            onConfirm = { sid, unified, newPwd ->
-                viewModel.changePassword(sid, unified, newPwd)
-                showPasswordDialog = false
-            },
-            onDismiss = { showPasswordDialog = false },
-        )
     }
 
     if (showDeleteDialog) {
@@ -176,42 +165,4 @@ private fun AccountInfoRow(label: String, value: String) {
         )
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }
-}
-
-@Composable
-private fun ChangePasswordDialog(
-    defaultStudentId: String,
-    onConfirm: (studentId: String, unifiedPassword: String, newPassword: String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var studentId by remember { mutableStateOf(defaultStudentId) }
-    var unifiedPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.account_change_password)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.account_change_password_hint), style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(studentId, { studentId = it }, label = { Text(stringResource(R.string.auth_student_id)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(
-                    unifiedPassword, { unifiedPassword = it },
-                    label = { Text(stringResource(R.string.account_unified_password)) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true, modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    newPassword, { newPassword = it },
-                    label = { Text(stringResource(R.string.account_new_password)) },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true, modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(studentId, unifiedPassword, newPassword) }) { Text(stringResource(R.string.common_confirm)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
-    )
 }

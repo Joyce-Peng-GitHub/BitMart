@@ -9,11 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,13 +31,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.R
+import cn.edu.bit.bitmart.core.ui.PasswordField
 
 /**
  * 登录/注册屏。注册模式下额外要求统一身份认证密码（用于 verify）与可选昵称。
@@ -57,10 +52,7 @@ fun AuthScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var registerMode by remember { mutableStateOf(false) }
     var unifiedPassword by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var unifiedPasswordVisible by remember { mutableStateOf(false) }
     var confirmPassword by remember { mutableStateOf("") }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.loggedIn) {
         if (state.loggedIn) onAuthenticated()
@@ -94,67 +86,28 @@ fun AuthScreen(
             Spacer(Modifier.height(12.dp))
 
             if (registerMode) {
-                OutlinedTextField(
+                PasswordField(
                     value = unifiedPassword,
                     onValueChange = { unifiedPassword = it },
-                    label = { Text(stringResource(R.string.auth_unified_password)) },
-                    visualTransformation = if (unifiedPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        IconButton(onClick = { unifiedPasswordVisible = !unifiedPasswordVisible }) {
-                            Icon(
-                                imageVector = if (unifiedPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                contentDescription = stringResource(
-                                    if (unifiedPasswordVisible) R.string.auth_password_hide else R.string.auth_password_show
-                                ),
-                            )
-                        }
-                    },
-                    singleLine = true,
+                    label = stringResource(R.string.auth_unified_password),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
             }
 
-            OutlinedTextField(
+            PasswordField(
                 value = state.password,
                 onValueChange = viewModel::onPasswordChange,
-                label = { Text(stringResource(if (registerMode) R.string.auth_password_set else R.string.auth_password)) },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                            contentDescription = stringResource(
-                                if (passwordVisible) R.string.auth_password_hide else R.string.auth_password_show
-                            ),
-                        )
-                    }
-                },
-                singleLine = true,
+                label = stringResource(if (registerMode) R.string.auth_password_set else R.string.auth_password),
                 modifier = Modifier.fillMaxWidth(),
             )
 
             if (registerMode) {
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
+                PasswordField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text(stringResource(R.string.auth_password_confirm)) },
-                    visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                            Icon(
-                                imageVector = if (confirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                contentDescription = stringResource(
-                                    if (confirmPasswordVisible) R.string.auth_password_hide else R.string.auth_password_show
-                                ),
-                            )
-                        }
-                    },
-                    singleLine = true,
+                    label = stringResource(R.string.auth_password_confirm),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))

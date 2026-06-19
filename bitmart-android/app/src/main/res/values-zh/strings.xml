@@ -19,6 +19,8 @@
     <string name="account_change_password_hint">经统一身份认证后可修改 BitMart 密码。</string>
     <string name="account_unified_password">统一身份认证密码</string>
     <string name="account_new_password">新的 BitMart 密码</string>
+    <string name="account_confirm_new_password">确认新密码</string>
+    <string name="account_action_change_password">确认修改</string>
     <string name="account_logout">退出登录</string>
     <string name="account_delete">注销账号</string>
     <string name="account_delete_confirm_text">注销后账号与数据将无法恢复，确认继续？</string>

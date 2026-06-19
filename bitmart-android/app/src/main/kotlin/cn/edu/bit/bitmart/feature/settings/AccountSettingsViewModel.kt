@@ -27,6 +27,8 @@ data class AccountSettingsUiState(
     val message: UiText? = null,
     /** 注销账号成功后置 true，UI 据此返回。 */
     val loggedOut: Boolean = false,
+    /** 改密成功后置 true，UI 据此导航到登录页（改密会吊销会话）。 */
+    val passwordChanged: Boolean = false,
 )
 
 /**
@@ -76,10 +78,15 @@ class AccountSettingsViewModel @Inject constructor(
      * @param studentId 学号（默认取当前用户）。
      * @param unifiedPassword 统一身份认证密码（仅用于验证身份）。
      * @param newPassword 新的 BitMart 密码。
+     * @param confirmPassword 二次输入的新密码，仅用于客户端一致性校验（不保存）。
      */
-    fun changePassword(studentId: String, unifiedPassword: String, newPassword: String) {
+    fun changePassword(studentId: String, unifiedPassword: String, newPassword: String, confirmPassword: String) {
         if (studentId.isBlank() || unifiedPassword.isBlank() || newPassword.isBlank()) {
             _state.update { it.copy(error = UiText.Res(R.string.account_error_fill_password_fields)) }
+            return
+        }
+        if (newPassword != confirmPassword) {
+            _state.update { it.copy(error = UiText.Res(R.string.auth_error_password_mismatch)) }
             return
         }
         viewModelScope.launch {
@@ -87,7 +94,7 @@ class AccountSettingsViewModel @Inject constructor(
             when (val verify = authRepository.verify(studentId, unifiedPassword)) {
                 is DomainResult.Success -> {
                     when (val reset = authRepository.resetPassword(verify.data, studentId, newPassword)) {
-                        is DomainResult.Success -> _state.update { it.copy(loading = false, message = UiText.Res(R.string.account_msg_password_changed)) }
+                        is DomainResult.Success -> _state.update { it.copy(loading = false, passwordChanged = true, message = UiText.Res(R.string.account_msg_password_changed)) }
                         is DomainResult.Error -> _state.update { it.copy(loading = false, error = reset.toUiText()) }
                     }
                 }

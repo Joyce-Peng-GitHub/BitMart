@@ -22,6 +22,7 @@ import cn.edu.bit.bitmart.feature.profile.ContactsScreen
 import cn.edu.bit.bitmart.feature.profile.MyListingsScreen
 import cn.edu.bit.bitmart.feature.publish.PublishScreen
 import cn.edu.bit.bitmart.feature.settings.AccountSettingsScreen
+import cn.edu.bit.bitmart.feature.settings.ChangePasswordScreen
 import cn.edu.bit.bitmart.feature.settings.LlmSettingsScreen
 import cn.edu.bit.bitmart.feature.settings.SettingsScreen
 
@@ -40,6 +41,7 @@ object Routes {
     const val CONTACTS = "contacts"
     const val SETTINGS = "settings"
     const val ACCOUNT_SETTINGS = "account_settings"
+    const val CHANGE_PASSWORD = "change_password"
     const val LLM_SETTINGS = "llm_settings"
     const val ABOUT = "about"
     const val MY_LISTINGS = "my_listings"
@@ -221,6 +223,18 @@ fun BitMartNavHost(
                     }
                 },
                 onLoggedOut = { navController.popBackStack() },
+                onChangePassword = { navController.navigate(Routes.CHANGE_PASSWORD) },
+            )
+        }
+        composable(Routes.CHANGE_PASSWORD) {
+            ChangePasswordScreen(
+                onBack = { navController.popBackStack() },
+                // 改密会吊销会话，成功后跳登录页并清掉账号设置/改密页。
+                onPasswordChanged = {
+                    navController.navigate(Routes.AUTH) {
+                        popUpTo(Routes.ACCOUNT_SETTINGS) { inclusive = true }
+                    }
+                },
             )
         }
         composable(Routes.ABOUT) {

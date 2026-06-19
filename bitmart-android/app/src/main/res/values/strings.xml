@@ -19,6 +19,8 @@
     <string name="account_change_password_hint">Verify your identity to change your BitMart password.</string>
     <string name="account_unified_password">Unified identity password</string>
     <string name="account_new_password">New BitMart password</string>
+    <string name="account_confirm_new_password">Confirm new password</string>
+    <string name="account_action_change_password">Change password</string>
     <string name="account_logout">Sign out</string>
     <string name="account_delete">Delete account</string>
     <string name="account_delete_confirm_text">Your account and data cannot be recovered after deletion. Continue?</string>
