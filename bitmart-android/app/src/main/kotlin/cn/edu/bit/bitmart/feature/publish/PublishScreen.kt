@@ -112,6 +112,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
+private const val CONTACT_PRIVACY_HINT = "手机号可能泄露隐私，建议使用微信、QQ 等其他联系方式。"
+
 /**
  * 发布屏（多草稿批量模型）：填写字段后逐条加入暂存区，最后一并提交。
  * 暂存区不再内联在表单下方，而是由右下角悬浮按钮（角标显示项数）或从右侧边缘滑入唤出的右抽屉承载：
@@ -557,7 +559,12 @@ private fun PublishFormColumn(
                     }
                 }
             }
-            OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式（微信/QQ/手机号等）") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式") }, modifier = Modifier.fillMaxWidth())
+            Text(
+                CONTACT_PRIVACY_HINT,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         // 标签（热门 + 自定义）。
@@ -959,7 +966,12 @@ private fun RecognitionBatchDialog(
                         }
                     }
                 }
-                OutlinedTextField(contact, { contact = it }, label = { Text("联系方式（微信/QQ/手机号等）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(contact, { contact = it }, label = { Text("联系方式") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text(
+                    CONTACT_PRIVACY_HINT,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
                 // 标签：与发布页一致——热门标签可点选，自定义标签输入后"添加"，已选标签点击移除。
                 Text("标签（最多${PublishConfig.MAX_TAGS}个）", style = MaterialTheme.typography.titleSmall)
