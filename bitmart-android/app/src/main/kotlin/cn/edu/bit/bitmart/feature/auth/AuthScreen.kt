@@ -59,6 +59,8 @@ fun AuthScreen(
     var unifiedPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var unifiedPasswordVisible by remember { mutableStateOf(false) }
+    var confirmPassword by remember { mutableStateOf("") }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.loggedIn) {
         if (state.loggedIn) onAuthenticated()
@@ -137,6 +139,26 @@ fun AuthScreen(
             if (registerMode) {
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    label = { Text(stringResource(R.string.auth_password_confirm)) },
+                    visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                            Icon(
+                                imageVector = if (confirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = stringResource(
+                                    if (confirmPasswordVisible) R.string.auth_password_hide else R.string.auth_password_show
+                                ),
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
                     value = state.nickname,
                     onValueChange = viewModel::onNicknameChange,
                     label = { Text(stringResource(R.string.auth_nickname)) },
@@ -152,7 +174,7 @@ fun AuthScreen(
 
             Spacer(Modifier.height(24.dp))
             Button(
-                onClick = { if (registerMode) viewModel.register(unifiedPassword) else viewModel.login() },
+                onClick = { if (registerMode) viewModel.register(unifiedPassword, confirmPassword) else viewModel.login() },
                 enabled = !state.loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {

@@ -50,6 +50,7 @@
     <string name="auth_unified_password">统一身份认证密码（仅用于验证身份）</string>
     <string name="auth_password">BitMart 密码</string>
     <string name="auth_password_set">设置 BitMart 密码</string>
+    <string name="auth_password_confirm">确认 BitMart 密码</string>
     <string name="auth_password_show">显示密码</string>
     <string name="auth_password_hide">隐藏密码</string>
     <string name="auth_nickname">昵称（可选，留空显示为匿名）</string>
@@ -61,6 +62,7 @@
     <string name="auth_fill_register_credentials">请填写学号和要设置的密码</string>
     <string name="auth_error_invalid_credentials">学号或密码错误</string>
     <string name="auth_error_verify_failed">验证票无效或已过期，请重新验证身份</string>
+    <string name="auth_error_password_mismatch">两次输入的密码不一致</string>
 
     <string name="settings_title">设置</string>
     <string name="settings_account">账号设置</string>

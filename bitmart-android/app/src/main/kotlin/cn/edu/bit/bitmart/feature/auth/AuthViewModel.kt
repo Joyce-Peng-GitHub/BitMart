@@ -55,11 +55,16 @@ class AuthViewModel @Inject constructor(
     /**
      * 注册：先用统一身份认证密码 verify，成功后用返回的 ticket 注册并设置 BitMart 密码。
      * @param unifiedPassword 统一身份认证密码（仅用于 verify，不保存）。
+     * @param confirmPassword 二次输入的 BitMart 密码，仅用于客户端一致性校验（不保存）。
      */
-    fun register(unifiedPassword: String) {
+    fun register(unifiedPassword: String, confirmPassword: String) {
         val s = _state.value
         if (s.studentId.isBlank() || s.password.isBlank()) {
             _state.update { it.copy(error = UiText.Res(R.string.auth_fill_register_credentials)) }
+            return
+        }
+        if (s.password != confirmPassword) {
+            _state.update { it.copy(error = UiText.Res(R.string.auth_error_password_mismatch)) }
             return
         }
         viewModelScope.launch {

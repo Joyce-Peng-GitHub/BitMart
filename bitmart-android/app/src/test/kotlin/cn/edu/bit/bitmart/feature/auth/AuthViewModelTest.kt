@@ -85,7 +85,7 @@ class AuthViewModelTest {
     fun `register orchestrates verify then register`() = runTest {
         val vm = AuthViewModel(repo())
         vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
-        vm.register(unifiedPassword = "unifiedPw")
+        vm.register(unifiedPassword = "unifiedPw", confirmPassword = "Secret123")
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(vm.state.value.loggedIn)
     }
@@ -94,7 +94,7 @@ class AuthViewModelTest {
     fun `register stops when verify fails with 401 verify-failed message`() = runTest {
         val vm = AuthViewModel(repo(verifyResult = DomainResult.Failure("UNAUTHORIZED", "统一认证失败", 401)))
         vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
-        vm.register(unifiedPassword = "wrong")
+        vm.register(unifiedPassword = "wrong", confirmPassword = "Secret123")
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.state.value.loggedIn)
         assertEquals(UiText.Res(R.string.auth_error_verify_failed), vm.state.value.error)
@@ -107,7 +107,7 @@ class AuthViewModelTest {
             repo(registerResult = DomainResult.Failure("UNAUTHORIZED", "验证票无效或已过期，请重新验证身份", 401)),
         )
         vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
-        vm.register(unifiedPassword = "unifiedPw")
+        vm.register(unifiedPassword = "unifiedPw", confirmPassword = "Secret123")
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.state.value.loggedIn)
         assertEquals(UiText.Res(R.string.auth_error_verify_failed), vm.state.value.error)
@@ -120,7 +120,7 @@ class AuthViewModelTest {
             repo(registerResult = DomainResult.Failure("CONFLICT", "该学号已注册", 409)),
         )
         vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
-        vm.register(unifiedPassword = "unifiedPw")
+        vm.register(unifiedPassword = "unifiedPw", confirmPassword = "Secret123")
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.state.value.loggedIn)
         assertEquals(UiText.Res(R.string.error_conflict), vm.state.value.error)
@@ -133,9 +133,19 @@ class AuthViewModelTest {
             repo(registerResult = DomainResult.Failure("VALIDATION_FAILED", "密码强度不足", 400)),
         )
         vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
-        vm.register(unifiedPassword = "unifiedPw")
+        vm.register(unifiedPassword = "unifiedPw", confirmPassword = "Secret123")
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.state.value.loggedIn)
         assertEquals(UiText.Res(R.string.error_validation_failed), vm.state.value.error)
+    }
+
+    @Test
+    fun `register with mismatched confirm password shows error and does not call repo`() = runTest {
+        val vm = AuthViewModel(repo(verifyResult = DomainResult.Failure("X", "should not be called", 400)))
+        vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
+        vm.register(unifiedPassword = "unifiedPw", confirmPassword = "Mismatch")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.state.value.loggedIn)
+        assertEquals(UiText.Res(R.string.auth_error_password_mismatch), vm.state.value.error)
     }
 }

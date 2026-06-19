@@ -50,6 +50,7 @@
     <string name="auth_unified_password">Unified identity password (used only to verify your identity)</string>
     <string name="auth_password">BitMart password</string>
     <string name="auth_password_set">Set BitMart password</string>
+    <string name="auth_password_confirm">Confirm BitMart password</string>
     <string name="auth_password_show">Show password</string>
     <string name="auth_password_hide">Hide password</string>
     <string name="auth_nickname">Nickname (optional, shown as Anonymous if left blank)</string>
@@ -61,6 +62,7 @@
     <string name="auth_fill_register_credentials">Please enter your student ID and the password to set</string>
     <string name="auth_error_invalid_credentials">Incorrect student ID or password</string>
     <string name="auth_error_verify_failed">Verification failed or expired. Please verify again.</string>
+    <string name="auth_error_password_mismatch">The two passwords do not match</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_account">Account</string>
