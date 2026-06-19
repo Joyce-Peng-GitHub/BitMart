@@ -8,8 +8,10 @@ import cn.edu.bit.bitmart.BuildConfig
 import cn.edu.bit.bitmart.core.data.local.ContactPrefsStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreContactPrefsStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreLlmConfigStore
+import cn.edu.bit.bitmart.core.data.local.DataStoreThemePrefsStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreTokenStore
 import cn.edu.bit.bitmart.core.data.local.LlmConfigStore
+import cn.edu.bit.bitmart.core.data.local.ThemePrefsStore
 import cn.edu.bit.bitmart.core.data.local.TokenStore
 import cn.edu.bit.bitmart.core.data.remote.BitMartApi
 import cn.edu.bit.bitmart.core.data.repository.AuthRepositoryImpl
@@ -62,6 +64,11 @@ object AppModule {
     @Singleton
     fun provideLlmConfigStore(dataStore: DataStore<Preferences>): LlmConfigStore =
         DataStoreLlmConfigStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideThemePrefsStore(dataStore: DataStore<Preferences>): ThemePrefsStore =
+        DataStoreThemePrefsStore(dataStore)
 
     @Provides
     @Singleton
