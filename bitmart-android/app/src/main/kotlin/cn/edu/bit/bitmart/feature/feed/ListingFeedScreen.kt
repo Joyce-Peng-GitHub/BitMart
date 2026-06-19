@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -162,16 +164,23 @@ fun ListingFeedScreen(
         }
 
         // 悬浮按钮：贴在右下角，悬浮在列表上方不挤占内容空间。
+        val searchActive = state.query.isNotBlank()
+        val filterActive = state.minPrice.isNotBlank() || state.maxPrice.isNotBlank() ||
+            !state.includeNoPrice || state.includeSold || state.selectedTags.isNotEmpty()
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         ) {
-            SmallFloatingActionButton(onClick = { showSearch = true }) {
-                Icon(Icons.Default.Search, contentDescription = "搜索")
+            BadgedBox(badge = { if (searchActive) Badge() }) {
+                SmallFloatingActionButton(onClick = { showSearch = true }) {
+                    Icon(Icons.Default.Search, contentDescription = "搜索")
+                }
             }
-            SmallFloatingActionButton(onClick = { showFilter = true }) {
-                Icon(Icons.Default.FilterList, contentDescription = "筛选")
+            BadgedBox(badge = { if (filterActive) Badge() }) {
+                SmallFloatingActionButton(onClick = { showFilter = true }) {
+                    Icon(Icons.Default.FilterList, contentDescription = "筛选")
+                }
             }
             FloatingActionButton(onClick = onPublishClick) {
                 Icon(Icons.Default.Add, contentDescription = "发布")
