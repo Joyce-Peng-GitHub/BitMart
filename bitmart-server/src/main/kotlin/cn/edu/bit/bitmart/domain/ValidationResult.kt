@@ -17,19 +17,19 @@ data class ValidationResult(val errors: List<ValidationError>) {
     }
 }
 
-data class ValidationError(val field: String, val code: String, val message: String)
+data class ValidationError(val field: String, val code: String, val message: String, val params: Map<String, String> = emptyMap())
 
 /** 累积器：在校验逻辑中逐条追加错误。 */
 class ValidationErrors {
     private val errors = mutableListOf<ValidationError>()
 
-    fun add(field: String, code: String, message: String) {
-        errors += ValidationError(field, code, message)
+    fun add(field: String, code: String, message: String, params: Map<String, String> = emptyMap()) {
+        errors += ValidationError(field, code, message, params)
     }
 
     /** 条件不成立时记录一条错误。 */
-    fun check(condition: Boolean, field: String, code: String, message: String) {
-        if (!condition) add(field, code, message)
+    fun check(condition: Boolean, field: String, code: String, message: String, params: Map<String, String> = emptyMap()) {
+        if (!condition) add(field, code, message, params)
     }
 
     fun build(): ValidationResult = ValidationResult(errors.toList())

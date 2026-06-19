@@ -95,6 +95,8 @@
     <string name="error_conflict">Conflict, please refresh and retry</string>
     <string name="error_rate_limited">Too many requests, please try again later</string>
     <string name="error_validation_failed">Please check your input</string>
+    <string name="error_password_too_short">Password must be at least %1$s characters</string>
+    <string name="error_password_too_simple">Password must include at least %1$s character types (lowercase, uppercase, digits, symbols)</string>
     <string name="error_external_service">External service error</string>
     <string name="error_network">Network error</string>
     <string name="error_invalid_response">Could not parse the server response</string>

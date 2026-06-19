@@ -15,12 +15,14 @@ class PasswordPolicy(private val config: PasswordPolicyConfig) {
             field = "password",
             code = "PASSWORD_TOO_SHORT",
             message = "密码长度至少 ${config.minLength} 位",
+            params = mapOf("minLength" to config.minLength.toString()),
         )
         errors.check(
             charClassCount(password) >= config.minCharClasses,
             field = "password",
             code = "PASSWORD_TOO_SIMPLE",
             message = "密码须包含至少 ${config.minCharClasses} 类字符（小写、大写、数字、符号）",
+            params = mapOf("minCharClasses" to config.minCharClasses.toString()),
         )
         return errors.build()
     }

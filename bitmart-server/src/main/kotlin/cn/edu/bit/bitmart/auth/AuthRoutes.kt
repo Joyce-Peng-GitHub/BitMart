@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart.auth
 
+import cn.edu.bit.bitmart.domain.ValidationError
 import cn.edu.bit.bitmart.shared.ApiError
 import cn.edu.bit.bitmart.shared.ErrorCode
 import io.ktor.http.HttpStatusCode
@@ -54,7 +55,7 @@ fun Route.authRoutes(authService: AuthService) {
                 is RegisterResult.StudentAlreadyRegistered ->
                     call.fail(HttpStatusCode.Conflict, ErrorCode.CONFLICT, "该学号已注册")
                 is RegisterResult.PasswordPolicyViolation ->
-                    call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, r.messages.joinToString("；"))
+                    call.failValidation(r.errors)
             }
         }
 
@@ -78,7 +79,7 @@ fun Route.authRoutes(authService: AuthService) {
                 is ResetPasswordResult.UserNotFound ->
                     call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "该学号尚未注册")
                 is ResetPasswordResult.PasswordPolicyViolation ->
-                    call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, r.messages.joinToString("；"))
+                    call.failValidation(r.errors)
             }
         }
 
@@ -105,4 +106,13 @@ fun Route.authRoutes(authService: AuthService) {
 /** 统一错误响应辅助。 */
 internal suspend fun ApplicationCall.fail(status: HttpStatusCode, code: ErrorCode, message: String) {
     respond(status, ApiError.of(code, message))
+}
+
+/** 校验类错误：除通用 message 外，附带结构化 details 供客户端本地化。 */
+internal suspend fun ApplicationCall.failValidation(errors: List<ValidationError>) {
+    val details = errors.map { ApiError.ErrorDetail(it.field, it.code, it.params) }
+    respond(
+        HttpStatusCode.BadRequest,
+        ApiError.of(ErrorCode.VALIDATION_FAILED, errors.joinToString("；") { it.message }, details),
+    )
 }

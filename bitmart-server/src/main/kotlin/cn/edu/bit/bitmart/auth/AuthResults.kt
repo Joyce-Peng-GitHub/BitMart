@@ -1,6 +1,7 @@
 package cn.edu.bit.bitmart.auth
 
 import cn.edu.bit.bitmart.domain.User
+import cn.edu.bit.bitmart.domain.ValidationError
 
 /** 认证相关操作的结果类型。 */
 
@@ -17,7 +18,7 @@ sealed interface RegisterResult {
     data class Success(val token: String, val user: User) : RegisterResult
     data object InvalidTicket : RegisterResult
     data object StudentAlreadyRegistered : RegisterResult
-    data class PasswordPolicyViolation(val messages: List<String>) : RegisterResult
+    data class PasswordPolicyViolation(val errors: List<ValidationError>) : RegisterResult
 }
 
 /** 登录结果。 */
@@ -32,5 +33,5 @@ sealed interface ResetPasswordResult {
     data object Success : ResetPasswordResult
     data object InvalidTicket : ResetPasswordResult
     data object UserNotFound : ResetPasswordResult
-    data class PasswordPolicyViolation(val messages: List<String>) : ResetPasswordResult
+    data class PasswordPolicyViolation(val errors: List<ValidationError>) : ResetPasswordResult
 }

@@ -4,6 +4,7 @@ import cn.edu.bit.bitmart.AppComponents
 import cn.edu.bit.bitmart.configureApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.string.shouldContain
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
@@ -84,6 +85,13 @@ class AuthRoutesTest : FunSpec({
                 setBody(RegisterRequest(ticket, studentId, "weak", null))   // 太短且单一字符类
             }
             resp.status shouldBe HttpStatusCode.BadRequest
+            val err = resp.body<cn.edu.bit.bitmart.shared.ApiError>()
+            err.error.code shouldBe "VALIDATION_FAILED"
+            val codes = err.error.details.orEmpty().map { it.code }
+            codes shouldContain "PASSWORD_TOO_SHORT"
+            codes shouldContain "PASSWORD_TOO_SIMPLE"
+            val tooShort = err.error.details.orEmpty().first { it.code == "PASSWORD_TOO_SHORT" }
+            tooShort.params["minLength"] shouldBe "8"
         }
     }
 

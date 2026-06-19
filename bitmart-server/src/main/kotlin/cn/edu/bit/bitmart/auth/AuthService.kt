@@ -56,7 +56,7 @@ class AuthService(
     ): RegisterResult {
         val policy = passwordPolicy.validate(password)
         if (!policy.isValid) {
-            return RegisterResult.PasswordPolicyViolation(policy.errors.map { it.message })
+            return RegisterResult.PasswordPolicyViolation(policy.errors)
         }
         if (!verifyTicketStore.consume(verifyTicket, studentId)) {
             return RegisterResult.InvalidTicket
@@ -102,7 +102,7 @@ class AuthService(
     fun resetPassword(verifyTicket: String, studentId: String, newPassword: String): ResetPasswordResult {
         val policy = passwordPolicy.validate(newPassword)
         if (!policy.isValid) {
-            return ResetPasswordResult.PasswordPolicyViolation(policy.errors.map { it.message })
+            return ResetPasswordResult.PasswordPolicyViolation(policy.errors)
         }
         if (!verifyTicketStore.consume(verifyTicket, studentId)) {
             return ResetPasswordResult.InvalidTicket

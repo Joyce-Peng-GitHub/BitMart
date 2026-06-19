@@ -1,6 +1,7 @@
 package cn.edu.bit.bitmart.core.data.remote
 
 import cn.edu.bit.bitmart.core.domain.DomainResult
+import cn.edu.bit.bitmart.core.domain.ValidationDetail
 import io.ktor.client.call.body
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -38,7 +39,10 @@ object ApiResponseMapper {
         val envelope = runCatching { json.decodeFromString<ApiErrorEnvelope>(body) }.getOrNull()
         val code = envelope?.error?.code ?: "HTTP_$status"
         val message = envelope?.error?.message ?: "Request failed ($status)"
+        val details = envelope?.error?.details.orEmpty().map {
+            ValidationDetail(it.field, it.code, it.params)
+        }
         android.util.Log.w(TAG, "API error status=$status code=$code message=$message")
-        return DomainResult.Failure(code = code, message = message, httpStatus = status)
+        return DomainResult.Failure(code = code, message = message, httpStatus = status, details = details)
     }
 }

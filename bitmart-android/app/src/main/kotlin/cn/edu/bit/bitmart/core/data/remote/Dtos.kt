@@ -7,7 +7,18 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ApiErrorEnvelope(val error: ApiErrorBody) {
     @Serializable
-    data class ApiErrorBody(val code: String, val message: String)
+    data class ApiErrorBody(
+        val code: String,
+        val message: String,
+        val details: List<ApiErrorDetail>? = null,
+    )
+
+    @Serializable
+    data class ApiErrorDetail(
+        val field: String = "",
+        val code: String,
+        val params: Map<String, String> = emptyMap(),
+    )
 }
 
 @Serializable

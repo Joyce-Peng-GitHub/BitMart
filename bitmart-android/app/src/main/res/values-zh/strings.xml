@@ -95,6 +95,8 @@
     <string name="error_conflict">数据冲突，请刷新后重试</string>
     <string name="error_rate_limited">请求过于频繁，请稍后再试</string>
     <string name="error_validation_failed">请检查输入</string>
+    <string name="error_password_too_short">密码长度至少 %1$s 位</string>
+    <string name="error_password_too_simple">密码须包含至少 %1$s 类字符（小写、大写、数字、符号）</string>
     <string name="error_external_service">外部服务错误</string>
     <string name="error_network">网络异常</string>
     <string name="error_invalid_response">无法解析服务器响应</string>

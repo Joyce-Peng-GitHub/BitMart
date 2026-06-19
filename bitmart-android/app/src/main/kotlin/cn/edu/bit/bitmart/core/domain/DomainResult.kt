@@ -19,8 +19,14 @@ sealed interface DomainResult<out T> {
     /**
      * 业务/HTTP 错误：服务器以非 2xx 响应。
      * [code] 为后端 error.code（无结构化错误信封时为 `HTTP_<status>` 兜底），[httpStatus] 为 HTTP 状态码。
+     * [details] 为后端 error.details 映射而来的结构化校验明细（无则为空），供 UI 层按 code+params 本地化。
      */
-    data class Failure(val code: String, override val message: String, val httpStatus: Int) : Error
+    data class Failure(
+        val code: String,
+        override val message: String,
+        val httpStatus: Int,
+        val details: List<ValidationDetail> = emptyList(),
+    ) : Error
 
     /**
      * 响应内容无效：服务器以 2xx 响应，但响应体无法按预期解析（结构缺失/坏数据/非预期 JSON）。
@@ -31,6 +37,9 @@ sealed interface DomainResult<out T> {
     /** 网络/IO 异常（无法连通服务器等）。 */
     data class NetworkError(override val message: String, val cause: Throwable? = null) : Error
 }
+
+/** 结构化校验明细（来自后端 error.details），供 UI 层按 code+params 本地化。 */
+data class ValidationDetail(val field: String, val code: String, val params: Map<String, String> = emptyMap())
 
 inline fun <T, R> DomainResult<T>.map(transform: (T) -> R): DomainResult<R> = when (this) {
     is DomainResult.Success -> DomainResult.Success(transform(data))
