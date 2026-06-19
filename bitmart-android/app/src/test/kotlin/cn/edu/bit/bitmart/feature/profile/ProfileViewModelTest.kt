@@ -4,6 +4,8 @@ import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.User
 import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.R
+import cn.edu.bit.bitmart.core.ui.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,7 +90,8 @@ class ProfileViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(vm.state.value.loggedIn)
         assertNull(vm.state.value.user)
-        assertEquals("拉取失败", vm.state.value.error)
+        // 未知 error code 回落通用错误文案。
+        assertEquals(UiText.Res(R.string.error_generic), vm.state.value.error)
     }
 
     @Test
@@ -98,7 +101,7 @@ class ProfileViewModelTest {
             profileRepo(DomainResult.NetworkError("超时")),
         )
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("网络异常：超时", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_network), vm.state.value.error)
         assertNull(vm.state.value.user)
     }
 
@@ -172,7 +175,7 @@ class ProfileViewModelTest {
         val vm = ProfileViewModel(authRepo(loggedIn = true), repo)
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(vm.state.value.user)
-        assertEquals("首拉失败", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_generic), vm.state.value.error)
 
         meResult = DomainResult.Success(user)
         unreadResult = DomainResult.Success(7)
@@ -200,7 +203,7 @@ class ProfileViewModelTest {
             profileRepo(DomainResult.Failure("X", "拉取失败", 500)),
         )
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("拉取失败", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_generic), vm.state.value.error)
         // UI 以 Toast 展示后消费置空。
         vm.consumeError()
         assertNull(vm.state.value.error)

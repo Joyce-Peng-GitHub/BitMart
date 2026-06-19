@@ -28,9 +28,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.R
 
 /**
  * 常用联系方式页：本地保存的联系方式列表（不上传后端），可新增与删除。
@@ -48,32 +50,32 @@ fun ContactsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("常用联系方式") },
+                title = { Text(stringResource(R.string.profile_contacts)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            Text("新增联系方式（仅保存在本机）", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.contacts_add_section), style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(
                 value = value,
                 onValueChange = { value = it },
-                label = { Text("联系方式（如微信号 / 手机号）") },
+                label = { Text(stringResource(R.string.contacts_field_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
             OutlinedButton(
                 onClick = { viewModel.add(value); value = "" },
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            ) { Text("添加") }
+            ) { Text(stringResource(R.string.common_add)) }
 
-            Text("已保存", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+            Text(stringResource(R.string.contacts_saved_section), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
             if (state.contacts.isEmpty()) {
-                Text("暂无联系方式", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                Text(stringResource(R.string.contacts_empty), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -88,7 +90,7 @@ fun ContactsScreen(
                             ) {
                                 Text(c, style = MaterialTheme.typography.bodyLarge)
                                 IconButton(onClick = { viewModel.removeAt(index) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "删除")
+                                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_delete))
                                 }
                             }
                         }

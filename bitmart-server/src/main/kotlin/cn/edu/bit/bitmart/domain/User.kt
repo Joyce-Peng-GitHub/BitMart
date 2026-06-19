@@ -12,8 +12,8 @@ data class User(
     val createdAt: OffsetDateTime,
     val deletedAt: OffsetDateTime?,
 ) {
-    /** 展示用昵称：未设置则为"匿名"（需求·号）。 */
-    val displayName: String get() = nickname?.takeIf { it.isNotBlank() } ?: "匿名"
+    /** 展示用昵称：原始昵称，未设置/空白时为 null。本地化「匿名/Anonymous」由客户端兜底渲染。 */
+    val displayName: String? get() = nickname?.takeIf { it.isNotBlank() }
 }
 
 enum class UserRole(val code: Int) {

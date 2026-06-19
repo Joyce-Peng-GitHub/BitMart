@@ -43,9 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.R
 
 /**
  * “我的”页：顶部展示昵称/学号/ID（未登录显示“未登录”可点击登录）；右上角邮件图标进入通知页；
@@ -80,7 +82,7 @@ fun ProfileScreen(
     // 异常（如网络异常）用 Toast 提示，不再显示在账号信息区。
     LaunchedEffect(state.error) {
         state.error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, it.resolve(context), Toast.LENGTH_SHORT).show()
             viewModel.consumeError()
         }
     }
@@ -89,7 +91,7 @@ fun ProfileScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("我的") },
+                title = { Text(stringResource(R.string.profile_title)) },
                 actions = {
                     IconButton(onClick = onNotificationsClick) {
                         BadgedBox(
@@ -99,7 +101,7 @@ fun ProfileScreen(
                                 }
                             },
                         ) {
-                            Icon(Icons.Default.MailOutline, contentDescription = "通知")
+                            Icon(Icons.Default.MailOutline, contentDescription = stringResource(R.string.profile_cd_notifications))
                         }
                     }
                 },
@@ -122,13 +124,13 @@ fun ProfileScreen(
                 ProfileHeader(state = state, onLoginClick = onLoginClick, onAccountClick = onAccountClick)
 
                 MenuCard {
-                    MenuRow(Icons.Default.Storefront, "我的商品", onClick = { onMyListingsClick(false) })
-                    MenuRow(Icons.Default.ShoppingCart, "我的收购", onClick = { onMyListingsClick(true) })
-                    MenuRow(Icons.Default.Contacts, "常用联系方式", onClick = onContactsClick, showDivider = false)
+                    MenuRow(Icons.Default.Storefront, stringResource(R.string.profile_my_items), onClick = { onMyListingsClick(false) })
+                    MenuRow(Icons.Default.ShoppingCart, stringResource(R.string.profile_my_purchases), onClick = { onMyListingsClick(true) })
+                    MenuRow(Icons.Default.Contacts, stringResource(R.string.profile_contacts), onClick = onContactsClick, showDivider = false)
                 }
                 MenuCard {
-                    MenuRow(Icons.Default.Settings, "设置", onClick = onSettingsClick)
-                    MenuRow(Icons.Default.Info, "关于", onClick = onAboutClick, showDivider = false)
+                    MenuRow(Icons.Default.Settings, stringResource(R.string.profile_settings), onClick = onSettingsClick)
+                    MenuRow(Icons.Default.Info, stringResource(R.string.profile_about), onClick = onAboutClick, showDivider = false)
                 }
             }
         }
@@ -146,23 +148,26 @@ private fun ProfileHeader(state: ProfileUiState, onLoginClick: () -> Unit, onAcc
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             val user = state.user
-            val displayName = user?.nickname?.takeIf { it.isNotBlank() } ?: user?.displayName
+            // 显示名优先用原始昵称，昵称为空时本地兜底为「匿名/Anonymous」（不再依赖后端 displayName，
+            // 后端 Task 23 将停止下发「匿名」改回原始 nickname）。
+            val displayName = user?.nickname?.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.common_anonymous)
             ProfileAvatar(text = if (state.loggedIn) displayName else null)
             Column(modifier = Modifier.weight(1f)) {
                 if (state.loggedIn) {
-                    Text(displayName ?: "我的", style = MaterialTheme.typography.titleLarge)
+                    Text(displayName, style = MaterialTheme.typography.titleLarge)
                     if (user != null) {
                         Text(
-                            "学号 ${user.studentId} · ID ${user.id}",
+                            stringResource(R.string.profile_account_info, user.studentId, user.id),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp),
                         )
                     }
                 } else {
-                    Text("未登录", style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.profile_not_logged_in), style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "点击登录",
+                        stringResource(R.string.profile_tap_to_login),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 4.dp),

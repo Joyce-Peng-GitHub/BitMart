@@ -30,8 +30,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 
 /**
@@ -80,14 +82,14 @@ fun ListingFilterDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("筛选条件") },
+        title = { Text(stringResource(R.string.filter_dialog_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = minPrice,
                         onValueChange = { minPrice = it },
-                        label = { Text("最低价") },
+                        label = { Text(stringResource(R.string.filter_min_price)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f),
@@ -98,7 +100,7 @@ fun ListingFilterDialog(
                     OutlinedTextField(
                         value = maxPrice,
                         onValueChange = { maxPrice = it },
-                        label = { Text("最高价") },
+                        label = { Text(stringResource(R.string.filter_max_price)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f),
@@ -108,21 +110,21 @@ fun ListingFilterDialog(
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Checkbox(checked = includeNoPrice, onCheckedChange = { includeNoPrice = it })
-                    Text("包含面议")
+                    Text(stringResource(R.string.filter_include_negotiable))
                     Spacer(Modifier.width(16.dp))
                     Checkbox(checked = includeSold, onCheckedChange = { includeSold = it })
-                    Text("包含售罄")
+                    Text(stringResource(R.string.filter_include_sold_out))
                 }
                 if (showExpiredToggle) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Checkbox(checked = includeExpired, onCheckedChange = { includeExpired = it })
-                        Text("显示过期项")
+                        Text(stringResource(R.string.filter_show_expired))
                     }
                 }
 
                 if (popularTags.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text("热门标签", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.filter_popular_tags), style = MaterialTheme.typography.labelMedium)
                     FlowRow(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -143,7 +145,7 @@ fun ListingFilterDialog(
                     OutlinedTextField(
                         value = customTagInput,
                         onValueChange = { customTagInput = it },
-                        label = { Text("自定义标签") },
+                        label = { Text(stringResource(R.string.filter_custom_tag)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
@@ -154,7 +156,7 @@ fun ListingFilterDialog(
                             customTagInput = ""
                         },
                         enabled = customTagInput.isNotBlank(),
-                    ) { Text("添加") }
+                    ) { Text(stringResource(R.string.common_add)) }
                 }
 
                 if (selectedTags.isNotEmpty()) {
@@ -186,15 +188,15 @@ fun ListingFilterDialog(
                     ),
                 )
                 onDismiss()
-            }) { Text("确认") }
+            }) { Text(stringResource(R.string.common_confirm)) }
         },
         dismissButton = {
             Row {
                 TextButton(onClick = {
                     onClear()
                     onDismiss()
-                }) { Text("清空") }
-                TextButton(onClick = onDismiss) { Text("取消") }
+                }) { Text(stringResource(R.string.common_clear)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             }
         },
     )

@@ -48,6 +48,7 @@ class OpenAiCompatibleLlmClient(
         config: LlmConfig,
         imageBytes: ByteArray,
         category: ListingCategory,
+        languageTag: String,
     ): DomainResult<List<LlmRecognition>> = try {
         android.util.Log.d(tag, "LLM recognize start category=$category bytes=${imageBytes.size}")
         val response = client.post("${config.baseUrl.trimEnd('/')}/v1/chat/completions") {
@@ -63,12 +64,12 @@ class OpenAiCompatibleLlmClient(
                 socketTimeoutMillis = millis
                 connectTimeoutMillis = millis
             }
-            setBody(json.encodeToString(JsonObject.serializer(), buildRequest(config, imageBytes, category)))
+            setBody(json.encodeToString(JsonObject.serializer(), buildRequest(config, imageBytes, category, languageTag)))
         }
         val text = response.bodyAsText()
         if (!response.status.isSuccess()) {
             android.util.Log.w(tag, "LLM HTTP error status=${response.status.value}")
-            DomainResult.Failure("LLM_HTTP_${response.status.value}", "识别服务返回错误（${response.status.value}）", response.status.value)
+            DomainResult.Failure("LLM_HTTP_${response.status.value}", "Recognition service returned an error (${response.status.value})", response.status.value)
         } else {
             val result = parseContent(text, category)
             if (result is DomainResult.Success) android.util.Log.d(tag, "LLM recognize success category=$category")
@@ -77,15 +78,29 @@ class OpenAiCompatibleLlmClient(
         }
     } catch (e: Exception) {
         android.util.Log.e(tag, "LLM recognize error: ${e.message}", e)
-        DomainResult.NetworkError(e.message ?: "网络异常", e)
+        DomainResult.NetworkError(e.message ?: "Network error", e)
     }
 
-    /** 组装 chat/completions 请求体：system 提示词 + 携带 data URL 图片的 user 消息 + json_schema。 */
+    /** 组装 chat/completions 请求体：system 提示词 + 携带 data URL 图片的 user 消息 + json_schema。按 [languageTag] 选取语言。 */
     @OptIn(ExperimentalEncodingApi::class)
-    private fun buildRequest(config: LlmConfig, imageBytes: ByteArray, category: ListingCategory): JsonObject {
-        val prompt = if (category == ListingCategory.BOOK) config.bookPrompt else config.generalPrompt
+    private fun buildRequest(
+        config: LlmConfig,
+        imageBytes: ByteArray,
+        category: ListingCategory,
+        languageTag: String,
+    ): JsonObject {
+        // 用户自定义提示词非空则原样使用，否则按语言取默认提示词（Task 21 将令 config 默认空）。
+        val bookPrompt = config.bookPrompt.ifBlank { defaultBookPrompt(languageTag) }
+        val generalPrompt = config.generalPrompt.ifBlank { defaultGeneralPrompt(languageTag) }
+        val prompt = if (category == ListingCategory.BOOK) bookPrompt else generalPrompt
         val dataUrl = "data:image/jpeg;base64,${Base64.Default.encode(imageBytes)}"
-        val userText = if (category == ListingCategory.BOOK) "请识别这张图片中所有书本的信息（可能不止一本）。" else "请识别这张照片中所有商品并分别生成挂牌信息（可能不止一件）。"
+        val zh = languageTag.startsWith("zh")
+        val userText = when {
+            category == ListingCategory.BOOK && zh -> "请识别这张图片中所有书本的信息（可能不止一本）。"
+            category == ListingCategory.BOOK -> "Identify all books in this photo (there may be more than one)."
+            zh -> "请识别这张照片中所有商品并分别生成挂牌信息（可能不止一件）。"
+            else -> "Identify all items in this photo and generate a listing for each (there may be more than one)."
+        }
         return buildJsonObject {
             put("model", config.model)
             putJsonArray("messages") {
@@ -107,7 +122,7 @@ class OpenAiCompatibleLlmClient(
                     }
                 }
             }
-            put("response_format", responseFormat(category))
+            put("response_format", responseFormat(category, languageTag))
         }
     }
 
@@ -116,7 +131,7 @@ class OpenAiCompatibleLlmClient(
         val content = runCatching {
             json.parseToJsonElement(body).jsonObject["choices"]!!.jsonArray[0]
                 .jsonObject["message"]!!.jsonObject["content"]!!.jsonPrimitive.content
-        }.getOrNull() ?: return DomainResult.InvalidResponse("无法解析识别服务的响应结构")
+        }.getOrNull() ?: return DomainResult.InvalidResponse("Failed to parse the recognition service response structure")
 
         val cleaned = stripMarkdownFence(content)
         return runCatching {
@@ -126,7 +141,7 @@ class OpenAiCompatibleLlmClient(
             }
         }.fold(
             onSuccess = { DomainResult.Success(it) },
-            onFailure = { DomainResult.InvalidResponse("识别结果不是预期的 JSON 格式", it) },
+            onFailure = { DomainResult.InvalidResponse("Recognition result is not the expected JSON format", it) },
         )
     }
 
@@ -157,8 +172,15 @@ class OpenAiCompatibleLlmClient(
         tags = tags.map { it.trim() }.filter { it.isNotEmpty() },
     )
 
-    private fun responseFormat(category: ListingCategory): JsonObject =
-        json.parseToJsonElement(if (category == ListingCategory.BOOK) BOOK_SCHEMA else GENERAL_SCHEMA).jsonObject
+    /** 按品类与语言选取 json_schema：结构/字段名/required 与语言无关，仅 description 文案随语言变化。 */
+    private fun responseFormat(category: ListingCategory, languageTag: String): JsonObject {
+        val zh = languageTag.startsWith("zh")
+        val schema = when (category) {
+            ListingCategory.BOOK -> if (zh) BOOK_SCHEMA_ZH else BOOK_SCHEMA_EN
+            ListingCategory.GENERAL -> if (zh) GENERAL_SCHEMA_ZH else GENERAL_SCHEMA_EN
+        }
+        return json.parseToJsonElement(schema).jsonObject
+    }
 
     /** 剥离 Markdown ``` 代码块围栏（沿用参考实现的策略）。 */
     private fun stripMarkdownFence(text: String): String {
@@ -174,7 +196,7 @@ class OpenAiCompatibleLlmClient(
         /** Markdown 代码块围栏标记，用于识别与剥离模型输出可能包裹的 ``` 围栏。 */
         const val MARKDOWN_FENCE = "```"
 
-        const val BOOK_SCHEMA = """
+        const val BOOK_SCHEMA_ZH = """
             {"type":"json_schema","json_schema":{"name":"book_list","strict":true,"schema":{
             "type":"object","properties":{
             "items":{"type":"array","description":"图中识别到的所有书本，每本一个元素；图中没有书则为空数组","items":{
@@ -189,7 +211,22 @@ class OpenAiCompatibleLlmClient(
             "required":["items"],"additionalProperties":false}}}
         """
 
-        const val GENERAL_SCHEMA = """
+        const val BOOK_SCHEMA_EN = """
+            {"type":"json_schema","json_schema":{"name":"book_list","strict":true,"schema":{
+            "type":"object","properties":{
+            "items":{"type":"array","description":"All books recognized in the image, one element per book; empty array if there are no books","items":{
+            "type":"object","properties":{
+            "title":{"type":"string","description":"Book title; empty string if not recognizable"},
+            "author":{"type":"string","description":"Author; empty string if not recognizable"},
+            "publisher":{"type":"string","description":"Publisher; empty string if not recognizable"},
+            "edition":{"type":"string","description":"Edition, e.g. '3rd edition'; empty string if not recognizable"},
+            "isbn":{"type":"string","description":"ISBN (digits only); empty string if not recognizable"},
+            "originalPrice":{"type":"string","description":"List/tag price visible in the image (CNY, digits-only string, e.g. '59.00'); empty string if no price is visible, never guess"}},
+            "required":["title","author","publisher","edition","isbn","originalPrice"],"additionalProperties":false}}},
+            "required":["items"],"additionalProperties":false}}}
+        """
+
+        const val GENERAL_SCHEMA_ZH = """
             {"type":"json_schema","json_schema":{"name":"general_goods_list","strict":true,"schema":{
             "type":"object","properties":{
             "items":{"type":"array","description":"图中识别到的所有商品，每件一个元素；图中没有商品则为空数组","items":{
@@ -198,6 +235,19 @@ class OpenAiCompatibleLlmClient(
             "description":{"type":"string","description":"一段简短的商品描述（成色、特征等）"},
             "originalPrice":{"type":"string","description":"图中可见的商品标价/吊牌原价（人民币元，纯数字字符串，如『199.00』）；图中看不到价格则为空字符串，切勿臆测，也不要给出售价"},
             "tags":{"type":"array","items":{"type":"string"},"description":"有助于检索的标签，可为空数组"}},
+            "required":["title","description","originalPrice","tags"],"additionalProperties":false}}},
+            "required":["items"],"additionalProperties":false}}}
+        """
+
+        const val GENERAL_SCHEMA_EN = """
+            {"type":"json_schema","json_schema":{"name":"general_goods_list","strict":true,"schema":{
+            "type":"object","properties":{
+            "items":{"type":"array","description":"All goods recognized in the image, one element per item; empty array if there are no goods","items":{
+            "type":"object","properties":{
+            "title":{"type":"string","description":"A concise product title"},
+            "description":{"type":"string","description":"A short product description (condition, features, etc.)"},
+            "originalPrice":{"type":"string","description":"Tag/list price visible in the image (CNY, digits-only string, e.g. '199.00'); empty string if no price is visible, never guess, and do not output a selling price"},
+            "tags":{"type":"array","items":{"type":"string"},"description":"Search-friendly tags, may be an empty array"}},
             "required":["title","description","originalPrice","tags"],"additionalProperties":false}}},
             "required":["items"],"additionalProperties":false}}}
         """

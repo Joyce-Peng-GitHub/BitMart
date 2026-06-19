@@ -59,10 +59,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.model.BookInfo
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
@@ -74,6 +76,10 @@ import cn.edu.bit.bitmart.core.ui.ImageViewer
 import cn.edu.bit.bitmart.core.ui.ListingTimeInfo
 import cn.edu.bit.bitmart.core.ui.absoluteMediaUrl
 import cn.edu.bit.bitmart.core.ui.expiryStatusOf
+import cn.edu.bit.bitmart.core.ui.priceLabel
+import cn.edu.bit.bitmart.core.ui.soldOutLabel
+import cn.edu.bit.bitmart.core.ui.soldVerbLabel
+import cn.edu.bit.bitmart.core.ui.titleLabel
 import coil3.compose.AsyncImage
 
 /** 详情屏。展示卖家昵称、联系方式、完整描述、书籍信息；含防诈骗提示、图片轮播、调整数量/编辑/删除按钮。 */
@@ -115,10 +121,10 @@ fun ListingDetailScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
-                title = { Text(if (isBuy) "求购详情" else "商品详情") },
+                title = { Text(stringResource(if (isBuy) R.string.detail_title_buy else R.string.detail_title_sell)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
@@ -128,14 +134,14 @@ fun ListingDetailScreen(
                             Spacer(Modifier.width(12.dp))
                         } else {
                             IconButton(onClick = { showAdjustDialog = true }) {
-                                Icon(Icons.Default.Numbers, contentDescription = "调整数量")
+                                Icon(Icons.Default.Numbers, contentDescription = stringResource(R.string.detail_cd_adjust_quantity))
                             }
                         }
                         IconButton(onClick = { state.detail?.let { onEditClick(it.id) } }) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑")
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.common_edit))
                         }
                         IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 },
@@ -146,12 +152,12 @@ fun ListingDetailScreen(
             when {
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.needLogin -> Text(
-                    "请登录后查看详情",
+                    stringResource(R.string.detail_need_login),
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center),
                 )
                 state.error != null -> Text(
-                    state.error!!,
+                    state.error!!.asString(),
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center).padding(24.dp),
                 )
@@ -165,11 +171,11 @@ fun ListingDetailScreen(
 
     // 删除确认对话框
     if (showDeleteDialog) {
-        val noun = if (isBuy) "收购" else "商品"
+        val noun = (state.detail?.type ?: ListingType.SELL).titleLabel()
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("确认删除") },
-            text = { Text("删除后无法恢复，确定要删除这条${noun}吗？") },
+            title = { Text(stringResource(R.string.detail_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.detail_delete_confirm_text, noun)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -181,13 +187,13 @@ fun ListingDetailScreen(
                     if (state.deleteInProgress) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("删除")
+                        Text(stringResource(R.string.common_delete))
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.common_cancel))
                 }
             },
         )
@@ -265,21 +271,21 @@ private fun SummaryCard(d: ListingDetail) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val cs = MaterialTheme.colorScheme
                 if (isBuy) {
-                    Pill("求购", cs.tertiaryContainer, cs.onTertiaryContainer)
+                    Pill(stringResource(R.string.detail_badge_type_buy), cs.tertiaryContainer, cs.onTertiaryContainer)
                 } else {
-                    Pill("出售", cs.primaryContainer, cs.onPrimaryContainer)
+                    Pill(stringResource(R.string.detail_badge_type_sell), cs.primaryContainer, cs.onPrimaryContainer)
                 }
                 Pill(
-                    if (d.category == ListingCategory.BOOK) "书籍" else "物品",
+                    stringResource(if (d.category == ListingCategory.BOOK) R.string.detail_badge_category_book else R.string.detail_badge_category_general),
                     cs.secondaryContainer,
                     cs.onSecondaryContainer,
                 )
                 if (soldOut) {
-                    Pill(if (isBuy) "已收满" else "售罄", cs.error, cs.onError)
+                    Pill(d.type.soldOutLabel(), cs.error, cs.onError)
                 }
                 when (expiryStatus) {
-                    ExpiryStatus.EXPIRED -> Pill("已过期", cs.error, cs.onError)
-                    ExpiryStatus.NEAR_EXPIRY -> Pill("临期", ExpiryWarnColor, Color.White)
+                    ExpiryStatus.EXPIRED -> Pill(stringResource(R.string.detail_badge_expired), cs.error, cs.onError)
+                    ExpiryStatus.NEAR_EXPIRY -> Pill(stringResource(R.string.detail_badge_near_expiry), ExpiryWarnColor, Color.White)
                     ExpiryStatus.NORMAL -> Unit
                 }
             }
@@ -290,12 +296,12 @@ private fun SummaryCard(d: ListingDetail) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column {
                     Text(
-                        if (isBuy) "期望价" else "售价",
+                        d.type.priceLabel(),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        d.unitPrice?.let { "￥$it" } ?: "面议",
+                        d.unitPrice?.let { "￥$it" } ?: stringResource(R.string.common_negotiable),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -303,7 +309,7 @@ private fun SummaryCard(d: ListingDetail) {
                 }
                 d.originalPrice?.let {
                     Text(
-                        "原价￥$it",
+                        stringResource(R.string.detail_original_price, it),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp),
@@ -312,7 +318,7 @@ private fun SummaryCard(d: ListingDetail) {
             }
 
             // 数量进度。
-            val soldVerb = if (isBuy) "已收" else "已售"
+            val soldVerb = d.type.soldVerbLabel()
             val qtyColor = if (soldOut) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("$soldVerb ${d.quantitySold}/${d.quantityTotal}", style = MaterialTheme.typography.bodyMedium, color = qtyColor)
@@ -344,12 +350,16 @@ private fun SummaryCard(d: ListingDetail) {
 @Composable
 private fun InfoCard(d: ListingDetail) {
     SectionCard {
-        InfoRow(Icons.Default.Person, "发布者", d.nickname ?: "匿名")
+        InfoRow(Icons.Default.Person, stringResource(R.string.detail_info_publisher), d.nickname ?: stringResource(R.string.detail_anonymous))
         d.contacts.forEach { c ->
             val label = channelLabel(c.channel)
-            InfoRow(Icons.Default.Phone, "联系方式", label?.let { "$it：${c.value}" } ?: c.value)
+            InfoRow(
+                Icons.Default.Phone,
+                stringResource(R.string.detail_info_contact),
+                label?.let { stringResource(R.string.detail_info_contact_value, it, c.value) } ?: c.value,
+            )
         }
-        d.pickupLocation?.let { InfoRow(Icons.Default.LocationOn, "交易地点", it) }
+        d.pickupLocation?.let { InfoRow(Icons.Default.LocationOn, stringResource(R.string.detail_info_location), it) }
     }
 }
 
@@ -368,11 +378,11 @@ private fun TimeCard(d: ListingDetail) {
 /** 书籍信息卡。 */
 @Composable
 private fun BookCard(book: BookInfo) {
-    SectionCard(title = "书籍信息") {
-        book.title?.let { InfoLine("书名", it) }
-        book.authors?.let { InfoLine("作者", it) }
-        book.publisher?.let { InfoLine("出版社", it) }
-        book.edition?.let { InfoLine("版次", it) }
+    SectionCard(title = stringResource(R.string.detail_section_book)) {
+        book.title?.let { InfoLine(stringResource(R.string.detail_book_title), it) }
+        book.authors?.let { InfoLine(stringResource(R.string.detail_book_author), it) }
+        book.publisher?.let { InfoLine(stringResource(R.string.detail_book_publisher), it) }
+        book.edition?.let { InfoLine(stringResource(R.string.detail_book_edition), it) }
         book.isbn?.let { InfoLine("ISBN", it) }
     }
 }
@@ -406,7 +416,7 @@ private fun InfoRow(icon: ImageVector, label: String, value: String) {
 @Composable
 private fun InfoLine(label: String, value: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("$label：", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.detail_book_label, label), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
@@ -423,13 +433,14 @@ private fun Pill(text: String, container: Color, contentColor: Color) {
     }
 }
 
-/** 渠道字符串 → 中文标签；未知/空返回 null（不显示药丸）。 */
+/** 渠道字符串 → 本地化标签；未知/空返回 null（不显示药丸）。 */
+@Composable
 private fun channelLabel(channel: String): String? = when (channel.trim().uppercase()) {
-    "WECHAT" -> "微信"
-    "QQ" -> "QQ"
-    "PHONE" -> "手机"
-    "EMAIL" -> "邮箱"
-    "OTHER" -> "其他"
+    "WECHAT" -> stringResource(R.string.detail_channel_wechat)
+    "QQ" -> stringResource(R.string.detail_channel_qq)
+    "PHONE" -> stringResource(R.string.detail_channel_phone)
+    "EMAIL" -> stringResource(R.string.detail_channel_email)
+    "OTHER" -> stringResource(R.string.detail_channel_other)
     else -> null
 }
 
@@ -445,7 +456,7 @@ fun ImageCarousel(
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { page ->
             AsyncImage(
                 model = absoluteMediaUrl(imageUrls[page]),
-                contentDescription = "商品图片 ${page + 1}",
+                contentDescription = stringResource(R.string.image_viewer_image_description, page + 1),
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
@@ -483,13 +494,13 @@ fun PrivacyReminderBanner() {
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                "隐私提示",
+                stringResource(R.string.detail_privacy_title),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "请自行核实对方身份，谨防诈骗。优先使用微信/QQ 联系，使用手机号存在隐私风险。",
+                stringResource(R.string.detail_privacy_text),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )

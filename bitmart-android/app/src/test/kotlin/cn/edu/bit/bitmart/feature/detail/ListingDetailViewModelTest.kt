@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart.feature.detail
 
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
@@ -11,6 +12,7 @@ import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
+import cn.edu.bit.bitmart.core.ui.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -99,7 +101,7 @@ class ListingDetailViewModelTest {
     fun `other failure sets error`() = runTest {
         val vm = ListingDetailViewModel(listingRepo(DomainResult.Failure("NOT_FOUND", "未找到", 404)), profileRepo())
         vm.load(1); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("未找到", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_not_found), vm.state.value.error)
     }
 
     @Test
@@ -133,7 +135,10 @@ class ListingDetailViewModelTest {
         vm.adjustSold(2); dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(0, vm.state.value.detail?.quantitySold) // 原值不变。
-        assertTrue(vm.state.value.error!!.contains("调整失败"))
+        assertEquals(
+            UiText.Res(R.string.detail_error_adjust_failed, listOf(UiText.Res(R.string.error_generic))),
+            vm.state.value.error,
+        )
         assertFalse(vm.state.value.adjusting)
     }
 }

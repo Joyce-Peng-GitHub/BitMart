@@ -59,6 +59,26 @@ class AuthRepositoryImplTest {
     }
 
     @Test
+    fun `login tolerates omitted displayName (backend explicitNulls=false)`() = runTest {
+        // 后端 Task 23 起：昵称为空时 displayName 为 null，且 explicitNulls=false 会省略该字段。
+        // 客户端必须容忍其缺失，否则 kotlinx.serialization 抛 MissingFieldException，登录直接失败。
+        val store = FakeTokenStore()
+        val bodyWithoutDisplayName =
+            """{"token":"tok-123","user":{"id":1,"studentId":"1120201234","role":"NORMAL"}}"""
+        val api = TestApiSupport.fixedApi(HttpStatusCode.OK, bodyWithoutDisplayName)
+        val repo = AuthRepositoryImpl(api, store)
+
+        val result = repo.login("1120201234", "Secret123")
+
+        assertTrue(result is DomainResult.Success)
+        val user = (result as DomainResult.Success).data
+        assertEquals("1120201234", user.studentId)
+        assertNull(user.displayName)
+        assertNull(user.nickname)
+        assertEquals("tok-123", store.current())
+    }
+
+    @Test
     fun `logout clears token even when offline`() = runTest {
         val store = FakeTokenStore(initial = "tok-123")
         // 让 API 抛网络错误。

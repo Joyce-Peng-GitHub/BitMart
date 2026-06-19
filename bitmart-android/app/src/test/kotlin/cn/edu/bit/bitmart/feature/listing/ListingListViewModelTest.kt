@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart.feature.listing
 
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingPage
@@ -15,6 +16,7 @@ import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
 import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
 import cn.edu.bit.bitmart.core.ui.FilterState
+import cn.edu.bit.bitmart.core.ui.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -142,11 +144,11 @@ class ListingListViewModelTest {
         val repo = FakeRepo(emptyList(), listResult = DomainResult.NetworkError("断网"))
         val vm = publicVm(repo)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("网络异常：断网", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_network), vm.state.value.error)
         vm.consumeError()
         assertNull(vm.state.value.error)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("网络异常：断网", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_network), vm.state.value.error)
     }
 
     @Test
@@ -330,7 +332,7 @@ class ListingListViewModelTest {
         val vm = publicVm(repo, me = user(7), loggedIn = true)
         vm.refresh(); dispatcher.scheduler.advanceUntilIdle()
         vm.delete(1); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("删除失败：无权删除", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_forbidden), vm.state.value.error)
         assertEquals(listOf(1L, 2L), vm.state.value.items.map { it.id })
     }
 
@@ -431,7 +433,7 @@ class ListingListViewModelTest {
         val vm = mineVm(repo)
         vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
         vm.adjustSold(1, 1); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("调整失败：售出数量冲突，请刷新后重试", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_conflict), vm.state.value.error)
         assertNull(vm.state.value.adjustingId)
         assertEquals(3, vm.state.value.items.first { it.id == 1L }.quantitySold)
     }
@@ -442,7 +444,7 @@ class ListingListViewModelTest {
         val repo = FakeRepo(emptyList(), myResult = DomainResult.Failure("UNAUTH", "未登录", 401))
         val vm = mineVm(repo)
         vm.setType(ListingType.SELL); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("请登录后查看", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_login_required), vm.state.value.error)
     }
 
     @Test

@@ -5,7 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import cn.edu.bit.bitmart.R
 
 /**
  * 列表/详情共用的“发布时间 + 过期时间”两行。过期时间按 [expiryStatusOf] 着色：
@@ -24,15 +26,15 @@ fun ListingTimeInfo(
         ExpiryStatus.NEAR_EXPIRY -> ExpiryWarnColor
         ExpiryStatus.NORMAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val expirySuffix = if (status == ExpiryStatus.EXPIRED) "（已过期）" else ""
+    val expirySuffix = if (status == ExpiryStatus.EXPIRED) stringResource(R.string.listing_time_expired_suffix) else ""
     Column(modifier) {
         Text(
-            "发布时间：${formatTimestampMinute(createdAtIso)}",
+            stringResource(R.string.listing_time_created, formatTimestampMinute(createdAtIso)),
             style = style,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            "过期时间：${formatTimestampMinute(expiresAtIso)}$expirySuffix",
+            stringResource(R.string.listing_time_expires, formatTimestampMinute(expiresAtIso)) + expirySuffix,
             style = style,
             color = expiryColor,
         )

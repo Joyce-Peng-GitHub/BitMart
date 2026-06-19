@@ -1,8 +1,10 @@
 package cn.edu.bit.bitmart.feature.auth
 
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.User
 import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
+import cn.edu.bit.bitmart.core.ui.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -56,16 +58,26 @@ class AuthViewModelTest {
         vm.login()
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.state.value.loggedIn)
-        assertEquals("请填写学号和密码", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.auth_fill_credentials), vm.state.value.error)
     }
 
     @Test
-    fun `login failure surfaces message`() = runTest {
+    fun `login failure with 401 shows invalid-credentials message`() = runTest {
         val vm = AuthViewModel(repo(loginResult = DomainResult.Failure("UNAUTHORIZED", "学号或密码错误", 401)))
         vm.onStudentIdChange("a"); vm.onPasswordChange("b")
         vm.login()
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("学号或密码错误", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.auth_error_invalid_credentials), vm.state.value.error)
+        assertFalse(vm.state.value.loggedIn)
+    }
+
+    @Test
+    fun `login failure with non-401 falls back to code mapping`() = runTest {
+        val vm = AuthViewModel(repo(loginResult = DomainResult.Failure("FORBIDDEN", "账号已被封禁", 403)))
+        vm.onStudentIdChange("a"); vm.onPasswordChange("b")
+        vm.login()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(UiText.Res(R.string.error_forbidden), vm.state.value.error)
         assertFalse(vm.state.value.loggedIn)
     }
 
@@ -79,12 +91,51 @@ class AuthViewModelTest {
     }
 
     @Test
-    fun `register stops when verify fails`() = runTest {
+    fun `register stops when verify fails with 401 verify-failed message`() = runTest {
         val vm = AuthViewModel(repo(verifyResult = DomainResult.Failure("UNAUTHORIZED", "统一认证失败", 401)))
         vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
         vm.register(unifiedPassword = "wrong")
         dispatcher.scheduler.advanceUntilIdle()
         assertFalse(vm.state.value.loggedIn)
-        assertEquals("统一认证失败", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.auth_error_verify_failed), vm.state.value.error)
+    }
+
+    @Test
+    fun `register with 401 invalid ticket shows verify-failed message`() = runTest {
+        // verify succeeds, but the register step rejects the ticket (expired/invalid) with 401.
+        val vm = AuthViewModel(
+            repo(registerResult = DomainResult.Failure("UNAUTHORIZED", "验证票无效或已过期，请重新验证身份", 401)),
+        )
+        vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
+        vm.register(unifiedPassword = "unifiedPw")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.state.value.loggedIn)
+        assertEquals(UiText.Res(R.string.auth_error_verify_failed), vm.state.value.error)
+    }
+
+    @Test
+    fun `register with non-401 conflict falls back to code mapping`() = runTest {
+        // Already-registered student is a CONFLICT (409), not a 401 → keep generic code mapping.
+        val vm = AuthViewModel(
+            repo(registerResult = DomainResult.Failure("CONFLICT", "该学号已注册", 409)),
+        )
+        vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
+        vm.register(unifiedPassword = "unifiedPw")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.state.value.loggedIn)
+        assertEquals(UiText.Res(R.string.error_conflict), vm.state.value.error)
+    }
+
+    @Test
+    fun `register with non-401 password policy violation falls back to code mapping`() = runTest {
+        // Weak password is VALIDATION_FAILED (400), not a 401 → keep generic code mapping.
+        val vm = AuthViewModel(
+            repo(registerResult = DomainResult.Failure("VALIDATION_FAILED", "密码强度不足", 400)),
+        )
+        vm.onStudentIdChange("1120201234"); vm.onPasswordChange("Secret123")
+        vm.register(unifiedPassword = "unifiedPw")
+        dispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.state.value.loggedIn)
+        assertEquals(UiText.Res(R.string.error_validation_failed), vm.state.value.error)
     }
 }

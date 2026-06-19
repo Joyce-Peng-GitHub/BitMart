@@ -16,7 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import coil3.compose.AsyncImage
@@ -53,17 +55,36 @@ fun ListingCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.title, style = MaterialTheme.typography.titleMedium)
-                val priceLabel = if (type == ListingType.BUY) "期望价" else "售价"
-                val price = item.unitPrice?.let { "￥$it" } ?: "面议"
-                Text("$priceLabel：$price", style = MaterialTheme.typography.bodyMedium)
+                val price = item.unitPrice?.let { "￥$it" } ?: stringResource(R.string.common_negotiable)
+                Text(
+                    stringResource(R.string.listing_card_price, type.priceLabel(), price),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 if (item.tags.isNotEmpty()) {
-                    Text("标签：${item.tags.joinToString(" / ")}", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        stringResource(R.string.listing_card_tags, item.tags.joinToString(" / ")),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
                 // 数量：已售(收) X/Y，售罄时着色提示。
-                val soldVerb = if (type == ListingType.BUY) "已收" else "已售"
-                val soldLabel = if (type == ListingType.BUY) "已收满" else "售罄"
+                val soldText = if (soldOut) {
+                    stringResource(
+                        R.string.listing_card_sold_with_status,
+                        type.soldVerbLabel(),
+                        item.quantitySold,
+                        item.quantityTotal,
+                        type.soldOutLabel(),
+                    )
+                } else {
+                    stringResource(
+                        R.string.listing_card_sold,
+                        type.soldVerbLabel(),
+                        item.quantitySold,
+                        item.quantityTotal,
+                    )
+                }
                 Text(
-                    "$soldVerb ${item.quantitySold}/${item.quantityTotal}" + if (soldOut) "（$soldLabel）" else "",
+                    soldText,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (soldOut) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )

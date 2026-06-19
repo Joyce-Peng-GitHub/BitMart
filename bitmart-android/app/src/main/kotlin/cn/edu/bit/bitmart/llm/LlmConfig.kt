@@ -26,10 +26,10 @@ data class LlmConfig(
     val model: String = "",
     /** 单次识别请求超时阈值（秒）。 */
     val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
-    /** 书籍识别提示词（system 角色）。 */
-    val bookPrompt: String = DEFAULT_BOOK_PROMPT,
-    /** 一般商品识别提示词（system 角色）。 */
-    val generalPrompt: String = DEFAULT_GENERAL_PROMPT,
+    /** 书籍识别提示词（system 角色）。留空表示按当前应用语言使用内置默认提示词。 */
+    val bookPrompt: String = "",
+    /** 一般商品识别提示词（system 角色）。留空表示按当前应用语言使用内置默认提示词。 */
+    val generalPrompt: String = "",
 ) {
     /** 是否已填齐可发起识别所需的关键字段。 */
     val isConfigured: Boolean

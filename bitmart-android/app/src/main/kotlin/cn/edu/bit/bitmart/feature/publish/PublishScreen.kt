@@ -86,6 +86,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
@@ -100,6 +101,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.PublishConfig
@@ -111,8 +113,6 @@ import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-
-private const val CONTACT_PRIVACY_HINT = "手机号可能泄露隐私，建议使用微信、QQ 等其他联系方式。"
 
 /**
  * 发布屏（多草稿批量模型）：填写字段后逐条加入暂存区，最后一并提交。
@@ -177,7 +177,7 @@ fun PublishScreen(
     // 校验/暂存/提交等瞬时错误用 Toast 展示：本页较长且提交按钮在底部，输入区上方的提示在提交时常已滚出视野。
     LaunchedEffect(state.error) {
         state.error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, it.resolve(context), Toast.LENGTH_SHORT).show()
             viewModel.consumeError()
         }
     }
@@ -221,7 +221,7 @@ fun PublishScreen(
     var pendingCameraAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) pendingCameraAction?.invoke()
-        else Toast.makeText(context, "需要相机权限才能拍照", Toast.LENGTH_SHORT).show()
+        else Toast.makeText(context, context.getString(R.string.publish_cd_camera_permission_needed), Toast.LENGTH_SHORT).show()
         pendingCameraAction = null
     }
     val ensureCameraThen = { action: () -> Unit ->
@@ -251,17 +251,17 @@ fun PublishScreen(
     }
 
     val screenTitle = when {
-        editMode && state.type == ListingType.BUY -> "编辑收购"
-        editMode -> "编辑商品"
-        state.type == ListingType.BUY -> "发布收购（批量）"
-        else -> "发布商品（批量）"
+        editMode && state.type == ListingType.BUY -> stringResource(R.string.publish_title_edit_buy)
+        editMode -> stringResource(R.string.publish_title_edit_sell)
+        state.type == ListingType.BUY -> stringResource(R.string.publish_title_new_buy)
+        else -> stringResource(R.string.publish_title_new_sell)
     }
     val topBar: @Composable () -> Unit = {
         TopAppBar(
             title = { Text(screenTitle) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                 }
             },
         )
@@ -343,7 +343,7 @@ fun PublishScreen(
                             }) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.List,
-                                    contentDescription = "待发布列表（${displayItems.size} 项）",
+                                    contentDescription = stringResource(R.string.publish_cd_staging_list, displayItems.size),
                                 )
                             }
                         }
@@ -390,7 +390,7 @@ private fun PublishFormColumn(
     ) {
         // 图片识别：拍照或从相册选图，自动识别其中的商品并分别生成草稿。独立卡片置于最上方。
         // 识别通常耗时数十秒，进行中用转圈替换两个按钮与说明。
-        FormSection("图片识别") {
+        FormSection(stringResource(R.string.publish_section_image_recognition)) {
             if (state.llmRecognizing) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -399,7 +399,7 @@ private fun PublishFormColumn(
                 ) {
                     CircularProgressIndicator()
                     Text(
-                        "识别中…",
+                        stringResource(R.string.publish_recognizing),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -412,7 +412,7 @@ private fun PublishFormColumn(
                     ) {
                         Icon(Icons.Default.PhotoCamera, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
-                        Text("拍照")
+                        Text(stringResource(R.string.common_take_photo))
                     }
                     Button(
                         onClick = onRecognizeFromGallery,
@@ -420,11 +420,11 @@ private fun PublishFormColumn(
                     ) {
                         Icon(Icons.Default.PhotoLibrary, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
-                        Text("相册")
+                        Text(stringResource(R.string.common_album))
                     }
                 }
                 Text(
-                    "拍摄或选择一张图片，自动识别其中的商品并分别生成待发布草稿。",
+                    stringResource(R.string.publish_recognition_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -432,17 +432,17 @@ private fun PublishFormColumn(
         }
 
         // 基本信息：类别 + 标题/书籍字段 + 描述。
-        FormSection("基本信息") {
+        FormSection(stringResource(R.string.publish_section_basic_info)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     state.selectedCategory == ListingCategory.GENERAL,
                     { viewModel.setCategory(ListingCategory.GENERAL) },
-                    { Text("一般商品") },
+                    { Text(stringResource(R.string.publish_category_general)) },
                 )
                 FilterChip(
                     state.selectedCategory == ListingCategory.BOOK,
                     { viewModel.setCategory(ListingCategory.BOOK) },
-                    { Text("书籍") },
+                    { Text(stringResource(R.string.publish_category_book)) },
                 )
             }
             if (draft.category == ListingCategory.BOOK) {
@@ -458,30 +458,30 @@ private fun PublishFormColumn(
                         onClick = { draft.isbn?.takeIf { it.isNotBlank() }?.let(viewModel::lookupBook) },
                         enabled = !state.lookingUpBook && !draft.isbn.isNullOrBlank(),
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = "查询书籍")
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.publish_cd_lookup_book))
                     }
                     IconButton(onClick = viewModel::openBookScan) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = "扫码")
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.publish_cd_scan))
                     }
                 }
-                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text("作者") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text("出版社") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text("版本") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text(stringResource(R.string.publish_field_title)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text(stringResource(R.string.publish_field_author)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text(stringResource(R.string.publish_field_publisher)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text(stringResource(R.string.publish_field_edition)) }, modifier = Modifier.fillMaxWidth())
             } else {
-                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text("标题") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text(stringResource(R.string.publish_field_title)) }, modifier = Modifier.fillMaxWidth())
             }
-            OutlinedTextField(draft.description, viewModel::onDescription, label = { Text("描述") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.description, viewModel::onDescription, label = { Text(stringResource(R.string.publish_field_description)) }, minLines = 2, modifier = Modifier.fillMaxWidth())
         }
 
         // 价格与数量：原价/售价并排 + 件数 + 有效期。
-        FormSection("价格与数量") {
-            val priceLabel = if (state.type == ListingType.BUY) "期望价（可留空面议）" else "售价（可留空面议）"
+        FormSection(stringResource(R.string.publish_section_price_quantity)) {
+            val priceLabel = if (state.type == ListingType.BUY) stringResource(R.string.publish_price_label_buy) else stringResource(R.string.publish_price_label_sell)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text("原价") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(draft.originalPrice, viewModel::onOriginalPrice, label = { Text(stringResource(R.string.publish_field_original_price)) }, singleLine = true, modifier = Modifier.weight(1f))
                 OutlinedTextField(draft.unitPrice, viewModel::onUnitPrice, label = { Text(priceLabel) }, singleLine = true, modifier = Modifier.weight(1f))
             }
-            OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text("件数") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.quantityTotal, viewModel::onQuantity, label = { Text(stringResource(R.string.publish_field_quantity)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
             // 有效期：下拉选择"有效天数 / 过期日期"，右侧输入随之切换（天数框 / 日期选择）。
             var expiryModeMenu by remember { mutableStateOf(false) }
@@ -489,24 +489,24 @@ private fun PublishFormColumn(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box {
                     OutlinedButton(onClick = { expiryModeMenu = true }) {
-                        Text(if (draft.expiryMode == ExpiryMode.DAYS) "有效天数" else "过期日期")
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "切换有效期方式")
+                        Text(if (draft.expiryMode == ExpiryMode.DAYS) stringResource(R.string.publish_expiry_mode_days) else stringResource(R.string.publish_expiry_mode_date))
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.publish_cd_switch_expiry_mode))
                     }
                     DropdownMenu(expanded = expiryModeMenu, onDismissRequest = { expiryModeMenu = false }) {
-                        DropdownMenuItem(text = { Text("有效天数") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DAYS); expiryModeMenu = false })
-                        DropdownMenuItem(text = { Text("过期日期") }, onClick = { viewModel.onExpiryMode(ExpiryMode.DATE); expiryModeMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.publish_expiry_mode_days)) }, onClick = { viewModel.onExpiryMode(ExpiryMode.DAYS); expiryModeMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.publish_expiry_mode_date)) }, onClick = { viewModel.onExpiryMode(ExpiryMode.DATE); expiryModeMenu = false })
                     }
                 }
                 when (draft.expiryMode) {
                     ExpiryMode.DAYS -> OutlinedTextField(
                         draft.expiresInDays,
                         viewModel::onExpiresInDays,
-                        label = { Text("默认${PublishConfig.EXPIRY_DEFAULT_DAYS}天") },
+                        label = { Text(stringResource(R.string.publish_expiry_days_default, PublishConfig.EXPIRY_DEFAULT_DAYS)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
                     ExpiryMode.DATE -> OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
-                        Text(draft.expiresOn ?: "选择过期日期")
+                        Text(draft.expiresOn ?: stringResource(R.string.publish_pick_expiry_date))
                     }
                 }
             }
@@ -533,9 +533,9 @@ private fun PublishFormColumn(
                                 viewModel.onExpiresOn(picked.toString())
                             }
                             showDatePicker = false
-                        }) { Text("确定") }
+                        }) { Text(stringResource(R.string.common_confirm)) }
                     },
-                    dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
+                    dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.common_cancel)) } },
                 ) {
                     DatePicker(state = datePickerState)
                 }
@@ -543,12 +543,12 @@ private fun PublishFormColumn(
         }
 
         // 交易信息：取货地点 + 联系方式。
-        FormSection("交易信息") {
-            OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text("取货地点") }, modifier = Modifier.fillMaxWidth())
+        FormSection(stringResource(R.string.publish_section_trade_info)) {
+            OutlinedTextField(draft.pickupLocation, viewModel::onPickup, label = { Text(stringResource(R.string.publish_field_pickup)) }, modifier = Modifier.fillMaxWidth())
 
             // 常用联系方式快速填入（来自"我的-常用联系方式"，仅本机）。空列表时不展示。显示在输入框上方。
             if (state.commonContacts.isNotEmpty()) {
-                Text("常用联系方式（点击填入）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.publish_common_contacts_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     state.commonContacts.forEach { c ->
                         FilterChip(
@@ -559,18 +559,18 @@ private fun PublishFormColumn(
                     }
                 }
             }
-            OutlinedTextField(draft.contact, viewModel::onContact, label = { Text("联系方式") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.contact, viewModel::onContact, label = { Text(stringResource(R.string.publish_field_contact)) }, modifier = Modifier.fillMaxWidth())
             Text(
-                CONTACT_PRIVACY_HINT,
+                stringResource(R.string.publish_contact_privacy_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
         // 标签（热门 + 自定义）。
-        FormSection("标签（最多${PublishConfig.MAX_TAGS}个）") {
+        FormSection(stringResource(R.string.publish_section_tags, PublishConfig.MAX_TAGS)) {
             if (state.popularTags.isNotEmpty()) {
-                Text("热门标签", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.filter_popular_tags), style = MaterialTheme.typography.labelMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     state.popularTags.forEach { tag ->
                         FilterChip(tag in draft.tags, { viewModel.toggleTag(tag) }, { Text(tag) })
@@ -582,14 +582,14 @@ private fun PublishFormColumn(
                 OutlinedTextField(
                     value = customTagInput,
                     onValueChange = { customTagInput = it },
-                    label = { Text("自定义标签") },
+                    label = { Text(stringResource(R.string.publish_field_custom_tag)) },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     onClick = { viewModel.addCustomTag(customTagInput); customTagInput = "" },
                     enabled = customTagInput.isNotBlank() && draft.tags.size < PublishConfig.MAX_TAGS,
                 ) {
-                    Text("添加")
+                    Text(stringResource(R.string.common_add))
                 }
             }
             if (draft.tags.isNotEmpty()) {
@@ -602,7 +602,7 @@ private fun PublishFormColumn(
         }
 
         // 图片上传。达到张数上限后入口禁用。
-        FormSection("图片（${draft.imageKeys.size}/${PublishConfig.MAX_IMAGES}）") {
+        FormSection(stringResource(R.string.publish_section_images, draft.imageKeys.size, PublishConfig.MAX_IMAGES)) {
             val canAddImage = draft.imageKeys.size < PublishConfig.MAX_IMAGES
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -612,7 +612,7 @@ private fun PublishFormColumn(
                 ) {
                     Icon(Icons.Default.PhotoCamera, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
-                    Text("拍照")
+                    Text(stringResource(R.string.common_take_photo))
                 }
                 OutlinedButton(
                     onClick = onPickImageFromGallery,
@@ -621,7 +621,7 @@ private fun PublishFormColumn(
                 ) {
                     Icon(Icons.Default.PhotoLibrary, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
-                    Text("相册")
+                    Text(stringResource(R.string.common_album))
                 }
             }
 
@@ -636,7 +636,7 @@ private fun PublishFormColumn(
                         Box {
                             AsyncImage(
                                 model = blobKeyToMediaUrl(key),
-                                contentDescription = "图片${index + 1}",
+                                contentDescription = stringResource(R.string.publish_cd_image_index, index + 1),
                                 modifier = Modifier
                                     .size(80.dp)
                                     .clip(MaterialTheme.shapes.small)
@@ -645,7 +645,7 @@ private fun PublishFormColumn(
                             )
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "删除图片${index + 1}",
+                                contentDescription = stringResource(R.string.publish_cd_delete_image_index, index + 1),
                                 tint = Color.White,
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
@@ -676,7 +676,7 @@ private fun PublishFormColumn(
                     ) {
                         AsyncImage(
                             model = blobKeyToMediaUrl(key),
-                            contentDescription = "图片预览",
+                            contentDescription = stringResource(R.string.publish_cd_image_preview),
                             modifier = Modifier.fillMaxWidth(),
                             contentScale = ContentScale.Fit,
                         )
@@ -689,10 +689,10 @@ private fun PublishFormColumn(
         state.pendingSaveContact?.let { pending ->
             AlertDialog(
                 onDismissRequest = { viewModel.dismissPendingContact() },
-                title = { Text("保存到常用联系方式？") },
-                text = { Text("将“$pending”加入常用联系方式，方便下次直接选择。") },
-                confirmButton = { TextButton(onClick = { viewModel.savePendingContact() }) { Text("保存") } },
-                dismissButton = { TextButton(onClick = { viewModel.dismissPendingContact() }) { Text("暂不") } },
+                title = { Text(stringResource(R.string.publish_save_contact_dialog_title)) },
+                text = { Text(stringResource(R.string.publish_save_contact_dialog_text, pending)) },
+                confirmButton = { TextButton(onClick = { viewModel.savePendingContact() }) { Text(stringResource(R.string.common_save)) } },
+                dismissButton = { TextButton(onClick = { viewModel.dismissPendingContact() }) { Text(stringResource(R.string.publish_save_contact_decline)) } },
             )
         }
 
@@ -717,8 +717,8 @@ private fun PublishFormColumn(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     when {
-                        state.uploadingImage -> "上传中..."
-                        state.lookingUpBook -> "查询书籍中..."
+                        state.uploadingImage -> stringResource(R.string.publish_uploading)
+                        state.lookingUpBook -> stringResource(R.string.publish_looking_up_book)
                         else -> ""
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -734,7 +734,7 @@ private fun PublishFormColumn(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (state.loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
-                else Text("保存")
+                else Text(stringResource(R.string.common_save))
             }
         } else {
             // 加入暂存区：编辑既有项时写回原位（按钮文案随之切换），否则追加新项。
@@ -742,7 +742,7 @@ private fun PublishFormColumn(
             Button(onClick = viewModel::addDraftToBatch, modifier = Modifier.fillMaxWidth()) {
                 Icon(if (editing) Icons.Default.Check else Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
-                Text(if (editing) "保存修改" else "加入待发布列表")
+                Text(if (editing) stringResource(R.string.publish_action_save_edit) else stringResource(R.string.publish_action_add_to_batch))
             }
             // 底部留白，避免最后一个按钮被悬浮按钮遮挡。
             Spacer(Modifier.height(72.dp))
@@ -784,7 +784,7 @@ private fun StagingDrawerBody(
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         Text(
-            "待发布列表（${items.size}项）",
+            stringResource(R.string.publish_cd_staging_list, items.size),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(start = 4.dp, top = 20.dp, bottom = 8.dp),
         )
@@ -792,7 +792,7 @@ private fun StagingDrawerBody(
         if (items.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    "暂无待发布项\n点击下方“新建项”开始",
+                    stringResource(R.string.publish_staging_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -819,19 +819,19 @@ private fun StagingDrawerBody(
                         ) {
                             Column(modifier = Modifier.weight(1f).padding(vertical = 10.dp)) {
                                 Text(
-                                    item.title.ifBlank { "未命名" },
+                                    item.title.ifBlank { stringResource(R.string.publish_unnamed) },
                                     style = MaterialTheme.typography.bodyLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
-                                    draftSubtitle(item) + if (isCurrent) " · 编辑中" else "",
+                                    draftSubtitle(item) + if (isCurrent) stringResource(R.string.publish_editing_suffix) else "",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.outline,
                                 )
                             }
                             IconButton(onClick = { onDelete(index) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "删除")
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_delete))
                             }
                         }
                     }
@@ -852,7 +852,7 @@ private fun StagingDrawerBody(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
-            Text("新建项", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.publish_new_item), style = MaterialTheme.typography.bodyLarge)
         }
 
         Spacer(Modifier.height(4.dp))
@@ -863,7 +863,7 @@ private fun StagingDrawerBody(
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
         ) {
             if (loading) CircularProgressIndicator(modifier = Modifier.height(20.dp))
-            else Text("提交全部（${items.size}项）")
+            else Text(stringResource(R.string.publish_submit_all, items.size))
         }
     }
 }
@@ -893,9 +893,12 @@ private fun stagingCurrentIndex(state: PublishUiState): Int? = when {
 }
 
 /** 暂存项副标题：类别 + 件数。 */
+@Composable
 private fun draftSubtitle(item: DraftItem): String {
-    val category = if (item.category == ListingCategory.BOOK) "书籍" else "一般商品"
-    return "$category · ${item.quantityTotal}件"
+    val category = stringResource(
+        if (item.category == ListingCategory.BOOK) R.string.publish_category_book else R.string.publish_category_general,
+    )
+    return stringResource(R.string.publish_subtitle, category, item.quantityTotal)
 }
 
 /**
@@ -931,14 +934,14 @@ private fun RecognitionBatchDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("识别完成 · 批量填写（$count 项）") },
+        title = { Text(stringResource(R.string.publish_recognition_dialog_title, count)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    "以下信息将统一应用到识别出的 $count 项；留空的项保持不变。",
+                    stringResource(R.string.publish_recognition_dialog_hint, count),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -947,18 +950,18 @@ private fun RecognitionBatchDialog(
                     modifier = Modifier.clickable { attachImage = !attachImage },
                 ) {
                     Checkbox(checked = attachImage, onCheckedChange = { attachImage = it })
-                    Text("将这张图片作为所有项的图片")
+                    Text(stringResource(R.string.publish_recognition_attach_image))
                 }
-                OutlinedTextField(originalPrice, { originalPrice = it }, label = { Text("原价") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(originalPrice, { originalPrice = it }, label = { Text(stringResource(R.string.publish_field_original_price)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     unitPrice,
                     { unitPrice = it },
-                    label = { Text(if (isBuy) "期望价（可留空面议）" else "售价（可留空面议）") },
+                    label = { Text(if (isBuy) stringResource(R.string.publish_price_label_buy) else stringResource(R.string.publish_price_label_sell)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(expiresInDays, { expiresInDays = it }, label = { Text("有效天数") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(pickupLocation, { pickupLocation = it }, label = { Text("交易地点") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(expiresInDays, { expiresInDays = it }, label = { Text(stringResource(R.string.publish_expiry_mode_days)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(pickupLocation, { pickupLocation = it }, label = { Text(stringResource(R.string.publish_field_trade_location)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 if (commonContacts.isNotEmpty()) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         commonContacts.forEach { c ->
@@ -966,17 +969,17 @@ private fun RecognitionBatchDialog(
                         }
                     }
                 }
-                OutlinedTextField(contact, { contact = it }, label = { Text("联系方式") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(contact, { contact = it }, label = { Text(stringResource(R.string.publish_field_contact)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Text(
-                    CONTACT_PRIVACY_HINT,
+                    stringResource(R.string.publish_contact_privacy_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 // 标签：与发布页一致——热门标签可点选，自定义标签输入后"添加"，已选标签点击移除。
-                Text("标签（最多${PublishConfig.MAX_TAGS}个）", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.publish_section_tags, PublishConfig.MAX_TAGS), style = MaterialTheme.typography.titleSmall)
                 if (popularTags.isNotEmpty()) {
-                    Text("热门标签", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.filter_popular_tags), style = MaterialTheme.typography.labelMedium)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         popularTags.forEach { tag ->
                             FilterChip(
@@ -994,7 +997,7 @@ private fun RecognitionBatchDialog(
                     OutlinedTextField(
                         value = customTagInput,
                         onValueChange = { customTagInput = it },
-                        label = { Text("自定义标签") },
+                        label = { Text(stringResource(R.string.publish_field_custom_tag)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
@@ -1006,7 +1009,7 @@ private fun RecognitionBatchDialog(
                         },
                         enabled = customTagInput.isNotBlank() && tags.size < PublishConfig.MAX_TAGS,
                     ) {
-                        Text("添加")
+                        Text(stringResource(R.string.common_add))
                     }
                 }
                 if (tags.isNotEmpty()) {
@@ -1021,9 +1024,9 @@ private fun RecognitionBatchDialog(
         confirmButton = {
             TextButton(onClick = {
                 onApply(attachImage, originalPrice, unitPrice, expiresInDays, pickupLocation, contact, tags)
-            }) { Text("应用") }
+            }) { Text(stringResource(R.string.publish_action_apply)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("跳过") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.publish_action_skip)) } },
     )
 }
 

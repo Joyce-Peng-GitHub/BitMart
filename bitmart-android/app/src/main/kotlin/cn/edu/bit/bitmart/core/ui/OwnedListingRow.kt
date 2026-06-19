@@ -7,6 +7,8 @@ import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 
@@ -42,15 +44,23 @@ fun OwnedListingRow(
             if (adjusting) {
                 SwipeActionLoading()
             } else {
-                SwipeAction(Icons.Default.Numbers, "数量", onClick = { close(); onAdjustClick() })
+                SwipeAction(
+                    Icons.Default.Numbers,
+                    stringResource(R.string.owned_listing_action_quantity),
+                    onClick = { close(); onAdjustClick() },
+                )
             }
         },
         // 左滑：编辑 / 删除。
         endActions = { close ->
-            SwipeAction(Icons.Default.Edit, "编辑", onClick = { close(); onEditClick() })
+            SwipeAction(
+                Icons.Default.Edit,
+                stringResource(R.string.common_edit),
+                onClick = { close(); onEditClick() },
+            )
             SwipeAction(
                 Icons.Default.Delete,
-                "删除",
+                stringResource(R.string.common_delete),
                 onClick = { close(); onDeleteClick() },
                 containerColor = MaterialTheme.colorScheme.errorContainer,
             )

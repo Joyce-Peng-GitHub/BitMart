@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -13,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -24,9 +26,9 @@ import cn.edu.bit.bitmart.feature.trade.TradeScreen
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 
 /** 底部导航的两个顶层目的地。 */
-private enum class ShellTab(val route: String, val label: String, val icon: ImageVector) {
-    TRADE("trade", "买卖", Icons.Default.Storefront),
-    PROFILE("profile", "我的", Icons.Default.Person),
+private enum class ShellTab(val route: String, @StringRes val labelRes: Int, val icon: ImageVector) {
+    TRADE("trade", R.string.shell_tab_trade, Icons.Default.Storefront),
+    PROFILE("profile", R.string.shell_tab_profile, Icons.Default.Person),
 }
 
 /**
@@ -69,6 +71,7 @@ fun BitMartShell(
             NavigationBar {
                 ShellTab.entries.forEach { tab ->
                     val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+                    val label = stringResource(tab.labelRes)
                     NavigationBarItem(
                         selected = selected,
                         onClick = {
@@ -78,8 +81,8 @@ fun BitMartShell(
                                 restoreState = true
                             }
                         },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) },
+                        icon = { Icon(tab.icon, contentDescription = label) },
+                        label = { Text(label) },
                     )
                 }
             }

@@ -2,7 +2,9 @@ package cn.edu.bit.bitmart.feature.publish
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.data.local.ContactPrefsStore
+import cn.edu.bit.bitmart.core.data.local.LanguagePrefsStore
 import cn.edu.bit.bitmart.core.data.local.LlmConfigStore
 import cn.edu.bit.bitmart.core.data.local.current
 import cn.edu.bit.bitmart.core.domain.DomainResult
@@ -15,6 +17,8 @@ import cn.edu.bit.bitmart.core.domain.model.PublishConfig
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
+import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toUiText
 import cn.edu.bit.bitmart.llm.LlmClient
 import cn.edu.bit.bitmart.llm.LlmRecognition
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +32,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.util.Locale
 import javax.inject.Inject
 
 /** 有效期输入方式：按天数（从今天起 N 天）或按绝对过期日期（[今天, 过期日) 内有效）。 */
@@ -97,7 +102,7 @@ data class PublishUiState(
     val llmRecognizing: Boolean = false,
     val uploadingImage: Boolean = false,
     val lookingUpBook: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val batchSubmitted: Boolean = false,
     /** 编辑模式：被编辑 listing 的 id（null = 新建发布模式）。 */
     val editingId: Long? = null,
@@ -125,6 +130,7 @@ class PublishViewModel @Inject constructor(
     private val llmClient: LlmClient,
     private val llmConfigStore: LlmConfigStore,
     private val contactPrefsStore: ContactPrefsStore,
+    private val languageStore: LanguagePrefsStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PublishUiState())
@@ -235,7 +241,7 @@ class PublishViewModel @Inject constructor(
      */
     fun uploadImage(bytes: ByteArray, filename: String) {
         if (_state.value.currentDraft.imageKeys.size >= PublishConfig.MAX_IMAGES) {
-            _state.update { it.copy(error = "最多上传${PublishConfig.MAX_IMAGES}张图片") }
+            _state.update { it.copy(error = UiText.Res(R.string.publish_error_max_images, listOf(PublishConfig.MAX_IMAGES))) }
             return
         }
         viewModelScope.launch {
@@ -245,14 +251,12 @@ class PublishViewModel @Inject constructor(
                     // 再查一次上限：选图与拍照识别可能并发上传，两者都通过入口校验后仍可能越限。
                     val keys = st.currentDraft.imageKeys
                     if (keys.size >= PublishConfig.MAX_IMAGES) {
-                        st.copy(uploadingImage = false, error = "最多上传${PublishConfig.MAX_IMAGES}张图片")
+                        st.copy(uploadingImage = false, error = UiText.Res(R.string.publish_error_max_images, listOf(PublishConfig.MAX_IMAGES)))
                     } else {
                         st.copy(uploadingImage = false, currentDraft = st.currentDraft.copy(imageKeys = keys + r.data))
                     }
                 }
-                is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(uploadingImage = false, error = r.toUiText()) }
             }
         }
     }
@@ -279,12 +283,14 @@ class PublishViewModel @Inject constructor(
 
             _state.update { it.copy(llmRecognizing = true, error = null) }
             val category = _state.value.selectedCategory
-            when (val r = llmClient.recognize(config, imageBytes, category)) {
+            // 识别使用的语言：跟随应用语言偏好（SYSTEM 由设备语言解析），决定默认提示词与输出语言。
+            val tag = languageStore.current().resolveLanguageTag(Locale.getDefault().toLanguageTag())
+            when (val r = llmClient.recognize(config, imageBytes, category, tag)) {
                 is DomainResult.Success -> {
                     // 丢弃完全空白的识别项：模型可能产出全空字段的占位项，归一化也可能把非 items 对象兜底成一条空项。
                     val newDrafts = r.data.map { it.toDraftItem() }.filterNot { it.isBlankDraft() }
                     if (newDrafts.isEmpty()) {
-                        _state.update { it.copy(llmRecognizing = false, error = "未识别到可发布的商品") }
+                        _state.update { it.copy(llmRecognizing = false, error = UiText.Res(R.string.publish_error_no_recognizable)) }
                     } else {
                         _state.update { st ->
                             st.copy(
@@ -296,9 +302,7 @@ class PublishViewModel @Inject constructor(
                         }
                     }
                 }
-                is DomainResult.Failure -> _state.update { it.copy(llmRecognizing = false, error = "识别失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(llmRecognizing = false, error = "识别失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(llmRecognizing = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(llmRecognizing = false, error = r.toUiText()) }
             }
         }
     }
@@ -347,9 +351,7 @@ class PublishViewModel @Inject constructor(
                         }
                         st.copy(uploadingImage = false, draftBatch = updated)
                     }
-                    is DomainResult.Failure -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
-                    is DomainResult.InvalidResponse -> _state.update { it.copy(uploadingImage = false, error = "上传失败：${r.message}") }
-                    is DomainResult.NetworkError -> _state.update { it.copy(uploadingImage = false, error = "网络异常：${r.message}") }
+                    is DomainResult.Error -> _state.update { it.copy(uploadingImage = false, error = r.toUiText()) }
                 }
             }
         }
@@ -405,9 +407,7 @@ class PublishViewModel @Inject constructor(
                         )
                     }
                 }
-                is DomainResult.Failure -> _state.update { it.copy(lookingUpBook = false, error = "查询失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(lookingUpBook = false, error = "查询失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(lookingUpBook = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(lookingUpBook = false, error = r.toUiText()) }
             }
         }
     }
@@ -524,7 +524,7 @@ class PublishViewModel @Inject constructor(
         _state.update { parkCurrent(it) }
         val st = _state.value
         if (st.draftBatch.isEmpty()) {
-            _state.update { it.copy(error = "请至少添加一项到待发布列表") }
+            _state.update { it.copy(error = UiText.Res(R.string.publish_error_empty_batch)) }
             return
         }
 
@@ -532,7 +532,7 @@ class PublishViewModel @Inject constructor(
         st.draftBatch.forEachIndexed { i, d ->
             val err = validateDraft(d)
             if (err != null) {
-                _state.update { it.copy(error = "第 ${i + 1} 项：$err") }
+                _state.update { it.copy(error = UiText.Res(R.string.publish_error_batch_item, listOf(i + 1, err))) }
                 return
             }
         }
@@ -542,27 +542,25 @@ class PublishViewModel @Inject constructor(
             val drafts = st.draftBatch.map { it.toPublishDraft(st.type) }
             when (val r = listingRepository.publishBatch(drafts)) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, batchSubmitted = true) }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }
 
     /**
-     * 单条草稿的客户端校验（发布加入批次与编辑保存共用）。返回错误消息，null 表示通过。
+     * 单条草稿的客户端校验（发布加入批次与编辑保存共用）。返回错误文案，null 表示通过。
      */
-    private fun validateDraft(draft: DraftItem): String? {
-        if (draft.title.isBlank()) return "请填写标题"
-        if (draft.contact.isBlank()) return "请填写联系方式"
+    private fun validateDraft(draft: DraftItem): UiText? {
+        if (draft.title.isBlank()) return UiText.Res(R.string.publish_error_title_required)
+        if (draft.contact.isBlank()) return UiText.Res(R.string.publish_error_contact_required)
         // 件数：用 Long 解析以便把超 Int 的"过大整数"正确归类为超上界。
         val qty = draft.quantityTotal.toLongOrNull()
-        if (qty == null || qty < 1) return "件数必须为正整数"
-        if (qty > PublishConfig.MAX_QUANTITY) return "件数不能超过 ${PublishConfig.MAX_QUANTITY}"
+        if (qty == null || qty < 1) return UiText.Res(R.string.publish_error_quantity_invalid)
+        if (qty > PublishConfig.MAX_QUANTITY) return UiText.Res(R.string.publish_error_quantity_too_large, listOf(PublishConfig.MAX_QUANTITY))
         val priceRaw = draft.unitPrice.trim()
         if (priceRaw.isNotEmpty()) {
-            val price = priceRaw.toBigDecimalOrNull() ?: return "价格格式不正确"
-            if (price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal()) return "价格不能超过 ${PublishConfig.MAX_UNIT_PRICE}"
+            val price = priceRaw.toBigDecimalOrNull() ?: return UiText.Res(R.string.publish_error_price_invalid)
+            if (price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal()) return UiText.Res(R.string.publish_error_price_too_large, listOf(PublishConfig.MAX_UNIT_PRICE))
         }
         when (draft.expiryMode) {
             ExpiryMode.DAYS -> {
@@ -570,14 +568,15 @@ class PublishViewModel @Inject constructor(
                 if (expiryRaw.isNotEmpty()) {
                     val days = expiryRaw.toIntOrNull()
                     if (days == null || days !in PublishConfig.EXPIRY_MIN_DAYS..PublishConfig.EXPIRY_MAX_DAYS)
-                        return "有效期必须为 ${PublishConfig.EXPIRY_MIN_DAYS}-${PublishConfig.EXPIRY_MAX_DAYS} 的整数天数"
+                        return UiText.Res(R.string.publish_error_expiry_days_range, listOf(PublishConfig.EXPIRY_MIN_DAYS, PublishConfig.EXPIRY_MAX_DAYS))
                 }
             }
             ExpiryMode.DATE -> {
-                val date = draft.expiresOn?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return "请选择过期日期"
+                val date = draft.expiresOn?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                    ?: return UiText.Res(R.string.publish_error_expiry_date_required)
                 val today = LocalDate.now()
                 if (!date.isAfter(today) || date.isAfter(today.plusDays(PublishConfig.EXPIRY_MAX_DAYS.toLong())))
-                    return "过期日期须晚于今天且不超过 ${PublishConfig.EXPIRY_MAX_DAYS} 天后"
+                    return UiText.Res(R.string.publish_error_expiry_date_range, listOf(PublishConfig.EXPIRY_MAX_DAYS))
             }
         }
         return null
@@ -601,9 +600,14 @@ class PublishViewModel @Inject constructor(
                     }
                 }
                 is DomainResult.Failure ->
-                    _state.update { it.copy(loading = false, error = if (r.httpStatus == 401) "请登录后编辑" else r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            error = if (r.httpStatus == 401) UiText.Res(R.string.publish_error_login_to_edit) else r.toUiText(),
+                        )
+                    }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.toUiText()) }
+                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }
@@ -618,9 +622,7 @@ class PublishViewModel @Inject constructor(
             _state.update { it.copy(loading = true, error = null) }
             when (val r = listingRepository.update(id, draft.toUpdateDraft())) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, saved = true) }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = "保存失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = "保存失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }

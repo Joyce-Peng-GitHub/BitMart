@@ -1,10 +1,12 @@
 package cn.edu.bit.bitmart.feature.settings
 
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.NotificationPage
 import cn.edu.bit.bitmart.core.domain.model.User
 import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.ui.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -78,7 +80,7 @@ class AccountSettingsViewModelTest {
         vm.updateNickname("新昵称")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals("新昵称", vm.state.value.user?.nickname)
-        assertEquals("昵称已更新", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.account_msg_nickname_updated), vm.state.value.message)
         assertNull(vm.state.value.error)
     }
 
@@ -98,7 +100,7 @@ class AccountSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         vm.updateNickname("dup")
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("昵称重复", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_generic), vm.state.value.error)
     }
 
     @Test
@@ -109,7 +111,7 @@ class AccountSettingsViewModelTest {
         vm.changePassword("1120201234", "unifiedPwd", "newPwd")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf("verify", "reset:ticket-1"), auth.calls)
-        assertEquals("密码已修改", vm.state.value.message)
+        assertEquals(UiText.Res(R.string.account_msg_password_changed), vm.state.value.message)
     }
 
     @Test
@@ -120,7 +122,7 @@ class AccountSettingsViewModelTest {
         vm.changePassword("1120201234", "wrong", "newPwd")
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf("verify"), auth.calls) // 未调用 reset
-        assertEquals("认证失败", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_unauthorized), vm.state.value.error)
     }
 
     @Test
@@ -131,7 +133,7 @@ class AccountSettingsViewModelTest {
         vm.changePassword("", "", "")
         dispatcher.scheduler.advanceUntilIdle()
         assertTrue(auth.calls.isEmpty())
-        assertTrue(vm.state.value.error!!.isNotBlank())
+        assertEquals(UiText.Res(R.string.account_error_fill_password_fields), vm.state.value.error)
     }
 
     @Test
@@ -161,7 +163,7 @@ class AccountSettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         vm.deleteAccount()
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("注销失败", vm.state.value.error)
+        assertEquals(UiText.Res(R.string.error_generic), vm.state.value.error)
         assertTrue(!vm.state.value.loggedOut)
     }
 }

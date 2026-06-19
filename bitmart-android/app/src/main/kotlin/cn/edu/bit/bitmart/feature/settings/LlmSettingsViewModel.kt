@@ -2,9 +2,9 @@ package cn.edu.bit.bitmart.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.data.local.LlmConfigStore
-import cn.edu.bit.bitmart.llm.DEFAULT_BOOK_PROMPT
-import cn.edu.bit.bitmart.llm.DEFAULT_GENERAL_PROMPT
+import cn.edu.bit.bitmart.core.ui.UiText
 import cn.edu.bit.bitmart.llm.LlmConfig
 import cn.edu.bit.bitmart.llm.LlmProtocol
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,11 +26,12 @@ data class LlmSettingsUiState(
     val apiKey: String = "",
     val model: String = "",
     val timeoutSeconds: String = LlmConfig.DEFAULT_TIMEOUT_SECONDS.toString(),
-    val bookPrompt: String = DEFAULT_BOOK_PROMPT,
-    val generalPrompt: String = DEFAULT_GENERAL_PROMPT,
+    /** 提示词草稿：留空表示识别时按当前应用语言使用内置默认提示词。 */
+    val bookPrompt: String = "",
+    val generalPrompt: String = "",
     val loaded: Boolean = false,
-    val error: String? = null,
-    val message: String? = null,
+    val error: UiText? = null,
+    val message: UiText? = null,
 )
 
 /**
@@ -77,10 +78,10 @@ class LlmSettingsViewModel @Inject constructor(
     /** 保存当前草稿为配置。基础校验：Base URL / 模型名不能为空，超时为正整数。 */
     fun save() {
         val s = _state.value
-        if (s.baseUrl.isBlank()) { _state.update { it.copy(error = "请填写 Base URL") }; return }
-        if (s.model.isBlank()) { _state.update { it.copy(error = "请填写模型名称") }; return }
+        if (s.baseUrl.isBlank()) { _state.update { it.copy(error = UiText.Res(R.string.llm_error_base_url_required)) }; return }
+        if (s.model.isBlank()) { _state.update { it.copy(error = UiText.Res(R.string.llm_error_model_required)) }; return }
         val timeout = s.timeoutSeconds.toIntOrNull()
-        if (timeout == null || timeout < 1) { _state.update { it.copy(error = "超时阈值必须为正整数（秒）") }; return }
+        if (timeout == null || timeout < 1) { _state.update { it.copy(error = UiText.Res(R.string.llm_error_timeout_invalid)) }; return }
 
         val config = LlmConfig(
             protocol = s.protocol,
@@ -88,12 +89,13 @@ class LlmSettingsViewModel @Inject constructor(
             apiKey = s.apiKey.trim(),
             model = s.model.trim(),
             timeoutSeconds = timeout,
-            bookPrompt = s.bookPrompt.ifBlank { DEFAULT_BOOK_PROMPT },
-            generalPrompt = s.generalPrompt.ifBlank { DEFAULT_GENERAL_PROMPT },
+            // 提示词原样保存：留空即留空，识别时由 LlmClient 按语言回退到内置默认提示词。
+            bookPrompt = s.bookPrompt,
+            generalPrompt = s.generalPrompt,
         )
         viewModelScope.launch {
             store.save(config)
-            _state.update { it.copy(error = null, message = "已保存") }
+            _state.update { it.copy(error = null, message = UiText.Res(R.string.llm_msg_saved)) }
         }
     }
 
@@ -112,7 +114,7 @@ class LlmSettingsViewModel @Inject constructor(
                     bookPrompt = d.bookPrompt,
                     generalPrompt = d.generalPrompt,
                     error = null,
-                    message = "已清空",
+                    message = UiText.Res(R.string.llm_msg_cleared),
                 )
             }
         }

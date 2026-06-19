@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bit.bitmart.core.domain.model.ListingType
+import cn.edu.bit.bitmart.core.ui.titleLabel
 import cn.edu.bit.bitmart.feature.feed.ListingFeedScreen
 import cn.edu.bit.bitmart.feature.listing.ListingListViewModel
 import cn.edu.bit.bitmart.feature.listing.ListingScope
@@ -44,12 +45,12 @@ fun TradeScreen(
             Tab(
                 selected = selectedIndex == 0,
                 onClick = { viewModel.setType(ListingType.SELL) },
-                text = { Text("商品") },
+                text = { Text(ListingType.SELL.titleLabel()) },
             )
             Tab(
                 selected = selectedIndex == 1,
                 onClick = { viewModel.setType(ListingType.BUY) },
-                text = { Text("收购") },
+                text = { Text(ListingType.BUY.titleLabel()) },
             )
         }
         ListingFeedScreen(

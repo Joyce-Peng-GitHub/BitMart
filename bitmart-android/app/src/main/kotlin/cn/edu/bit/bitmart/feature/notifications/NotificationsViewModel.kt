@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.Notification
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toUiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +21,7 @@ data class NotificationsUiState(
     val nextCursor: String? = null,
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 ) {
     /** 是否还有下一页。 */
     val canLoadMore: Boolean get() = nextCursor != null
@@ -52,9 +54,7 @@ class NotificationsViewModel @Inject constructor(
                 is DomainResult.Success -> _state.update {
                     it.copy(loading = false, items = r.data.items, nextCursor = r.data.nextCursor)
                 }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }
@@ -69,9 +69,7 @@ class NotificationsViewModel @Inject constructor(
                 is DomainResult.Success -> _state.update {
                     it.copy(loadingMore = false, items = it.items + r.data.items, nextCursor = r.data.nextCursor)
                 }
-                is DomainResult.Failure -> _state.update { it.copy(loadingMore = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loadingMore = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loadingMore = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loadingMore = false, error = r.toUiText()) }
             }
         }
     }
@@ -85,9 +83,7 @@ class NotificationsViewModel @Inject constructor(
                 is DomainResult.Success -> _state.update { s ->
                     s.copy(items = s.items.map { if (it.id == id) it.copy(read = true) else it })
                 }
-                is DomainResult.Failure -> _state.update { it.copy(error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(error = r.toUiText()) }
             }
         }
     }

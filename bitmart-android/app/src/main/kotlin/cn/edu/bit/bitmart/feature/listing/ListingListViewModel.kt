@@ -2,7 +2,9 @@ package cn.edu.bit.bitmart.feature.listing
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
+import cn.edu.bit.bitmart.core.domain.isUnauthorized
 import cn.edu.bit.bitmart.core.domain.model.ListingPage
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
@@ -14,6 +16,8 @@ import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
 import cn.edu.bit.bitmart.core.domain.repository.TagInfo
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
 import cn.edu.bit.bitmart.core.ui.FilterState
+import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toUiText
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,7 +45,7 @@ data class ListingListUiState(
     val loadingMore: Boolean = false,
     /** 下拉刷新进行中（保留当前列表，仅驱动下拉指示器）。 */
     val refreshing: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val nextCursor: String? = null,
     val endReached: Boolean = false,
     /** 当前登录用户 id（未登录为 null）。仅 PUBLIC 解析：列表项 ownerId 与之相等者为本人项，启用左滑操作。 */
@@ -148,9 +152,7 @@ class ListingListViewModel @AssistedInject constructor(
                         items = st.items.map { if (it.id == id) it.copy(quantitySold = quantitySold) else it },
                     )
                 }
-                is DomainResult.Failure -> _state.update { it.copy(adjustingId = null, error = "调整失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(adjustingId = null, error = "调整失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(adjustingId = null, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(adjustingId = null, error = r.toUiText()) }
             }
         }
     }
@@ -160,9 +162,7 @@ class ListingListViewModel @AssistedInject constructor(
         viewModelScope.launch {
             when (val r = listingRepository.delete(id)) {
                 is DomainResult.Success -> _state.update { st -> st.copy(items = st.items.filterNot { it.id == id }) }
-                is DomainResult.Failure -> _state.update { it.copy(error = "删除失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(error = "删除失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(error = r.toUiText()) }
             }
         }
     }
@@ -218,12 +218,15 @@ class ListingListViewModel @AssistedInject constructor(
                 is DomainResult.Success -> _state.update {
                     it.copy(loading = false, refreshing = false, items = r.data.items, nextCursor = r.data.nextCursor, endReached = r.data.nextCursor == null)
                 }
-                is DomainResult.Failure ->
+                is DomainResult.Error -> {
                     // "我的列表"需登录；401 给出更明确的引导文案。公开列表无此分支。
-                    if (scope == ListingScope.MINE && r.httpStatus == 401) _state.update { it.copy(loading = false, refreshing = false, error = "请登录后查看") }
-                    else _state.update { it.copy(loading = false, refreshing = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, refreshing = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, refreshing = false, error = "网络异常：${r.message}") }
+                    val msg = if (scope == ListingScope.MINE && r.isUnauthorized()) {
+                        UiText.Res(R.string.error_login_required)
+                    } else {
+                        r.toUiText()
+                    }
+                    _state.update { it.copy(loading = false, refreshing = false, error = msg) }
+                }
             }
         }
     }
@@ -238,9 +241,7 @@ class ListingListViewModel @AssistedInject constructor(
                 is DomainResult.Success -> _state.update {
                     it.copy(loadingMore = false, items = it.items + r.data.items, nextCursor = r.data.nextCursor, endReached = r.data.nextCursor == null)
                 }
-                is DomainResult.Failure -> _state.update { it.copy(loadingMore = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loadingMore = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loadingMore = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loadingMore = false, error = r.toUiText()) }
             }
         }
     }

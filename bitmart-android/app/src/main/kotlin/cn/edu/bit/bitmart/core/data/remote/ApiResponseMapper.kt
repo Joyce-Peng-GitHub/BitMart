@@ -19,7 +19,7 @@ object ApiResponseMapper {
         return if (response.status.isSuccess()) {
             // 2xx 但响应体反序列化失败 → InvalidResponse（而非沿用旧路径被上层 try/catch 误判为 NetworkError）。
             runCatching { DomainResult.Success(response.body<T>()) }
-                .getOrElse { DomainResult.InvalidResponse("无法解析服务器响应", it) }
+                .getOrElse { DomainResult.InvalidResponse("Failed to parse server response", it) }
         } else {
             parseError(response.status.value, response.bodyAsText())
         }

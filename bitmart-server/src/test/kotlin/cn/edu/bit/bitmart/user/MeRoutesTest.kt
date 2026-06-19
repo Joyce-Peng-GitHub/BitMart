@@ -24,6 +24,8 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 /** /me 端到端集成测试。 */
@@ -55,12 +57,14 @@ class MeRoutesTest : FunSpec({
         app { client, _ -> client.get("/api/v1/me").status shouldBe HttpStatusCode.Unauthorized }
     }
 
-    test("GET /me 返回当前用户，默认昵称为匿名") {
+    test("GET /me 返回当前用户，未设昵称时 displayName 为 null（不再服务端兜底匿名）") {
         app { client, _ ->
             val (token, _) = client.register()
             val me = client.get("/api/v1/me") { bearerAuth(token) }
             me.status shouldBe HttpStatusCode.OK
-            me.body<UserDto>().displayName shouldBe "匿名"
+            val dto = me.body<UserDto>()
+            dto.nickname shouldBe null
+            dto.displayName shouldBe null
         }
     }
 
@@ -101,6 +105,25 @@ class MeRoutesTest : FunSpec({
             val page = client.get("/api/v1/me/notifications") { bearerAuth(token) }.body<NotificationPageDto>()
             val titles = page.items.map { it.title }
             (titles.contains("全员公告") && titles.contains("到期提醒")) shouldBe true
+        }
+    }
+
+    test("GET /me/notifications 原样下发结构化 payload（i18n 字段透传）") {
+        app { client, components ->
+            val (token, userId) = client.register()
+            // 模拟 ExpiryWarningJob 写入的结构化 payload。
+            val payloadJson =
+                """{"listingId":42,"expiresAt":"2026-06-20T10:00:00+08:00","templateKey":"EXPIRY_WARNING","listingTitle":"高数教材","hours":24,"listingType":"SELL"}"""
+            transaction(components.database) {
+                components.notificationRepository.create(userId, 1, "商品即将到期", "中文兜底", payloadJson)
+            }
+            val page = client.get("/api/v1/me/notifications") { bearerAuth(token) }.body<NotificationPageDto>()
+            val dto = page.items.single { it.title == "商品即将到期" }
+            // payload 透传为字符串，解析后逐字段校验客户端契约。
+            val payload = Json.parseToJsonElement(dto.payload!!).jsonObject
+            payload.getValue("templateKey").jsonPrimitive.content shouldBe "EXPIRY_WARNING"
+            payload.getValue("listingType").jsonPrimitive.content shouldBe "SELL"
+            payload.getValue("listingTitle").jsonPrimitive.content shouldBe "高数教材"
         }
     }
 

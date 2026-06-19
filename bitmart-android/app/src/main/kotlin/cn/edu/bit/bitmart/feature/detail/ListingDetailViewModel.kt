@@ -2,11 +2,14 @@ package cn.edu.bit.bitmart.feature.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.ListingDetail
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
+import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toUiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +21,7 @@ import javax.inject.Inject
 data class DetailUiState(
     val loading: Boolean = true,
     val detail: ListingDetail? = null,
-    val error: String? = null,
+    val error: UiText? = null,
     val needLogin: Boolean = false,
     val currentUserId: Long? = null,
     val isOwner: Boolean = false,
@@ -62,9 +65,9 @@ class ListingDetailViewModel @Inject constructor(
                 }
                 is DomainResult.Failure ->
                     if (r.httpStatus == 401) _state.update { it.copy(loading = false, needLogin = true) }
-                    else _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                    else _state.update { it.copy(loading = false, error = r.toUiText()) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.toUiText()) }
+                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }
@@ -81,9 +84,9 @@ class ListingDetailViewModel @Inject constructor(
                 is DomainResult.Success -> _state.update { st ->
                     st.copy(adjusting = false, detail = st.detail?.copy(quantitySold = quantitySold))
                 }
-                is DomainResult.Failure -> _state.update { it.copy(adjusting = false, error = "调整失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(adjusting = false, error = "调整失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(adjusting = false, error = "网络异常：${r.message}") }
+                is DomainResult.Failure -> _state.update { it.copy(adjusting = false, error = UiText.Res(R.string.detail_error_adjust_failed, listOf(r.toUiText()))) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(adjusting = false, error = UiText.Res(R.string.detail_error_adjust_failed, listOf(r.toUiText()))) }
+                is DomainResult.NetworkError -> _state.update { it.copy(adjusting = false, error = UiText.Res(R.string.detail_error_network, listOf(r.toUiText()))) }
             }
         }
     }
@@ -93,9 +96,9 @@ class ListingDetailViewModel @Inject constructor(
             _state.update { it.copy(deleteInProgress = true, error = null) }
             when (val r = listingRepository.delete(id)) {
                 is DomainResult.Success -> _state.update { it.copy(deleteInProgress = false, deleteSuccess = true) }
-                is DomainResult.Failure -> _state.update { it.copy(deleteInProgress = false, error = "删除失败：${r.message}") }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(deleteInProgress = false, error = "删除失败：${r.message}") }
-                is DomainResult.NetworkError -> _state.update { it.copy(deleteInProgress = false, error = "网络异常：${r.message}") }
+                is DomainResult.Failure -> _state.update { it.copy(deleteInProgress = false, error = UiText.Res(R.string.detail_error_delete_failed, listOf(r.toUiText()))) }
+                is DomainResult.InvalidResponse -> _state.update { it.copy(deleteInProgress = false, error = UiText.Res(R.string.detail_error_delete_failed, listOf(r.toUiText()))) }
+                is DomainResult.NetworkError -> _state.update { it.copy(deleteInProgress = false, error = UiText.Res(R.string.detail_error_network, listOf(r.toUiText()))) }
             }
         }
     }

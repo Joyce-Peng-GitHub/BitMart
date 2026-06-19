@@ -10,6 +10,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
@@ -81,6 +82,44 @@ class ExpiryWarningJobTest : FunSpec({
         val payload = Json.parseToJsonElement(warns[0][Notifications.payload]!!).jsonObject
         payload.getValue("listingId").jsonPrimitive.long shouldBe listingId
         payload.getValue("expiresAt").jsonPrimitive.content.isNotBlank() shouldBe true
+    }
+
+    test("payload 携带结构化国际化字段，且仍写中文 title/body 兜底") {
+        val components = AuthTestSupport.components()
+        val uid = newUser(components)
+        val listingId =
+            insertListing(components, uid, OffsetDateTime.now().plusHours(2), type = 0, title = "高数教材")
+
+        components.expiryWarningJob.runOnce()
+
+        val warns = expiryWarnsFor(components, uid)
+        warns.size shouldBe 1
+        // 中文兜底仍在写，且非空。
+        warns[0][Notifications.title].isNotBlank() shouldBe true
+        warns[0][Notifications.body].isNotBlank() shouldBe true
+        warns[0][Notifications.title] shouldBe "商品即将到期"
+
+        val payload = Json.parseToJsonElement(warns[0][Notifications.payload]!!).jsonObject
+        payload.getValue("templateKey").jsonPrimitive.content shouldBe "EXPIRY_WARNING"
+        payload.getValue("listingId").jsonPrimitive.long shouldBe listingId
+        payload.getValue("expiresAt").jsonPrimitive.content.isNotBlank() shouldBe true
+        payload.getValue("listingTitle").jsonPrimitive.content shouldBe "高数教材"
+        payload.getValue("hours").jsonPrimitive.int shouldBe 24
+        payload.getValue("listingType").jsonPrimitive.content shouldBe "SELL"
+    }
+
+    test("求购类型的 payload listingType 为 BUY") {
+        val components = AuthTestSupport.components()
+        val uid = newUser(components)
+        insertListing(components, uid, OffsetDateTime.now().plusHours(2), type = 1, title = "求二手自行车")
+
+        components.expiryWarningJob.runOnce()
+
+        val warns = expiryWarnsFor(components, uid)
+        warns.size shouldBe 1
+        val payload = Json.parseToJsonElement(warns[0][Notifications.payload]!!).jsonObject
+        payload.getValue("listingType").jsonPrimitive.content shouldBe "BUY"
+        payload.getValue("listingTitle").jsonPrimitive.content shouldBe "求二手自行车"
     }
 
     test("重复执行不重复提醒") {

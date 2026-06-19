@@ -2,10 +2,13 @@ package cn.edu.bit.bitmart.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.User
 import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toUiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +22,9 @@ data class AccountSettingsUiState(
     val loggedIn: Boolean = true,
     val user: User? = null,
     val loading: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     /** 一次性提示文案（成功后展示，由 UI 消费后清空）。 */
-    val message: String? = null,
+    val message: UiText? = null,
     /** 注销账号成功后置 true，UI 据此返回。 */
     val loggedOut: Boolean = false,
 )
@@ -52,9 +55,7 @@ class AccountSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = profileRepository.getMe()) {
                 is DomainResult.Success -> _state.update { it.copy(user = r.data) }
-                is DomainResult.Failure -> _state.update { it.copy(error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(error = r.toUiText()) }
             }
         }
     }
@@ -64,10 +65,8 @@ class AccountSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null, message = null) }
             when (val r = profileRepository.updateNickname(nickname.ifBlank { null })) {
-                is DomainResult.Success -> _state.update { it.copy(loading = false, user = r.data, message = "昵称已更新") }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                is DomainResult.Success -> _state.update { it.copy(loading = false, user = r.data, message = UiText.Res(R.string.account_msg_nickname_updated)) }
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }
@@ -80,7 +79,7 @@ class AccountSettingsViewModel @Inject constructor(
      */
     fun changePassword(studentId: String, unifiedPassword: String, newPassword: String) {
         if (studentId.isBlank() || unifiedPassword.isBlank() || newPassword.isBlank()) {
-            _state.update { it.copy(error = "请完整填写学号、统一身份认证密码与新密码") }
+            _state.update { it.copy(error = UiText.Res(R.string.account_error_fill_password_fields)) }
             return
         }
         viewModelScope.launch {
@@ -88,15 +87,11 @@ class AccountSettingsViewModel @Inject constructor(
             when (val verify = authRepository.verify(studentId, unifiedPassword)) {
                 is DomainResult.Success -> {
                     when (val reset = authRepository.resetPassword(verify.data, studentId, newPassword)) {
-                        is DomainResult.Success -> _state.update { it.copy(loading = false, message = "密码已修改") }
-                        is DomainResult.Failure -> _state.update { it.copy(loading = false, error = reset.message) }
-                        is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = reset.message) }
-                        is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${reset.message}") }
+                        is DomainResult.Success -> _state.update { it.copy(loading = false, message = UiText.Res(R.string.account_msg_password_changed)) }
+                        is DomainResult.Error -> _state.update { it.copy(loading = false, error = reset.toUiText()) }
                     }
                 }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = verify.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = verify.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${verify.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = verify.toUiText()) }
             }
         }
     }
@@ -107,9 +102,7 @@ class AccountSettingsViewModel @Inject constructor(
             _state.update { it.copy(loading = true, error = null) }
             when (val r = authRepository.logout()) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, loggedOut = true) }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }
@@ -120,9 +113,7 @@ class AccountSettingsViewModel @Inject constructor(
             _state.update { it.copy(loading = true, error = null) }
             when (val r = authRepository.deleteAccount()) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, loggedOut = true) }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = r.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${r.message}") }
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
             }
         }
     }

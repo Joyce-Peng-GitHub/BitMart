@@ -33,12 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import cn.edu.bit.bitmart.R
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -79,10 +81,13 @@ fun BookScanScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("扫描书籍条码") },
+                title = { Text(stringResource(R.string.bookscan_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back),
+                        )
                     }
                 },
             )
@@ -97,7 +102,10 @@ fun BookScanScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Text("需要相机权限以扫描条码", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(R.string.bookscan_permission_needed),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
                 }
             }
         }

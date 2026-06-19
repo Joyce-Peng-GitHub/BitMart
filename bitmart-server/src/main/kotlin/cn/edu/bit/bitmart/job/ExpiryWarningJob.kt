@@ -1,12 +1,15 @@
 package cn.edu.bit.bitmart.job
 
 import cn.edu.bit.bitmart.db.Listings
+import cn.edu.bit.bitmart.domain.ListingType
 import cn.edu.bit.bitmart.user.NotificationCategory
 import cn.edu.bit.bitmart.user.NotificationRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.IntegerColumnType
 import org.jetbrains.exposed.v1.core.statements.StatementType
@@ -61,14 +64,27 @@ class ExpiryWarningJob(
     /** 单次扫描。返回新建通知数。[now] 可注入以便测试。 */
     fun runOnce(now: OffsetDateTime = OffsetDateTime.now()): Int = transaction(database) {
         val due = findDue(now)
+        val warnHours = warnWindow.toHours().toInt()
         due.forEach { l ->
             val kind = if (l.type == 0) "商品" else "求购"
+            // listingType: Listings.type 与 domain.ListingType ordinal 对齐（0=SELL/商品，1=BUY/求购）。
+            val listingType = ListingType.entries[l.type].name
+            // 结构化 payload 供客户端本地化渲染；title/body 仍写中文兜底（向后兼容）。
+            // 去重键 listingId/expiresAt 必须保留（findDue 的 NOT EXISTS 依赖它们）。
+            val payload = buildJsonObject {
+                put("listingId", l.id)
+                put("expiresAt", l.expiresAt.toString())
+                put("templateKey", "EXPIRY_WARNING")
+                put("listingTitle", l.title)
+                put("hours", warnHours)
+                put("listingType", listingType)
+            }
             notificationRepository.create(
                 userId = l.userId,
                 category = NotificationCategory.EXPIRY_WARN,
                 title = "${kind}即将到期",
-                body = "你发布的$kind「${l.title}」将于 ${warnWindow.toHours()} 小时内到期，如需继续展示可前往“我的发布”延期。",
-                payload = """{"listingId":${l.id},"expiresAt":"${l.expiresAt}"}""",
+                body = "你发布的$kind「${l.title}」将于 $warnHours 小时内到期，如需继续展示可前往“我的发布”延期。",
+                payload = payload.toString(),
             )
         }
         due.size

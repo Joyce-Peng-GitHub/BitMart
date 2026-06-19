@@ -28,11 +28,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.R
+import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.model.Notification
 import cn.edu.bit.bitmart.core.ui.formatTimestampMinute
+import cn.edu.bit.bitmart.core.ui.titleLabel
 
 /** 触底预取距离：最后可见项进入列表末尾该数量内即加载下一页。 */
 private const val NOTIFICATIONS_LOAD_MORE_PREFETCH = 3
@@ -65,17 +69,17 @@ fun NotificationsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("通知") },
+                title = { Text(stringResource(R.string.notif_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
+            state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
 
             when {
                 state.loading -> Column(
@@ -88,7 +92,7 @@ fun NotificationsScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
-                ) { Text("暂无通知", style = MaterialTheme.typography.bodyLarge) }
+                ) { Text(stringResource(R.string.notif_empty), style = MaterialTheme.typography.bodyLarge) }
 
                 else -> LazyColumn(
                     state = listState,
@@ -113,18 +117,31 @@ fun NotificationsScreen(
 
 @Composable
 private fun NotificationCard(n: Notification, onClick: () -> Unit) {
+    // 到期提醒按后端结构化 payload 本地化渲染；无法解析（含老数据、未知模板）时回落服务端 title/body。
+    val expiry = remember(n) { n.expiryWarningPayload() }
+    val title: String
+    val body: String
+    if (expiry != null) {
+        // listingType 已在解析阶段校验为已知枚举，这里 valueOf 安全。
+        val typeNoun = ListingType.valueOf(expiry.listingType).titleLabel()
+        title = stringResource(R.string.notif_expiry_title, typeNoun)
+        body = stringResource(R.string.notif_expiry_body, typeNoun, expiry.listingTitle, expiry.hours)
+    } else {
+        title = n.title
+        body = n.body
+    }
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistChip(
                     onClick = {},
                     enabled = false,
-                    label = { Text(if (n.isAnnouncement) "公告" else "提醒") },
+                    label = { Text(stringResource(if (n.isAnnouncement) R.string.notif_chip_announcement else R.string.notif_chip_reminder)) },
                 )
-                Text(n.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 if (!n.read) Badge()
             }
-            Text(n.body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+            Text(body, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
             Text(formatTimestampMinute(n.createdAt), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
         }
     }

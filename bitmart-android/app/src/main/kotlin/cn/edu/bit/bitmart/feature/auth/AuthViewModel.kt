@@ -2,8 +2,12 @@ package cn.edu.bit.bitmart.feature.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
+import cn.edu.bit.bitmart.core.domain.isUnauthorized
 import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
+import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toUiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +22,7 @@ data class AuthUiState(
     val password: String = "",
     val nickname: String = "",
     val loading: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val loggedIn: Boolean = false,
 )
 
@@ -42,10 +46,10 @@ class AuthViewModel @Inject constructor(
     fun login() {
         val s = _state.value
         if (s.studentId.isBlank() || s.password.isBlank()) {
-            _state.update { it.copy(error = "请填写学号和密码") }
+            _state.update { it.copy(error = UiText.Res(R.string.auth_fill_credentials)) }
             return
         }
-        launchAuth { authRepository.login(s.studentId, s.password) }
+        launchAuth(AuthFlow.LOGIN) { authRepository.login(s.studentId, s.password) }
     }
 
     /**
@@ -55,40 +59,58 @@ class AuthViewModel @Inject constructor(
     fun register(unifiedPassword: String) {
         val s = _state.value
         if (s.studentId.isBlank() || s.password.isBlank()) {
-            _state.update { it.copy(error = "请填写学号和要设置的密码") }
+            _state.update { it.copy(error = UiText.Res(R.string.auth_fill_register_credentials)) }
             return
         }
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             when (val verify = authRepository.verify(s.studentId, unifiedPassword)) {
                 is DomainResult.Success -> {
+                    // ticket 已取得：后续 register 阶段的 401（票据失效/过期）同属"验证失败"语义。
                     val reg = authRepository.register(
                         verify.data, s.studentId, s.password, s.nickname.ifBlank { null },
                     )
-                    applyResult(reg)
+                    applyResult(reg, AuthFlow.VERIFY)
                 }
-                is DomainResult.Failure -> _state.update { it.copy(loading = false, error = verify.message) }
-                is DomainResult.InvalidResponse -> _state.update { it.copy(loading = false, error = verify.message) }
-                is DomainResult.NetworkError -> _state.update { it.copy(loading = false, error = "网络异常：${verify.message}") }
+                // verify 阶段的 401 表示统一身份认证失败（密码错误等），归为"验证失败"。
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = verify.toAuthError(AuthFlow.VERIFY)) }
             }
         }
     }
 
-    private fun launchAuth(block: suspend () -> DomainResult<*>) {
+    private fun launchAuth(flow: AuthFlow, block: suspend () -> DomainResult<*>) {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
-            applyResult(block())
+            applyResult(block(), flow)
         }
     }
 
-    private fun applyResult(result: DomainResult<*>) {
+    private fun applyResult(result: DomainResult<*>, flow: AuthFlow) {
         _state.update {
             when (result) {
                 is DomainResult.Success -> it.copy(loading = false, loggedIn = true, error = null)
-                is DomainResult.Failure -> it.copy(loading = false, error = result.message)
-                is DomainResult.InvalidResponse -> it.copy(loading = false, error = result.message)
-                is DomainResult.NetworkError -> it.copy(loading = false, error = "网络异常：${result.message}")
+                is DomainResult.Error -> it.copy(loading = false, error = result.toAuthError(flow))
             }
         }
     }
+
+    /**
+     * 认证流程内的错误文案：401 按流程给出针对性文案（登录/注册口令步 → 凭据错误；身份验证步 → 验证失败），
+     * 其余失败（已注册 CONFLICT、未注册 NOT_FOUND、口令策略 VALIDATION_FAILED 等）沿用通用 [toUiText] 码映射。
+     * 镜像 [cn.edu.bit.bitmart.feature.listing.ListingListViewModel] 中以 [isUnauthorized] 特判 401 的既有约定。
+     */
+    private fun DomainResult.Error.toAuthError(flow: AuthFlow): UiText =
+        if (isUnauthorized()) {
+            UiText.Res(
+                when (flow) {
+                    AuthFlow.LOGIN -> R.string.auth_error_invalid_credentials
+                    AuthFlow.VERIFY -> R.string.auth_error_verify_failed
+                },
+            )
+        } else {
+            toUiText()
+        }
 }
+
+/** 当前认证流程，用于将 401 失败翻译成对应的针对性文案。 */
+private enum class AuthFlow { LOGIN, VERIFY }

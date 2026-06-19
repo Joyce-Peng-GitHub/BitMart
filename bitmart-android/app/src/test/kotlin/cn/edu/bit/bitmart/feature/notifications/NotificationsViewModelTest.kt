@@ -1,10 +1,12 @@
 package cn.edu.bit.bitmart.feature.notifications
 
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.Notification
 import cn.edu.bit.bitmart.core.domain.model.NotificationPage
 import cn.edu.bit.bitmart.core.domain.model.User
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.ui.UiText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -108,11 +110,12 @@ class NotificationsViewModelTest {
     }
 
     @Test
-    fun `refresh failure surfaces message`() = runTest {
-        val repo = FakeProfileRepo(listOf(DomainResult.Failure("X", "加载失败", 500)))
+    fun `refresh failure surfaces localized error`() = runTest {
+        val repo = FakeProfileRepo(listOf(DomainResult.Failure("VALIDATION_FAILED", "加载失败", 500)))
         val vm = NotificationsViewModel(repo)
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals("加载失败", vm.state.value.error)
+        // 错误不再透传服务端原始中文，而是按 error code 映射为本地化资源。
+        assertEquals(UiText.Res(R.string.error_validation_failed), vm.state.value.error)
         assertTrue(vm.state.value.items.isEmpty())
     }
 }

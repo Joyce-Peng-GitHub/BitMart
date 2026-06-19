@@ -6,6 +6,8 @@ import cn.edu.bit.bitmart.core.domain.DomainResult
 import cn.edu.bit.bitmart.core.domain.model.User
 import cn.edu.bit.bitmart.core.domain.repository.AuthRepository
 import cn.edu.bit.bitmart.core.domain.repository.ProfileRepository
+import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toUiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +24,7 @@ data class ProfileUiState(
     val loading: Boolean = false,
     /** 下拉刷新进行中（驱动下拉指示器）。 */
     val refreshing: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 /**
@@ -68,13 +70,11 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    /** 将 /me 结果落到状态：成功更新 user，失败/网络错误置 error（前缀统一）。 */
+    /** 将 /me 结果落到状态：成功更新 user，失败/网络错误置 error（统一映射为本地化文案）。 */
     private fun applyMeResult(r: DomainResult<User>) = _state.update {
         when (r) {
             is DomainResult.Success -> it.copy(user = r.data)
-            is DomainResult.Failure -> it.copy(error = r.message)
-            is DomainResult.InvalidResponse -> it.copy(error = r.message)
-            is DomainResult.NetworkError -> it.copy(error = "网络异常：${r.message}")
+            is DomainResult.Error -> it.copy(error = r.toUiText())
         }
     }
 

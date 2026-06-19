@@ -32,11 +32,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.llm.LlmProtocol
 
 /**
@@ -63,10 +65,10 @@ fun LlmSettingsScreen(
     Scaffold(
         topBar = {
             androidx.compose.material3.TopAppBar(
-                title = { Text("LLM 设置") },
+                title = { Text(stringResource(R.string.settings_llm)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
@@ -76,8 +78,8 @@ fun LlmSettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            state.message?.let { Text(it.asString(), color = MaterialTheme.colorScheme.primary) }
+            state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
 
             ProtocolDropdown(
                 selected = state.protocol,
@@ -88,7 +90,7 @@ fun LlmSettingsScreen(
             OutlinedTextField(
                 value = state.baseUrl,
                 onValueChange = viewModel::onBaseUrl,
-                label = { Text("Base URL") },
+                label = { Text(stringResource(R.string.llm_base_url)) },
                 placeholder = { Text("https://api.example.com") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -97,18 +99,18 @@ fun LlmSettingsScreen(
             OutlinedTextField(
                 value = state.apiKey,
                 onValueChange = viewModel::onApiKey,
-                label = { Text("API Key") },
+                label = { Text(stringResource(R.string.llm_api_key)) },
                 singleLine = true,
                 visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     androidx.compose.material3.TextButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
-                        Text(if (apiKeyVisible) "隐藏" else "显示")
+                        Text(stringResource(if (apiKeyVisible) R.string.llm_hide else R.string.llm_show))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "API Key 仅保存在本机，不会上传到 BitMart 服务器。",
+                stringResource(R.string.llm_api_key_privacy),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
             )
@@ -116,7 +118,7 @@ fun LlmSettingsScreen(
             OutlinedTextField(
                 value = state.model,
                 onValueChange = viewModel::onModel,
-                label = { Text("模型名称") },
+                label = { Text(stringResource(R.string.llm_model)) },
                 placeholder = { Text("gpt-4o-mini") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -125,7 +127,7 @@ fun LlmSettingsScreen(
             OutlinedTextField(
                 value = state.timeoutSeconds,
                 onValueChange = viewModel::onTimeout,
-                label = { Text("超时阈值（秒）") },
+                label = { Text(stringResource(R.string.llm_timeout)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -133,7 +135,8 @@ fun LlmSettingsScreen(
             OutlinedTextField(
                 value = state.bookPrompt,
                 onValueChange = viewModel::onBookPrompt,
-                label = { Text("书籍识别提示词") },
+                label = { Text(stringResource(R.string.llm_book_prompt)) },
+                placeholder = { Text(stringResource(R.string.llm_prompt_hint)) },
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -141,7 +144,8 @@ fun LlmSettingsScreen(
             OutlinedTextField(
                 value = state.generalPrompt,
                 onValueChange = viewModel::onGeneralPrompt,
-                label = { Text("一般商品识别提示词") },
+                label = { Text(stringResource(R.string.llm_general_prompt)) },
+                placeholder = { Text(stringResource(R.string.llm_prompt_hint)) },
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -149,8 +153,8 @@ fun LlmSettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = viewModel::save, modifier = Modifier.weight(1f)) { Text("保存") }
-                OutlinedButton(onClick = viewModel::clear, modifier = Modifier.weight(1f)) { Text("清空") }
+                Button(onClick = viewModel::save, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_save)) }
+                OutlinedButton(onClick = viewModel::clear, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_clear)) }
             }
         }
     }
@@ -170,7 +174,7 @@ private fun ProtocolDropdown(
             value = selected.displayName,
             onValueChange = {},
             readOnly = true,
-            label = { Text("协议") },
+            label = { Text(stringResource(R.string.llm_protocol)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )

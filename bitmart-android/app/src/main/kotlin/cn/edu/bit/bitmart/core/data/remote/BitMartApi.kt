@@ -164,7 +164,7 @@ class BitMartApi(
         try {
             block()
         } catch (e: Exception) {
-            DomainResult.NetworkError(e.message ?: "网络异常")
+            DomainResult.NetworkError(e.message ?: "Network error")
         }
 
     /**

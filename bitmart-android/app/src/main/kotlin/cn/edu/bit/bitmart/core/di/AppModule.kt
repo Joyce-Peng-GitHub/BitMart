@@ -7,9 +7,11 @@ import androidx.datastore.preferences.preferencesDataStore
 import cn.edu.bit.bitmart.BuildConfig
 import cn.edu.bit.bitmart.core.data.local.ContactPrefsStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreContactPrefsStore
+import cn.edu.bit.bitmart.core.data.local.DataStoreLanguagePrefsStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreLlmConfigStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreThemePrefsStore
 import cn.edu.bit.bitmart.core.data.local.DataStoreTokenStore
+import cn.edu.bit.bitmart.core.data.local.LanguagePrefsStore
 import cn.edu.bit.bitmart.core.data.local.LlmConfigStore
 import cn.edu.bit.bitmart.core.data.local.ThemePrefsStore
 import cn.edu.bit.bitmart.core.data.local.TokenStore
@@ -69,6 +71,11 @@ object AppModule {
     @Singleton
     fun provideThemePrefsStore(dataStore: DataStore<Preferences>): ThemePrefsStore =
         DataStoreThemePrefsStore(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideLanguagePrefsStore(dataStore: DataStore<Preferences>): LanguagePrefsStore =
+        DataStoreLanguagePrefsStore(dataStore)
 
     @Provides
     @Singleton

@@ -38,9 +38,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
@@ -83,7 +85,7 @@ fun MyListingsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
-    val title = if (buy) "我的收购" else "我的商品"
+    val title = stringResource(if (buy) R.string.profile_my_purchases else R.string.profile_my_items)
     var adjustTarget by remember { mutableStateOf<ListingSummary?>(null) }
     var showFilter by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
@@ -102,7 +104,7 @@ fun MyListingsScreen(
     // 异常（加载失败/调整已售/删除/409 冲突等）统一用 Toast 提示，与公共列表一致；展示后清空。
     LaunchedEffect(state.error) {
         state.error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, it.resolve(context), Toast.LENGTH_SHORT).show()
             viewModel.consumeError()
         }
     }
@@ -120,7 +122,7 @@ fun MyListingsScreen(
                 title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
@@ -136,16 +138,16 @@ fun MyListingsScreen(
             ) {
                 BadgedBox(badge = { if (searchActive) Badge() }) {
                     SmallFloatingActionButton(onClick = { showSearch = true }) {
-                        Icon(Icons.Default.Search, contentDescription = "搜索")
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.feed_cd_search))
                     }
                 }
                 BadgedBox(badge = { if (filterActive) Badge() }) {
                     SmallFloatingActionButton(onClick = { showFilter = true }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "筛选")
+                        Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.feed_cd_filter))
                     }
                 }
                 FloatingActionButton(onClick = onPublishClick) {
-                    Icon(Icons.Default.Add, contentDescription = "发布")
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.feed_cd_publish))
                 }
             }
         },
@@ -162,7 +164,12 @@ fun MyListingsScreen(
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         item {
                             Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("还没有$title")
+                                Text(
+                                    stringResource(
+                                        if (buy) R.string.profile_my_purchases_empty
+                                        else R.string.profile_my_items_empty,
+                                    ),
+                                )
                             }
                         }
                     }

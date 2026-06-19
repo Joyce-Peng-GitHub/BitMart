@@ -16,8 +16,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import cn.edu.bit.bitmart.BuildConfig
+import cn.edu.bit.bitmart.R
 
 /**
  * 关于页：应用名、版本号（取自 BuildConfig）与一句话简介。
@@ -29,10 +31,10 @@ fun AboutScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("关于") },
+                title = { Text(stringResource(R.string.profile_about)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
@@ -44,9 +46,9 @@ fun AboutScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text("BitMart", style = MaterialTheme.typography.headlineSmall)
-            Text("版本 ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyMedium)
             Text(
-                "北理工校园二手交易平台，连接同学间的闲置与需求。",
+                stringResource(R.string.about_tagline),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

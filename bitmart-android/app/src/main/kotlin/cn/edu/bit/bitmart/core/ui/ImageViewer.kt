@@ -28,9 +28,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import cn.edu.bit.bitmart.R
 import coil3.compose.AsyncImage
 
 /**
@@ -94,7 +96,7 @@ fun ImageViewer(
                 ) { page ->
                     AsyncImage(
                         model = imageUrls[page],
-                        contentDescription = "商品图片 ${page + 1}",
+                        contentDescription = stringResource(R.string.image_viewer_image_description, page + 1),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit,
                     )
@@ -110,7 +112,7 @@ fun ImageViewer(
             ) {
                 Icon(
                     Icons.Default.Close,
-                    contentDescription = "关闭",
+                    contentDescription = stringResource(R.string.common_close),
                     tint = Color.White,
                 )
             }

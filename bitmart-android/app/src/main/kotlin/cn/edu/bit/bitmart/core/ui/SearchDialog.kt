@@ -14,7 +14,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import cn.edu.bit.bitmart.R
 
 /**
  * 搜索弹窗：单行搜索框 + 清空/取消/确认（与筛选弹窗一致）。
@@ -24,15 +26,15 @@ import androidx.compose.ui.text.input.ImeAction
 @Composable
 fun SearchDialog(
     initialQuery: String,
-    label: String = "搜索商品名 / 描述",
     onDismiss: () -> Unit,
     onClear: () -> Unit,
     onConfirm: (String) -> Unit,
+    label: String = stringResource(R.string.search_dialog_label),
 ) {
     var query by remember { mutableStateOf(initialQuery) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("搜索") },
+        title = { Text(stringResource(R.string.search_dialog_title)) },
         text = {
             OutlinedTextField(
                 value = query,
@@ -44,11 +46,11 @@ fun SearchDialog(
                 modifier = Modifier.fillMaxWidth(),
             )
         },
-        confirmButton = { TextButton(onClick = { onConfirm(query) }) { Text("确认") } },
+        confirmButton = { TextButton(onClick = { onConfirm(query) }) { Text(stringResource(R.string.common_confirm)) } },
         dismissButton = {
             Row {
-                TextButton(onClick = onClear) { Text("清空") }
-                TextButton(onClick = onDismiss) { Text("取消") }
+                TextButton(onClick = onClear) { Text(stringResource(R.string.common_clear)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             }
         },
     )

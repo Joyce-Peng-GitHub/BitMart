@@ -34,9 +34,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.bit.bitmart.R
 import cn.edu.bit.bitmart.core.domain.model.ListingSummary
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.ui.AdjustQuantityDialog
@@ -45,6 +47,7 @@ import cn.edu.bit.bitmart.core.ui.ListingCard
 import cn.edu.bit.bitmart.core.ui.ListingFilterDialog
 import cn.edu.bit.bitmart.core.ui.OwnedListingRow
 import cn.edu.bit.bitmart.core.ui.SearchDialog
+import cn.edu.bit.bitmart.core.ui.titleLabel
 import cn.edu.bit.bitmart.feature.listing.ListingListViewModel
 import cn.edu.bit.bitmart.feature.listing.ListingScope
 
@@ -93,7 +96,7 @@ fun ListingFeedScreen(
     // 异常（如网络异常）用 Toast 提示，不再固定在列表上方。
     LaunchedEffect(state.error) {
         state.error?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, it.resolve(context), Toast.LENGTH_SHORT).show()
             viewModel.consumeError()
         }
     }
@@ -126,7 +129,7 @@ fun ListingFeedScreen(
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         item {
                             Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(if (state.type == ListingType.BUY) "还没有收购" else "还没有商品")
+                                Text(stringResource(R.string.feed_empty, state.type.titleLabel()))
                             }
                         }
                     }
@@ -174,16 +177,16 @@ fun ListingFeedScreen(
         ) {
             BadgedBox(badge = { if (searchActive) Badge() }) {
                 SmallFloatingActionButton(onClick = { showSearch = true }) {
-                    Icon(Icons.Default.Search, contentDescription = "搜索")
+                    Icon(Icons.Default.Search, contentDescription = stringResource(R.string.feed_cd_search))
                 }
             }
             BadgedBox(badge = { if (filterActive) Badge() }) {
                 SmallFloatingActionButton(onClick = { showFilter = true }) {
-                    Icon(Icons.Default.FilterList, contentDescription = "筛选")
+                    Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.feed_cd_filter))
                 }
             }
             FloatingActionButton(onClick = onPublishClick) {
-                Icon(Icons.Default.Add, contentDescription = "发布")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.feed_cd_publish))
             }
         }
     }

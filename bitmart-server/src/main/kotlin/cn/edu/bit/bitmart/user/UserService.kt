@@ -13,7 +13,7 @@ class UserService(
     /** 当前用户资料。 */
     fun profile(userId: Long): User? = transaction(database) { userRepository.findById(userId) }
 
-    /** 更新昵称（null/空白 → 清空，展示为匿名；超 32 字符自动截断以匹配 DB VARCHAR(32)）。返回更新后的用户。 */
+    /** 更新昵称（null/空白 → 清空，昵称留空；超 32 字符自动截断以匹配 DB VARCHAR(32)）。返回更新后的用户。 */
     fun updateNickname(userId: Long, nickname: String?): User? = transaction(database) {
         val normalized = nickname?.trim()?.takeIf { it.isNotEmpty() }?.take(32)
         userRepository.updateNickname(userId, normalized)
