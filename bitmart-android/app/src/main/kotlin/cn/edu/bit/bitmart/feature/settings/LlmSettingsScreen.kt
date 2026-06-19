@@ -10,6 +10,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -103,8 +105,11 @@ fun LlmSettingsScreen(
                 singleLine = true,
                 visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
-                    androidx.compose.material3.TextButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
-                        Text(stringResource(if (apiKeyVisible) R.string.llm_hide else R.string.llm_show))
+                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                        Icon(
+                            imageVector = if (apiKeyVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                            contentDescription = stringResource(if (apiKeyVisible) R.string.llm_hide else R.string.llm_show),
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
