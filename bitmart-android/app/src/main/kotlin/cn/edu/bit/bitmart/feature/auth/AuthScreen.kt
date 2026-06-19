@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,7 +34,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +57,8 @@ fun AuthScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var registerMode by remember { mutableStateOf(false) }
     var unifiedPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var unifiedPasswordVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.loggedIn) {
         if (state.loggedIn) onAuthenticated()
@@ -89,7 +96,18 @@ fun AuthScreen(
                     value = unifiedPassword,
                     onValueChange = { unifiedPassword = it },
                     label = { Text(stringResource(R.string.auth_unified_password)) },
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = if (unifiedPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        IconButton(onClick = { unifiedPasswordVisible = !unifiedPasswordVisible }) {
+                            Icon(
+                                imageVector = if (unifiedPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = stringResource(
+                                    if (unifiedPasswordVisible) R.string.auth_password_hide else R.string.auth_password_show
+                                ),
+                            )
+                        }
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -100,7 +118,18 @@ fun AuthScreen(
                 value = state.password,
                 onValueChange = viewModel::onPasswordChange,
                 label = { Text(stringResource(if (registerMode) R.string.auth_password_set else R.string.auth_password)) },
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                            contentDescription = stringResource(
+                                if (passwordVisible) R.string.auth_password_hide else R.string.auth_password_show
+                            ),
+                        )
+                    }
+                },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )

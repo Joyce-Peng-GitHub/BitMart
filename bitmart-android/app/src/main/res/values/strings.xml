@@ -50,6 +50,8 @@
     <string name="auth_unified_password">Unified identity password (used only to verify your identity)</string>
     <string name="auth_password">BitMart password</string>
     <string name="auth_password_set">Set BitMart password</string>
+    <string name="auth_password_show">Show password</string>
+    <string name="auth_password_hide">Hide password</string>
     <string name="auth_nickname">Nickname (optional, shown as Anonymous if left blank)</string>
     <string name="auth_action_login">Sign in</string>
     <string name="auth_action_register">Register and sign in</string>

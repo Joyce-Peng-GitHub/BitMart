@@ -50,6 +50,8 @@
     <string name="auth_unified_password">统一身份认证密码（仅用于验证身份）</string>
     <string name="auth_password">BitMart 密码</string>
     <string name="auth_password_set">设置 BitMart 密码</string>
+    <string name="auth_password_show">显示密码</string>
+    <string name="auth_password_hide">隐藏密码</string>
     <string name="auth_nickname">昵称（可选，留空显示为匿名）</string>
     <string name="auth_action_login">登录</string>
     <string name="auth_action_register">注册并登录</string>
