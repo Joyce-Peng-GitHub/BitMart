@@ -22,11 +22,21 @@ class ListingValidatorTest : FunSpec({
         title: String = "二手教材",
         quantityTotal: Int = 1,
         unitPrice: BigDecimal? = BigDecimal("30.00"),
+        originalPrice: BigDecimal? = null,
         contacts: List<Contact> = listOf(Contact("WECHAT", "wxid_abc")),
         tagList: List<String> = listOf("教材"),
         expiresAt: Instant = now.plus(Duration.ofDays(30)),
         expiryIsAbsolute: Boolean = false,
-    ) = ListingInput(title, quantityTotal, unitPrice, contacts, tagList, expiresAt, expiryIsAbsolute)
+    ) = ListingInput(
+        title = title,
+        quantityTotal = quantityTotal,
+        unitPrice = unitPrice,
+        originalPrice = originalPrice,
+        contacts = contacts,
+        tags = tagList,
+        expiresAt = expiresAt,
+        expiryIsAbsolute = expiryIsAbsolute,
+    )
 
     fun codes(r: ValidationResult) = r.errors.map { it.code }
 
@@ -60,6 +70,30 @@ class ListingValidatorTest : FunSpec({
         validator.validatePriceField(BigDecimal("99999999.99")).isValid.shouldBeTrue()
         codes(validator.validatePriceField(BigDecimal("-1"))) shouldContain "PRICE_NEGATIVE"
         codes(validator.validatePriceField(BigDecimal("100000000"))) shouldContain "PRICE_TOO_LARGE"
+    }
+
+    test("原价为空合法") {
+        validator.validateCreate(validInput(originalPrice = null), now).isValid.shouldBeTrue()
+    }
+
+    test("原价为负被拒绝") {
+        codes(validator.validateCreate(validInput(originalPrice = BigDecimal("-1")), now)) shouldContain "PRICE_NEGATIVE"
+    }
+
+    test("原价恰好等于上限 99999999.99 合法") {
+        validator.validateCreate(validInput(originalPrice = BigDecimal("99999999.99")), now).isValid.shouldBeTrue()
+    }
+
+    test("原价超过 NUMERIC(10,2) 上限被拒绝（入库前拦截，不触发 DB 溢出）") {
+        codes(validator.validateCreate(validInput(originalPrice = BigDecimal("100000000")), now)) shouldContain "PRICE_TOO_LARGE"
+        // 与 unitPrice 对齐：99999999.999 按 scale=2 进位为 100000000.00（9 位整数）而溢出，须在入库前拒绝。
+        codes(validator.validateCreate(validInput(originalPrice = BigDecimal("99999999.999")), now)) shouldContain "PRICE_TOO_LARGE"
+    }
+
+    test("更新校验：原价为负 / 超限分别拒绝，恰好等于上限合法") {
+        codes(validator.validateUpdate(ListingUpdateInput(originalPrice = BigDecimal("-1")), 0, now)) shouldContain "PRICE_NEGATIVE"
+        codes(validator.validateUpdate(ListingUpdateInput(originalPrice = BigDecimal("100000000")), 0, now)) shouldContain "PRICE_TOO_LARGE"
+        validator.validateUpdate(ListingUpdateInput(originalPrice = BigDecimal("99999999.99")), 0, now).isValid.shouldBeTrue()
     }
 
     test("空标题被拒绝") {

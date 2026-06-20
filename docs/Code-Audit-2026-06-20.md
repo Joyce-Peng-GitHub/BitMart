@@ -55,7 +55,7 @@
 
 | # | 问题 | 位置 | 说明 / 修法 | 状态 |
 | --- | --- | --- | --- | --- |
-| M1 | `original_price` 完全未校验 | `domain/ListingValidator.kt`；`listing/ListingRepository.kt:50,137` | 仅校验了 `unitPrice`；超 `99999999.99` 触发 PG numeric overflow → 裸 500，负数被静默存入。对 `originalPrice` 复用 `validatePrice`。 | ⬜ |
+| M1 | `original_price` 完全未校验 | `domain/ListingValidator.kt`；`listing/ListingRepository.kt:50,137` | 仅校验了 `unitPrice`；超 `99999999.99` 触发 PG numeric overflow → 裸 500，负数被静默存入。对 `originalPrice` 复用 `validatePrice`。 | ✅ 已修复（`validatePrice` 参数化 `field`，对 `originalPrice` 复用同一规则——非负且 ≤`MAX_UNIT_PRICE`（两列同为 `NUMERIC(10,2)`，同界）；`ListingInput`/`ListingUpdateInput` 新增 `originalPrice` 字段，经 `ListingService` 的 `toValidationInput`/`toUpdateValidation` 接入，**发布/批量/编辑三条写入路径均校验**，根除「报 500 / 静默存负」。测试：`ListingValidatorTest` 新增原价 空/负→`PRICE_NEGATIVE`/上限合法/超限（含 scale-3 进位）→`PRICE_TOO_LARGE`/更新 6 例；`ListingRoutesTest` 新增 4 例（发布超限/负价→400、上限→201、编辑超限→400，均为真回归）。后端全量 191 例通过，独立复审 6 维度全绿。） |
 | M2 | 上传先整体读入内存再判大小 | `storage/UploadRoutes.kt:46-53`；`UploadService.kt:25` | `readBytes()` 全量入堆后才查 5MiB 限制，限额未在传输层生效。应在 multipart/引擎层设硬上限或边读边限。 | ⬜ |
 | M3 | 认证/上传端点无限流 | `auth/AuthRoutes.kt:34-104`；`Application.kt:99-113` | login / bit101 verify / register / reset / uploads 均无 RateLimit，可在线撞库与刷接口。装 Ktor `RateLimit`，按 IP/学号限速。 | ⬜ |
 | M4 | `imageKeys` 客户端原样入库无校验 | `listing/ListingRepository.kt:73-79,146-155` | 未校验是否本服务签发、未绑定上传者，存在 IDOR / 返回 URL 注入隐患（磁盘读取本身被 Ktor `staticFiles` 规范化挡住）。按签发格式 `yyyy/MM/dd/<uuid>.<ext>` 校验。 | ⬜ |

@@ -17,7 +17,7 @@ class ListingValidator(
 
     companion object {
         /**
-         * 单价上限，对齐 DB 列 unit_price NUMERIC(10,2)（最大 99999999.99）。
+         * 价格上限，对齐 DB 列 unit_price 与 original_price NUMERIC(10,2)（最大 99999999.99）。
          * 超出会触发 PostgreSQL numeric field overflow，故须在入库前于此拦截。
          */
         val MAX_UNIT_PRICE: BigDecimal = BigDecimal("99999999.99")
@@ -38,6 +38,7 @@ class ListingValidator(
         validateTitle(input.title, errors)
         validateQuantity(input.quantityTotal, errors)
         validatePrice(input.unitPrice, errors)
+        validatePrice(input.originalPrice, errors, field = "originalPrice")
         validateContacts(input.contacts, errors)
         validateTags(input.tags, errors)
         validateExpiry(input.expiresAt, now, errors, absolute = input.expiryIsAbsolute)
@@ -106,6 +107,7 @@ class ListingValidator(
             )
         }
         input.unitPrice?.let { validatePrice(it, errors) }
+        input.originalPrice?.let { validatePrice(it, errors, field = "originalPrice") }
         input.expiresAt?.let { validateExpiry(it, now, errors, absolute = input.expiryIsAbsolute) }
         input.contacts?.let { validateContacts(it, errors) }
         input.tags?.let { validateTags(it, errors) }
@@ -126,19 +128,19 @@ class ListingValidator(
         )
     }
 
-    private fun validatePrice(unitPrice: BigDecimal?, errors: ValidationErrors) {
+    private fun validatePrice(price: BigDecimal?, errors: ValidationErrors, field: String = "unitPrice") {
         // 价格允许留空（面议/带价联系）；若填写则须非负，且不超过 DB 列上限。
-        if (unitPrice != null) {
+        if (price != null) {
             errors.check(
-                unitPrice.signum() >= 0,
-                field = "unitPrice",
+                price.signum() >= 0,
+                field = field,
                 code = "PRICE_NEGATIVE",
                 message = "价格不能为负",
             )
             // 上界对齐 DB 列 unit_price NUMERIC(10,2)，超出会触发 numeric field overflow，须在入库前拦截。
             errors.check(
-                unitPrice <= MAX_UNIT_PRICE,
-                field = "unitPrice",
+                price <= MAX_UNIT_PRICE,
+                field = field,
                 code = "PRICE_TOO_LARGE",
                 message = "价格不能超过 $MAX_UNIT_PRICE",
             )
@@ -216,6 +218,7 @@ data class ListingInput(
     val title: String,
     val quantityTotal: Int,
     val unitPrice: BigDecimal?,
+    val originalPrice: BigDecimal? = null,
     val contacts: List<Contact>,
     val tags: List<String>,
     val expiresAt: Instant,
@@ -228,6 +231,7 @@ data class ListingUpdateInput(
     val title: String? = null,
     val quantityTotal: Int? = null,
     val unitPrice: BigDecimal? = null,
+    val originalPrice: BigDecimal? = null,
     val expiresAt: Instant? = null,
     val expiryIsAbsolute: Boolean = false,
     val contacts: List<Contact>? = null,

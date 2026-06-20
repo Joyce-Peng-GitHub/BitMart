@@ -64,11 +64,12 @@ class ListingRoutesTest : FunSpec({
     fun sellReq(
         title: String = "二手教材",
         unitPrice: String? = "30.00",
+        originalPrice: String? = null,
         tags: List<String> = listOf("教材"),
         quantityTotal: Int = 3,
     ) = CreateListingRequest(
         type = "SELL", category = "GENERAL", title = title,
-        description = "九成新", unitPrice = unitPrice, quantityTotal = quantityTotal,
+        description = "九成新", unitPrice = unitPrice, originalPrice = originalPrice, quantityTotal = quantityTotal,
         pickupLocation = "三号楼", contacts = listOf(ContactDto("WECHAT", "wxid_x")),
         tags = tags, expiresInDays = 30,
     )
@@ -190,6 +191,50 @@ class ListingRoutesTest : FunSpec({
             client.patch("/api/v1/listings/$id") {
                 bearerAuth(token); contentType(ContentType.Application.Json)
                 setBody(UpdateListingRequest(unitPrice = "100000000"))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
+    test("发布：原价超出 NUMERIC(10,2) 上限 → 400（入库前拦截，不触发 DB 溢出）") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "天价原价商品", originalPrice = "100000000"))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
+    test("发布：原价恰好等于上限 99999999.99 → 成功") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "上限原价商品", originalPrice = "99999999.99"))
+            }.status shouldBe HttpStatusCode.Created
+        }
+    }
+
+    test("发布：原价为负 → 400（此前被静默存储）") {
+        app { client ->
+            val token = client.registerToken()
+            client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "负原价商品", originalPrice = "-1"))
+            }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
+    test("修改：原价超出上限 → 400") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq())
+            }.body<CreatedResponse>().id
+
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(originalPrice = "100000000"))
             }.status shouldBe HttpStatusCode.BadRequest
         }
     }
