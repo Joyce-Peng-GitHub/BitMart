@@ -64,6 +64,10 @@ object Routes {
     fun publishDestination(loggedIn: Boolean, type: ListingType) =
         if (loggedIn) publish(type) else authForPublish(type)
 
+    /** 解析登录路由携带的“待发布意图”;为空或非法枚举值时返回 null(登录后走普通返回,不续接发布)。 */
+    fun parsePublishIntent(raw: String?): ListingType? =
+        raw?.let { runCatching { ListingType.valueOf(it) }.getOrNull() }
+
     /**
      * AUTH 目的地的导航参数(唯一来源):publishType 为可选(nullable + 默认 null),
      * 以保证未携带"待发布意图"的裸 navigate(AUTH) 仍能解析到带参 AUTH_ROUTE。
@@ -136,8 +140,7 @@ fun BitMartNavHost(
             arguments = Routes.authNavArguments(),
         ) { entry ->
             // 携带“待发布意图”时：登录/注册成功后用发布页替换登录页（popUpTo 登录页 inclusive），返回栈干净。
-            val pendingPublishType = entry.arguments?.getString(Routes.AUTH_PUBLISH_ARG)
-                ?.let { runCatching { ListingType.valueOf(it) }.getOrNull() }
+            val pendingPublishType = Routes.parsePublishIntent(entry.arguments?.getString(Routes.AUTH_PUBLISH_ARG))
             AuthScreen(
                 onAuthenticated = {
                     Log.i(NAV_TAG, "auth: login success pendingPublish=$pendingPublishType")

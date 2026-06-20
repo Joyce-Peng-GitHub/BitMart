@@ -2,6 +2,7 @@ package cn.edu.bit.bitmart
 
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -58,6 +59,37 @@ class RoutesNavTest {
             val arg = route.substringAfter("${Routes.PUBLISH}/")
             assertEquals(type, ListingType.valueOf(arg))
         }
+    }
+
+    @Test
+    fun `parsePublishIntent parses SELL`() {
+        assertEquals(ListingType.SELL, Routes.parsePublishIntent("SELL"))
+    }
+
+    @Test
+    fun `parsePublishIntent parses BUY`() {
+        assertEquals(ListingType.BUY, Routes.parsePublishIntent("BUY"))
+    }
+
+    @Test
+    fun `parsePublishIntent returns null for malformed enum value`() {
+        assertNull(Routes.parsePublishIntent("garbage"))
+    }
+
+    @Test
+    fun `parsePublishIntent returns null for null arg`() {
+        assertNull(Routes.parsePublishIntent(null))
+    }
+
+    @Test
+    fun `parsePublishIntent returns null for empty string`() {
+        assertNull(Routes.parsePublishIntent(""))
+    }
+
+    @Test
+    fun `parsePublishIntent is case-sensitive so lowercase sell is null`() {
+        // 契约说明：底层 ListingType.valueOf 区分大小写，小写不被接受。
+        assertNull(Routes.parsePublishIntent("sell"))
     }
 
     /**
