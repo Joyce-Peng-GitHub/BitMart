@@ -10,7 +10,14 @@ data class User(
 )
 
 /** 列表类型：卖品 / 求购（与后端枚举名一致）。 */
-enum class ListingType { SELL, BUY }
+enum class ListingType {
+    SELL, BUY;
+
+    companion object {
+        /** 由“是否收购”布尔映射到类型：true → [BUY]，false → [SELL]。 */
+        fun of(buy: Boolean) = if (buy) BUY else SELL
+    }
+}
 
 /** 列表品类。 */
 enum class ListingCategory { GENERAL, BOOK }

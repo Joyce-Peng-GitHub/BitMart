@@ -39,7 +39,7 @@ fun AdjustQuantityDialog(
     var text by remember { mutableStateOf(currentQuantitySold.toString()) }
     val parsed = text.toIntOrNull()
     val valid = parsed != null && parsed in 0..quantityTotal
-    val noun = (if (buy) ListingType.BUY else ListingType.SELL).soldQuantityLabel()
+    val noun = ListingType.of(buy).soldQuantityLabel()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.adjust_quantity_title, noun)) },

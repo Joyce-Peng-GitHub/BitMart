@@ -91,7 +91,7 @@ fun MyListingsScreen(
     var showSearch by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    LaunchedEffect(buy) { viewModel.setType(if (buy) ListingType.BUY else ListingType.SELL) }
+    LaunchedEffect(buy) { viewModel.setType(ListingType.of(buy)) }
 
     // 从编辑/删除返回后刷新列表（标题/价格等可能已变），随后清除标记。保留列表（不闪全屏转圈）。
     LaunchedEffect(refreshSignal) {
@@ -181,7 +181,7 @@ fun MyListingsScreen(
                     items(state.items, key = { it.id }) { item ->
                         OwnedListingRow(
                             item = item,
-                            type = if (buy) ListingType.BUY else ListingType.SELL,
+                            type = ListingType.of(buy),
                             adjusting = state.adjustingId == item.id,
                             onClick = { onItemClick(item.id) },
                             onAdjustClick = { adjustTarget = item },

@@ -298,8 +298,7 @@ fun BitMartNavHost(
                 onItemClick = { id -> navController.navigate(Routes.detail(id)) },
                 onEditClick = { id -> navController.navigate(Routes.edit(id)) },
                 onPublishClick = {
-                    val type = if (buy) ListingType.BUY else ListingType.SELL
-                    navController.navigate(Routes.publishDestination(loggedIn, type))
+                    navController.navigate(Routes.publishDestination(loggedIn, ListingType.of(buy)))
                 },
                 onBack = { navController.popBackStack() },
                 refreshSignal = changed,
