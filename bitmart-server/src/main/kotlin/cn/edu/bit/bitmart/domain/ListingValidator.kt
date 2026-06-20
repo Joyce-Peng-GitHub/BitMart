@@ -27,6 +27,10 @@ class ListingValidator(
          * （DB 列 quantity_total 为 INT，仅约束 >= 1，无业务上界）。
          */
         const val MAX_QUANTITY: Int = 9999
+
+        /** 标题与描述长度上限。面向校园二手场景的合理上界，避免超长文本影响展示与存储。 */
+        const val MAX_TITLE_LENGTH: Int = 32
+        const val MAX_DESCRIPTION_LENGTH: Int = 1024
     }
 
     /**
@@ -36,6 +40,7 @@ class ListingValidator(
     fun validateCreate(input: ListingInput, now: Instant): ValidationResult {
         val errors = ValidationErrors()
         validateTitle(input.title, errors)
+        validateDescription(input.description, errors)
         validateQuantity(input.quantityTotal, errors)
         validatePrice(input.unitPrice, errors)
         validatePrice(input.originalPrice, errors, field = "originalPrice")
@@ -99,6 +104,7 @@ class ListingValidator(
     fun validateUpdate(input: ListingUpdateInput, currentQuantitySold: Int, now: Instant): ValidationResult {
         val errors = ValidationErrors()
         input.title?.let { validateTitle(it, errors) }
+        input.description?.let { validateDescription(it, errors) }
         input.quantityTotal?.let { q ->
             validateQuantity(q, errors)
             errors.check(
@@ -119,6 +125,23 @@ class ListingValidator(
 
     private fun validateTitle(title: String, errors: ValidationErrors) {
         errors.check(title.isNotBlank(), "title", "TITLE_BLANK", "标题不能为空")
+        errors.check(
+            title.length <= MAX_TITLE_LENGTH,
+            field = "title",
+            code = "TITLE_TOO_LONG",
+            message = "标题长度不能超过 $MAX_TITLE_LENGTH 个字符",
+            params = mapOf("max" to MAX_TITLE_LENGTH.toString()),
+        )
+    }
+
+    private fun validateDescription(description: String, errors: ValidationErrors) {
+        errors.check(
+            description.length <= MAX_DESCRIPTION_LENGTH,
+            field = "description",
+            code = "DESCRIPTION_TOO_LONG",
+            message = "描述长度不能超过 $MAX_DESCRIPTION_LENGTH 个字符",
+            params = mapOf("max" to MAX_DESCRIPTION_LENGTH.toString()),
+        )
     }
 
     private fun validateQuantity(quantityTotal: Int, errors: ValidationErrors) {
@@ -238,6 +261,7 @@ class ListingValidator(
 /** 待校验的列表输入（领域层视图，与传输层 DTO 解耦）。 */
 data class ListingInput(
     val title: String,
+    val description: String,
     val quantityTotal: Int,
     val unitPrice: BigDecimal?,
     val originalPrice: BigDecimal? = null,
@@ -251,6 +275,7 @@ data class ListingInput(
 /** 待校验的"全字段编辑"输入（领域层视图）。仅非 null 字段参与校验，与发布同规则。 */
 data class ListingUpdateInput(
     val title: String? = null,
+    val description: String? = null,
     val quantityTotal: Int? = null,
     val unitPrice: BigDecimal? = null,
     val originalPrice: BigDecimal? = null,

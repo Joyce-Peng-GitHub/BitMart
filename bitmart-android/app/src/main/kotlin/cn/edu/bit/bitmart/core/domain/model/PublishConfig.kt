@@ -14,6 +14,12 @@ object PublishConfig {
     /** 单条发布项的图片张数上限。 */
     const val MAX_IMAGES = 9
 
+    /** 标题字符数上限，与服务端 ListingValidator 校验（TITLE_TOO_LONG）保持一致。 */
+    const val MAX_TITLE_LENGTH = 32
+
+    /** 描述字符数上限，与服务端 ListingValidator 校验（DESCRIPTION_TOO_LONG）保持一致。 */
+    const val MAX_DESCRIPTION_LENGTH = 1024
+
     /** 上传前图片压缩的最长边（像素）：超过则等比缩小。 */
     const val IMAGE_MAX_DIMENSION_PX = 1024
 

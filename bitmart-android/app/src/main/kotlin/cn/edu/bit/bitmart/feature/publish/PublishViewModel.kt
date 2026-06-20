@@ -160,7 +160,7 @@ class PublishViewModel @Inject constructor(
     }
 
     fun onTitle(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(title = v), error = null) }
-    fun onDescription(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(description = v)) }
+    fun onDescription(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(description = v), error = null) }
     fun onUnitPrice(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(unitPrice = v)) }
     fun onQuantity(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(quantityTotal = v)) }
     fun onExpiresInDays(v: String) = _state.update { it.copy(currentDraft = it.currentDraft.copy(expiresInDays = v), error = null) }
@@ -554,6 +554,10 @@ class PublishViewModel @Inject constructor(
      */
     private fun validateDraft(draft: DraftItem): UiText? {
         if (draft.title.isBlank()) return UiText.Res(R.string.publish_error_title_required)
+        if (draft.title.length > PublishConfig.MAX_TITLE_LENGTH)
+            return UiText.Res(R.string.publish_error_title_too_long, listOf(PublishConfig.MAX_TITLE_LENGTH))
+        if (draft.description.length > PublishConfig.MAX_DESCRIPTION_LENGTH)
+            return UiText.Res(R.string.publish_error_description_too_long, listOf(PublishConfig.MAX_DESCRIPTION_LENGTH))
         if (draft.contact.isBlank()) return UiText.Res(R.string.publish_error_contact_required)
         // 件数：用 Long 解析以便把超 Int 的"过大整数"也归入越界；非整数/不足 1/超上限统一为「1~上限」区间提示。
         val qty = draft.quantityTotal.toLongOrNull()

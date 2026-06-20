@@ -209,6 +209,7 @@ class ListingService(
 
     private fun UpdateListingInput.toUpdateValidation() = ListingUpdateInput(
         title = title,
+        description = description,
         quantityTotal = quantityTotal,
         unitPrice = unitPrice,
         originalPrice = originalPrice,
@@ -228,6 +229,7 @@ class ListingService(
 
     private fun CreateListingInput.toValidationInput() = ListingInput(
         title = title,
+        description = description,
         quantityTotal = quantityTotal,
         unitPrice = unitPrice,
         originalPrice = originalPrice,

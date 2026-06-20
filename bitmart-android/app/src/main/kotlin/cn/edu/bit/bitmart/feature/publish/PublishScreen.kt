@@ -470,14 +470,14 @@ private fun PublishFormColumn(
                         Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.publish_cd_scan))
                     }
                 }
-                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text(stringResource(R.string.publish_field_title)) }, modifier = Modifier.fillMaxWidth())
+                TitleField(draft.title, viewModel::onTitle, Modifier.fillMaxWidth())
                 OutlinedTextField(draft.author ?: "", viewModel::onAuthor, label = { Text(stringResource(R.string.publish_field_author)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(draft.publisher ?: "", viewModel::onPublisher, label = { Text(stringResource(R.string.publish_field_publisher)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(draft.edition ?: "", viewModel::onEdition, label = { Text(stringResource(R.string.publish_field_edition)) }, modifier = Modifier.fillMaxWidth())
             } else {
-                OutlinedTextField(draft.title, viewModel::onTitle, label = { Text(stringResource(R.string.publish_field_title)) }, modifier = Modifier.fillMaxWidth())
+                TitleField(draft.title, viewModel::onTitle, Modifier.fillMaxWidth())
             }
-            OutlinedTextField(draft.description, viewModel::onDescription, label = { Text(stringResource(R.string.publish_field_description)) }, minLines = 2, modifier = Modifier.fillMaxWidth())
+            DescriptionField(draft.description, viewModel::onDescription, Modifier.fillMaxWidth())
         }
 
         // 价格与数量：原价/售价并排 + 件数 + 有效期。
@@ -771,6 +771,44 @@ private fun FormSection(
             content()
         }
     }
+}
+
+/**
+ * 标题输入框：随输入展示「当前长度/上限」计数（超限时 isError 置位，计数随 Material3 自动转红）。
+ * 不硬性截断输入，与价格字段一致——允许越限输入并在提交时再校验。书籍/一般商品两处共用，避免分叉。
+ */
+@Composable
+private fun TitleField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(stringResource(R.string.publish_field_title)) },
+        isError = value.length > PublishConfig.MAX_TITLE_LENGTH,
+        supportingText = { Text(stringResource(R.string.publish_field_counter, value.length, PublishConfig.MAX_TITLE_LENGTH)) },
+        modifier = modifier,
+    )
+}
+
+/** 描述输入框：同 [TitleField] 的越限提示与计数，上限为 [PublishConfig.MAX_DESCRIPTION_LENGTH]。 */
+@Composable
+private fun DescriptionField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(stringResource(R.string.publish_field_description)) },
+        minLines = 2,
+        isError = value.length > PublishConfig.MAX_DESCRIPTION_LENGTH,
+        supportingText = { Text(stringResource(R.string.publish_field_counter, value.length, PublishConfig.MAX_DESCRIPTION_LENGTH)) },
+        modifier = modifier,
+    )
 }
 
 /**

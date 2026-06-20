@@ -21,6 +21,7 @@ class ListingValidatorTest : FunSpec({
 
     fun validInput(
         title: String = "二手教材",
+        description: String = "一些描述",
         quantityTotal: Int = 1,
         unitPrice: BigDecimal? = BigDecimal("30.00"),
         originalPrice: BigDecimal? = null,
@@ -30,6 +31,7 @@ class ListingValidatorTest : FunSpec({
         expiryIsAbsolute: Boolean = false,
     ) = ListingInput(
         title = title,
+        description = description,
         quantityTotal = quantityTotal,
         unitPrice = unitPrice,
         originalPrice = originalPrice,
@@ -331,5 +333,47 @@ class ListingValidatorTest : FunSpec({
         errorOf(validator.validateCreate(validInput(contacts = emptyList()), now), "CONTACT_REQUIRED").shouldNotBeNull().params shouldBe emptyMap()
         errorOf(validator.validateCreate(validInput(tagList = listOf("  ")), now), "TAG_BLANK").shouldNotBeNull().params shouldBe emptyMap()
         errorOf(validator.validateCreate(validInput(contacts = listOf(Contact("QQ", "  "))), now), "CONTACT_VALUE_BLANK").shouldNotBeNull().params shouldBe emptyMap()
+    }
+
+    // —— 标题长度上限（32）——
+    test("标题恰好 32 字符合法") {
+        validator.validateCreate(validInput(title = "x".repeat(32)), now).isValid.shouldBeTrue()
+    }
+
+    test("标题超过 32 字符被拒绝") {
+        codes(validator.validateCreate(validInput(title = "x".repeat(33)), now)) shouldContain "TITLE_TOO_LONG"
+    }
+
+    // —— 描述长度上限（1024）——
+    test("描述恰好 1024 字符合法") {
+        validator.validateCreate(validInput(description = "x".repeat(1024)), now).isValid.shouldBeTrue()
+    }
+
+    test("描述超过 1024 字符被拒绝") {
+        codes(validator.validateCreate(validInput(description = "x".repeat(1025)), now)) shouldContain "DESCRIPTION_TOO_LONG"
+    }
+
+    test("描述为空合法") {
+        validator.validateCreate(validInput(description = ""), now).isValid.shouldBeTrue()
+    }
+
+    // —— 更新校验：标题/描述超长分别拒绝，null 描述不校验 ——
+    test("更新校验：标题超长 / 描述超长分别拒绝") {
+        codes(validator.validateUpdate(ListingUpdateInput(title = "x".repeat(33)), 0, now)) shouldContain "TITLE_TOO_LONG"
+        codes(validator.validateUpdate(ListingUpdateInput(description = "x".repeat(1025)), 0, now)) shouldContain "DESCRIPTION_TOO_LONG"
+    }
+
+    test("更新校验：null 描述不参与校验") {
+        validator.validateUpdate(ListingUpdateInput(description = null), 0, now).isValid.shouldBeTrue()
+    }
+
+    test("params：标题超长携带 max（= MAX_TITLE_LENGTH）") {
+        val e = errorOf(validator.validateCreate(validInput(title = "x".repeat(33)), now), "TITLE_TOO_LONG").shouldNotBeNull()
+        e.params["max"] shouldBe ListingValidator.MAX_TITLE_LENGTH.toString()
+    }
+
+    test("params：描述超长携带 max（= MAX_DESCRIPTION_LENGTH）") {
+        val e = errorOf(validator.validateCreate(validInput(description = "x".repeat(1025)), now), "DESCRIPTION_TOO_LONG").shouldNotBeNull()
+        e.params["max"] shouldBe ListingValidator.MAX_DESCRIPTION_LENGTH.toString()
     }
 })

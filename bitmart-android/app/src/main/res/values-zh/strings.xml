@@ -196,6 +196,7 @@
     <string name="publish_field_publisher">出版社</string>
     <string name="publish_field_edition">版本</string>
     <string name="publish_field_description">描述</string>
+    <string name="publish_field_counter">%1$d/%2$d</string>
     <string name="publish_section_price_quantity">价格与数量</string>
     <string name="publish_price_label_sell">售价（可留空面议）</string>
     <string name="publish_price_label_buy">期望价（可留空面议）</string>
@@ -242,6 +243,8 @@
     <string name="publish_error_empty_batch">请至少添加一项到待发布列表</string>
     <string name="publish_error_batch_item">第 %1$d 条：%2$s</string>
     <string name="publish_error_title_required">请填写标题</string>
+    <string name="publish_error_title_too_long">标题不超过 %1$s 个字符</string>
+    <string name="publish_error_description_too_long">描述不超过 %1$s 个字符</string>
     <string name="publish_error_contact_required">请填写联系方式</string>
     <string name="publish_error_quantity_range">数量应为 1 到 %1$s 的整数</string>
     <string name="publish_error_quantity_below_sold">数量不能少于已售出的 %1$s 件</string>

@@ -102,6 +102,50 @@ class PublishViewModelTest {
     }
 
     @Test
+    fun `addDraftToBatch accepts a title at the length limit but blocks one over it`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore(), FakeLanguagePrefsStore())
+        vm.onContact("x")
+
+        // 恰好等于上限 → 通过。
+        vm.onTitle("a".repeat(PublishConfig.MAX_TITLE_LENGTH))
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.draftBatch.size)
+
+        // 超出一字符 → 拦截，错误为"标题过长"，且不入列。
+        vm.onTitle("a".repeat(PublishConfig.MAX_TITLE_LENGTH + 1)); vm.onContact("x")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            UiText.Res(R.string.publish_error_title_too_long, listOf(PublishConfig.MAX_TITLE_LENGTH)),
+            vm.state.value.error,
+        )
+        assertEquals(1, vm.state.value.draftBatch.size) // 仍只有第一条。
+    }
+
+    @Test
+    fun `addDraftToBatch accepts a description at the limit, blocks over, and allows empty`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore(), FakeLanguagePrefsStore())
+
+        // 空描述合法。
+        vm.onTitle("台灯"); vm.onContact("x"); vm.onDescription("")
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.draftBatch.size)
+
+        // 恰好等于上限 → 通过。
+        vm.onTitle("台灯"); vm.onContact("x"); vm.onDescription("d".repeat(PublishConfig.MAX_DESCRIPTION_LENGTH))
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(2, vm.state.value.draftBatch.size)
+
+        // 超出一字符 → 拦截，错误为"描述过长"，且不入列。
+        vm.onTitle("台灯"); vm.onContact("x"); vm.onDescription("d".repeat(PublishConfig.MAX_DESCRIPTION_LENGTH + 1))
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(
+            UiText.Res(R.string.publish_error_description_too_long, listOf(PublishConfig.MAX_DESCRIPTION_LENGTH)),
+            vm.state.value.error,
+        )
+        assertEquals(2, vm.state.value.draftBatch.size)
+    }
+
+    @Test
     fun `consumeError clears error so the same message can fire again`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore(), FakeLanguagePrefsStore())
         // 触发一次校验错误（空标题）→ Toast 由 UI 据此弹出。
@@ -378,6 +422,63 @@ class PublishViewModelTest {
                 R.string.publish_error_batch_item,
                 listOf(2, UiText.Res(R.string.publish_error_original_price_range, listOf("99999999.99"))),
             ),
+            vm.state.value.error,
+        )
+        assertFalse(vm.state.value.batchSubmitted)
+    }
+
+    @Test
+    fun `submitBatch server detail TITLE_TOO_LONG maps to the localized too-long message`() = runTest {
+        val vm = PublishViewModel(
+            FakeRepo(batchResult = DomainResult.Failure(
+                "VALIDATION_FAILED", "n/a", 400,
+                details = listOf(
+                    cn.edu.bit.bitmart.core.domain.ValidationDetail(
+                        "title", "TITLE_TOO_LONG", mapOf("max" to "32"),
+                    ),
+                ),
+            )),
+            FakeLlmClient(DomainResult.Success(emptyList())),
+            FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
+            FakeLanguagePrefsStore(),
+        )
+        vm.onTitle("x"); vm.onContact("y"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        // 服务端明细的 max 参数被透传到本地化模板。
+        assertEquals(
+            UiText.Res(R.string.publish_error_title_too_long, listOf("32")),
+            vm.state.value.error,
+        )
+        assertFalse(vm.state.value.batchSubmitted)
+    }
+
+    @Test
+    fun `submitBatch server detail DESCRIPTION_TOO_LONG maps to the localized too-long message`() = runTest {
+        val vm = PublishViewModel(
+            FakeRepo(batchResult = DomainResult.Failure(
+                "VALIDATION_FAILED", "n/a", 400,
+                details = listOf(
+                    cn.edu.bit.bitmart.core.domain.ValidationDetail(
+                        "description", "DESCRIPTION_TOO_LONG", mapOf("max" to "1024"),
+                    ),
+                ),
+            )),
+            FakeLlmClient(DomainResult.Success(emptyList())),
+            FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
+            FakeLanguagePrefsStore(),
+        )
+        vm.onTitle("x"); vm.onContact("y"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            UiText.Res(R.string.publish_error_description_too_long, listOf("1024")),
             vm.state.value.error,
         )
         assertFalse(vm.state.value.batchSubmitted)
@@ -1093,6 +1194,23 @@ class PublishViewModelTest {
         vm.saveEdit(); dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(UiText.Res(R.string.publish_error_title_required), vm.state.value.error)
+        assertNull(repo.lastUpdate)
+        assertFalse(vm.state.value.saved)
+    }
+
+    @Test
+    fun `saveEdit blocked by over-length title does not call update`() = runTest {
+        val repo = FakeRepo(detailResult = DomainResult.Success(detail()))
+        val vm = editVm(repo)
+        vm.loadForEdit(7); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onTitle("a".repeat(PublishConfig.MAX_TITLE_LENGTH + 1))
+        vm.saveEdit(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            UiText.Res(R.string.publish_error_title_too_long, listOf(PublishConfig.MAX_TITLE_LENGTH)),
+            vm.state.value.error,
+        )
         assertNull(repo.lastUpdate)
         assertFalse(vm.state.value.saved)
     }

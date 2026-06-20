@@ -122,6 +122,10 @@ private fun detailBodyUiText(detail: ValidationDetail, field: String): UiText {
             UiText.Res(R.string.error_password_too_simple, listOf(p["minCharClasses"] ?: ""))
         // —— 发布/编辑校验 ——
         "TITLE_BLANK" -> UiText.Res(R.string.publish_error_title_required)
+        "TITLE_TOO_LONG" ->
+            UiText.Res(R.string.publish_error_title_too_long, listOf(p["max"] ?: PublishConfig.MAX_TITLE_LENGTH.toString()))
+        "DESCRIPTION_TOO_LONG" ->
+            UiText.Res(R.string.publish_error_description_too_long, listOf(p["max"] ?: PublishConfig.MAX_DESCRIPTION_LENGTH.toString()))
         "QUANTITY_TOTAL_INVALID", "QUANTITY_TOTAL_TOO_LARGE" ->
             UiText.Res(R.string.publish_error_quantity_range, listOf(p["max"] ?: PublishConfig.MAX_QUANTITY.toString()))
         "QUANTITY_TOTAL_BELOW_SOLD" ->
