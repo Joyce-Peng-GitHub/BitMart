@@ -6,6 +6,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NamedNavArgument
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -62,6 +63,19 @@ object Routes {
     /** 发布入口的未登录拦截决策：已登录直达发布页，未登录先跳登录页并携带类型以便续接。 */
     fun publishDestination(loggedIn: Boolean, type: ListingType) =
         if (loggedIn) publish(type) else authForPublish(type)
+
+    /**
+     * AUTH 目的地的导航参数(唯一来源):publishType 为可选(nullable + 默认 null),
+     * 以保证未携带"待发布意图"的裸 navigate(AUTH) 仍能解析到带参 AUTH_ROUTE。
+     * NavHost 注册与单测共用本函数,避免两处配置漂移。
+     */
+    fun authNavArguments(): List<NamedNavArgument> = listOf(
+        navArgument(AUTH_PUBLISH_ARG) {
+            type = NavType.StringType
+            nullable = true
+            defaultValue = null
+        },
+    )
 }
 
 /**
@@ -119,13 +133,7 @@ fun BitMartNavHost(
         }
         composable(
             route = Routes.AUTH_ROUTE,
-            arguments = listOf(
-                navArgument(Routes.AUTH_PUBLISH_ARG) {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                },
-            ),
+            arguments = Routes.authNavArguments(),
         ) { entry ->
             // 携带“待发布意图”时：登录/注册成功后用发布页替换登录页（popUpTo 登录页 inclusive），返回栈干净。
             val pendingPublishType = entry.arguments?.getString(Routes.AUTH_PUBLISH_ARG)
