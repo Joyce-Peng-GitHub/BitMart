@@ -653,6 +653,7 @@ class PublishViewModel @Inject constructor(
     /** 草稿 → 全字段更新（编辑保存）。编辑为整体替换，故标量字段均下发（空串清除）。 */
     private fun DraftItem.toUpdateDraft(): UpdateDraft {
         val priceRaw = unitPrice.trim()
+        val origPriceRaw = originalPrice.trim()
         val absoluteExpiry = absoluteExpiryIso()
         return UpdateDraft(
             title = title.trim(),
@@ -674,7 +675,8 @@ class PublishViewModel @Inject constructor(
                 publisher = publisher?.trim()?.ifBlank { null },
                 edition = edition?.trim()?.ifBlank { null },
             ) else null,
-            originalPrice = originalPrice.trim().ifBlank { null },
+            originalPrice = origPriceRaw.ifBlank { null },
+            clearOriginalPrice = origPriceRaw.isBlank(),
         )
     }
 

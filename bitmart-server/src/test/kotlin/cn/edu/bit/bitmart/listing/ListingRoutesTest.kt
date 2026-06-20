@@ -239,6 +239,64 @@ class ListingRoutesTest : FunSpec({
         }
     }
 
+    test("编辑：clearOriginalPrice=true 将原价清空为 null") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(originalPrice = "199.00"))
+            }.body<CreatedResponse>().id
+
+            client.get("/api/v1/listings/$id") { bearerAuth(token) }
+                .body<ListingDetailDto>().originalPrice shouldBe "199.00"
+
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(clearOriginalPrice = true))
+            }.status shouldBe HttpStatusCode.OK
+
+            client.get("/api/v1/listings/$id") { bearerAuth(token) }
+                .body<ListingDetailDto>().originalPrice shouldBe null
+        }
+    }
+
+    test("编辑：未传 originalPrice 且未清空时原价保持不变") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(originalPrice = "199.00"))
+            }.body<CreatedResponse>().id
+
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(title = "改名"))
+            }.status shouldBe HttpStatusCode.OK
+
+            client.get("/api/v1/listings/$id") { bearerAuth(token) }
+                .body<ListingDetailDto>().originalPrice shouldBe "199.00"
+        }
+    }
+
+    test("编辑：clearOriginalPrice=true 与改名同时生效，原价清空且标题更新") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "原标题", originalPrice = "199.00"))
+            }.body<CreatedResponse>().id
+
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(title = "新标题", clearOriginalPrice = true))
+            }.status shouldBe HttpStatusCode.OK
+
+            val detail = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>()
+            detail.originalPrice shouldBe null
+            detail.title shouldBe "新标题"
+        }
+    }
+
     test("发布：指定绝对过期时间（expiresAt）被采用并存储") {
         app { client ->
             val token = client.registerToken()

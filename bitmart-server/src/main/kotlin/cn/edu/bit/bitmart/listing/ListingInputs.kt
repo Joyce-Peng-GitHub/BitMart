@@ -41,6 +41,7 @@ data class UpdateListingInput(
     val unitPrice: BigDecimal? = null,
     val originalPrice: BigDecimal? = null,
     val clearUnitPrice: Boolean = false,   // 显式置空价格（区分"未改"与"改为面议"）
+    val clearOriginalPrice: Boolean = false, // 显式清空原价（区分"未改"与"清空"）
     val pickupLocation: String? = null,
     val quantitySold: Int? = null,
     val expiresAt: OffsetDateTime? = null,

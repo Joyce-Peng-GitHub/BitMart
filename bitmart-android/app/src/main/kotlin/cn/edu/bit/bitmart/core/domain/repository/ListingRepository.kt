@@ -58,6 +58,7 @@ data class UpdateDraft(
     val imageKeys: List<String>? = null,
     val book: BookInfo? = null,
     val originalPrice: String? = null,
+    val clearOriginalPrice: Boolean = false,
 )
 /** 列表仓储接口。 */
 interface ListingRepository {

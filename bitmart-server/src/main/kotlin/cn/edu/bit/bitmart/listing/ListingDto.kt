@@ -52,7 +52,7 @@ data class CreatedResponse(val id: Long)
 @Serializable
 data class BatchCreatedResponse(val ids: List<Long>)
 
-/** 修改请求。clearUnitPrice 用于显式改为面议。全字段编辑：非 null 字段才更新。 */
+/** 修改请求。clearUnitPrice 用于显式改为面议；clearOriginalPrice 用于显式清空原价。全字段编辑：非 null 字段才更新。 */
 @Serializable
 data class UpdateListingRequest(
     val title: String? = null,
@@ -60,6 +60,7 @@ data class UpdateListingRequest(
     val unitPrice: String? = null,
     val originalPrice: String? = null,
     val clearUnitPrice: Boolean = false,
+    val clearOriginalPrice: Boolean = false,
     val pickupLocation: String? = null,
     val quantitySold: Int? = null,
     val expiresInDays: Int? = null,

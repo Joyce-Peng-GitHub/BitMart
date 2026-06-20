@@ -51,6 +51,7 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
             unitPrice = parsePrice(req.unitPrice),
             originalPrice = parsePrice(req.originalPrice),
             clearUnitPrice = req.clearUnitPrice,
+            clearOriginalPrice = req.clearOriginalPrice,
             pickupLocation = req.pickupLocation,
             quantitySold = req.quantitySold,
             expiresAt = expiresAt,

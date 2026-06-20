@@ -72,6 +72,7 @@ class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : L
                 imageKeys = update.imageKeys,
                 book = update.book?.toDto(),
                 originalPrice = update.originalPrice,
+                clearOriginalPrice = update.clearOriginalPrice,
             ),
         )
 

@@ -973,9 +973,11 @@ class PublishViewModelTest {
         type: ListingType = ListingType.SELL,
         category: ListingCategory = ListingCategory.BOOK,
         expiresAt: String = "2026-07-01T00:00:00Z",
+        originalPrice: String? = null,
     ) = ListingDetail(
         id = 7, type = type, category = category, userId = 5, nickname = "卖家",
-        title = "高数教材", description = "九成新", unitPrice = "30.00", quantityTotal = 4, quantitySold = 1,
+        title = "高数教材", description = "九成新", unitPrice = "30.00", originalPrice = originalPrice,
+        quantityTotal = 4, quantitySold = 1,
         pickupLocation = "三号楼", contacts = listOf(Contact("WECHAT", "wxid_x")), tags = listOf("教材"),
         imageUrls = listOf("/static/2026/06/a.jpg"), expiresAt = expiresAt,
         createdAt = "2026-06-02T00:00:00Z",
@@ -1044,5 +1046,47 @@ class PublishViewModelTest {
         assertEquals(UiText.Res(R.string.publish_error_title_required), vm.state.value.error)
         assertNull(repo.lastUpdate)
         assertFalse(vm.state.value.saved)
+    }
+
+    @Test
+    fun `saveEdit blanking originalPrice sends clearOriginalPrice with null value`() = runTest {
+        val repo = FakeRepo(detailResult = DomainResult.Success(
+            detail(
+                category = ListingCategory.GENERAL,
+                expiresAt = OffsetDateTime.now().plusDays(30).toString(),
+                originalPrice = "199.00",
+            ),
+        ))
+        val vm = editVm(repo)
+        vm.loadForEdit(7); dispatcher.scheduler.advanceUntilIdle()
+
+        // 编辑加载后原价应预填为旧值 199.00（确保后续是真实的"有值→清空"转变）。
+        assertEquals("199.00", vm.state.value.currentDraft.originalPrice)
+
+        // 用户把原价清空（空白）→ 应下发清除标志，而非沿用旧值。
+        vm.onOriginalPrice("   ")
+        vm.saveEdit(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.saved)
+        val u = repo.lastUpdate!!.second
+        assertTrue(u.clearOriginalPrice)
+        assertNull(u.originalPrice)
+    }
+
+    @Test
+    fun `saveEdit with a non-blank originalPrice sends the trimmed value and no clear flag`() = runTest {
+        val repo = FakeRepo(detailResult = DomainResult.Success(
+            detail(category = ListingCategory.GENERAL, expiresAt = OffsetDateTime.now().plusDays(30).toString()),
+        ))
+        val vm = editVm(repo)
+        vm.loadForEdit(7); dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onOriginalPrice("  88.50  ")
+        vm.saveEdit(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.saved)
+        val u = repo.lastUpdate!!.second
+        assertFalse(u.clearOriginalPrice)
+        assertEquals("88.50", u.originalPrice)
     }
 }

@@ -153,6 +153,7 @@ data class UpdateListingRequest(
     val imageKeys: List<String>? = null,
     val book: BookDto? = null,
     val originalPrice: String? = null,
+    val clearOriginalPrice: Boolean = false,
 )
 /** 修改当前用户资料请求（PATCH /me），目前仅支持昵称。 */
 @Serializable

@@ -134,7 +134,10 @@ class ListingRepository {
                 input.clearUnitPrice -> it[unitPrice] = null
                 input.unitPrice != null -> it[unitPrice] = input.unitPrice
             }
-            input.originalPrice?.let { v -> it[originalPrice] = v }
+            when {
+                input.clearOriginalPrice -> it[originalPrice] = null
+                input.originalPrice != null -> it[originalPrice] = input.originalPrice
+            }
             input.expiresAt?.let { v -> it[expiresAt] = v }
             input.category?.let { v -> it[category] = v }
             input.quantityTotal?.let { v -> it[quantityTotal] = v }
