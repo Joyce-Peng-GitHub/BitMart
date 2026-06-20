@@ -172,9 +172,18 @@ class ListingRepository {
         ListingBooks.deleteWhere { ListingBooks.listingId eq id }
     }
 
-    /** 更新售出数量（允许增减，范围由 Service 层校验保证）。返回受影响行数。 */
-    fun updateQuantitySold(id: Long, newSold: Int): Int =
-        Listings.update({ (Listings.id eq id) and Listings.deletedAt.isNull() }) {
+    /**
+     * 售出数量 CAS（乐观锁）更新：仅当当前 `quantity_sold` 仍等于 [expectedSold] 时才写入 [newSold]。
+     * 返回受影响行数——`1` 表示成功，`0` 表示该行已不满足条件（已被并发修改或软删除），即真实冲突。
+     *
+     * WHERE 携带 `quantity_sold = expectedSold` 是为了堵住「读-改-写」竞态：两个并发 PATCH 各读到 5、
+     * 一个写 6 一个写 4 时，后提交者的 WHERE 不再匹配（行已被改成 6）→ 命中 0 行，由 Service 映射为 409，
+     * 而非静默覆盖前者。范围（0..quantityTotal）由 Service 层校验保证。
+     */
+    fun updateQuantitySold(id: Long, expectedSold: Int, newSold: Int): Int =
+        Listings.update({
+            (Listings.id eq id) and Listings.deletedAt.isNull() and (Listings.quantitySold eq expectedSold)
+        }) {
             it[quantitySold] = newSold
             it[updatedAt] = OffsetDateTime.now()
         }

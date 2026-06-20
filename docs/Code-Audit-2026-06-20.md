@@ -33,7 +33,7 @@
 - **问题**：`UPDATE listing SET quantity_sold=:new WHERE id=? AND deleted_at IS NULL`，缺少 `AND quantity_sold=:expectedOld` 的 CAS 条件。Service 层「读 `current.quantitySold` → 校验 → 写」存在经典读-改-写竞态。
 - **影响**：两个并发 PATCH 都读到 5，一个写 6 一个写 4，后者静默覆盖前者；`affected==0 → QuantityConflict` 对真正的并发**永不触发**，与设计宣称的「并发约束」相悖。
 - **修法**：WHERE 增加 `AND quantity_sold=:expectedOld`（此时 `affected==0` 即真实冲突），或在事务开头对该行 `SELECT … FOR UPDATE`。
-- **状态**：⬜ 待修复
+- **状态**：✅ 已修复（`updateQuantitySold` 加 CAS 条件 `quantity_sold=:expectedOld`，以读到的 `current.quantitySold` 为期望值；Service 层将售出数量范围校验前置到任何写入之前，CAS 命中 0 行时抛异常回滚整条事务并映射为 409，杜绝「报冲突却又提交了部分字段」；`ListingRoutesTest` 新增 4 例：仓储 CAS、校验失败整体回滚、4 线程并发不丢失更新、件数+售出同增不触发 CHECK 违例）。
 
 ### H3 · 后端返回未知枚举值 → Android 闪退
 - **位置**：`bitmart-android/.../core/data/repository/ListingRepositoryImpl.kt:121-122,129-130`；`core/domain/DomainResult.kt:44-47`

@@ -7,6 +7,7 @@ import cn.edu.bit.bitmart.auth.RegisterRequest
 import cn.edu.bit.bitmart.auth.VerifyRequest
 import cn.edu.bit.bitmart.auth.VerifyResponse
 import cn.edu.bit.bitmart.configureApp
+import cn.edu.bit.bitmart.domain.UserRole
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -680,6 +681,126 @@ class ListingRoutesTest : FunSpec({
             val titles = buyMine.items.map { it.title }
             titles shouldContain "我的求购bbb"
             (titles.none { it == "我的在售sss" }) shouldBe true
+        }
+    }
+
+    // —— H2 回归：售出数量并发「读-改-写」防丢失更新（CAS 乐观锁） ——
+
+    test("售出数量 CAS：期望值匹配才写入；落后(stale)期望值命中 0 行且不静默覆盖") {
+        val components = AuthTestSupport.components()
+        testApplication {
+            application { configureApp(components) }
+            val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(quantityTotal = 10))
+            }.body<CreatedResponse>().id
+
+            val repo = components.listingRepository
+            // 期望值 0（=当前）匹配 → 写入 3 成功。
+            transaction(components.database) {
+                repo.updateQuantitySold(id, expectedSold = 0, newSold = 3) shouldBe 1
+            }
+            // 模拟并发落后写：仍以 expected=0 写 7，但当前已是 3 → WHERE 不匹配 → 命中 0 行（真实冲突）。
+            transaction(components.database) {
+                repo.updateQuantitySold(id, expectedSold = 0, newSold = 7) shouldBe 0
+            }
+            // 落后写未生效，值仍为 3（无丢失更新 / 无静默覆盖）。
+            transaction(components.database) {
+                repo.findDetail(id)!!.quantitySold shouldBe 3
+            }
+            // 以正确的当前值 3 为期望值则可继续推进到 5。
+            transaction(components.database) {
+                repo.updateQuantitySold(id, expectedSold = 3, newSold = 5) shouldBe 1
+                repo.findDetail(id)!!.quantitySold shouldBe 5
+            }
+        }
+    }
+
+    test("修改：售出数量超界时整体回滚——同请求内其它字段(标题)改动不被提交") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "原标题保持不变", quantityTotal = 5))
+            }.body<CreatedResponse>().id
+
+            // 同一 PATCH：合法的标题改动 + 非法的 quantitySold(99 > 总量 5)。
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(title = "不应被提交的新标题", quantitySold = 99))
+            }.status shouldBe HttpStatusCode.BadRequest
+
+            // 校验前置于写入：标题改动未被提交，售出数量也未变。
+            val d = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>()
+            d.title shouldBe "原标题保持不变"
+            d.quantitySold shouldBe 0
+        }
+    }
+
+    test("售出数量并发更新：胜出者落库，落后者整体回滚为 QuantityConflict，绝无丢失更新/500") {
+        val components = AuthTestSupport.components()
+        testApplication {
+            application { configureApp(components) }
+            val client = createClient { install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(quantityTotal = 100))
+            }.body<CreatedResponse>().id
+            val uid = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>().userId
+
+            val n = 4   // == 测试连接池 maxPoolSize：确保有真实争用且不耗尽连接
+            val pool = java.util.concurrent.Executors.newFixedThreadPool(n)
+            val barrier = java.util.concurrent.CyclicBarrier(n)
+            val results = java.util.concurrent.ConcurrentHashMap<Int, UpdateResult>()
+            try {
+                (0 until n).map { i ->
+                    pool.submit {
+                        barrier.await()
+                        // 并发写不同目标值（i+1），同时改标题以验证冲突时整条事务原子回滚。
+                        results[i] = components.listingService.update(
+                            id = id,
+                            requesterId = uid,
+                            requesterRole = UserRole.NORMAL,
+                            input = UpdateListingInput(title = "t$i", quantitySold = i + 1),
+                        )
+                    }
+                }.forEach { it.get(30, java.util.concurrent.TimeUnit.SECONDS) }
+            } finally {
+                pool.shutdownNow()
+            }
+
+            // 每个并发请求或成功或冲突，绝不抛异常 / 500 / CHECK 违例。
+            results.size shouldBe n
+            results.values.all { it == UpdateResult.Success || it == UpdateResult.QuantityConflict } shouldBe true
+            results.values.any { it == UpdateResult.Success } shouldBe true
+
+            // 终态：标题与售出数量来自同一胜出事务（原子）；落后者整体回滚，其标题不会残留。
+            val finalDetail = transaction(components.database) { components.listingRepository.findDetail(id)!! }
+            val winner = finalDetail.title.removePrefix("t").toInt()
+            results[winner] shouldBe UpdateResult.Success
+            finalDetail.quantitySold shouldBe (winner + 1)
+        }
+    }
+
+    // 守护 CAS 必须在 quantity_total 写入之后这一排序不变量：同一 PATCH 同时增大总量与售出数量，
+    // 若误将售出写在总量之前，会瞬时违反 CHECK(quantity_sold BETWEEN 0 AND quantity_total) → 500。
+    test("修改：同一请求同时增大件数与售出数量均生效（不触发 CHECK 违例）") {
+        app { client ->
+            val token = client.registerToken()
+            val id = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(sellReq(quantityTotal = 5))
+            }.body<CreatedResponse>().id
+
+            // 总量 5→8、售出 0→6（6 > 旧总量 5，仅当先写总量后写售出才满足 CHECK）。
+            client.patch("/api/v1/listings/$id") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(UpdateListingRequest(quantityTotal = 8, quantitySold = 6))
+            }.status shouldBe HttpStatusCode.OK
+
+            val d = client.get("/api/v1/listings/$id") { bearerAuth(token) }.body<ListingDetailDto>()
+            d.quantityTotal shouldBe 8
+            d.quantitySold shouldBe 6
         }
     }
 })

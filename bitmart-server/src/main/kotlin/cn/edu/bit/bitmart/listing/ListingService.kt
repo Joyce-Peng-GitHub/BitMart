@@ -104,47 +104,58 @@ class ListingService(
         requesterRole: UserRole,
         input: UpdateListingInput,
         now: Instant = Instant.now(),
-    ): UpdateResult = transaction(database) {
-        val ownerId = listingRepository.findOwner(id) ?: return@transaction UpdateResult.NotFound.also {
-            log.warn("Update listing not found id={}", id)
-        }
-        if (ownerId != requesterId && requesterRole != UserRole.ADMIN) {
-            log.warn("Update listing forbidden id={} requesterId={}", id, requesterId)
-            return@transaction UpdateResult.Forbidden
-        }
+    ): UpdateResult = try {
+        transaction(database) {
+            val ownerId = listingRepository.findOwner(id) ?: return@transaction UpdateResult.NotFound.also {
+                log.warn("Update listing not found id={}", id)
+            }
+            if (ownerId != requesterId && requesterRole != UserRole.ADMIN) {
+                log.warn("Update listing forbidden id={} requesterId={}", id, requesterId)
+                return@transaction UpdateResult.Forbidden
+            }
 
-        // 当前明细：已售出数量用于件数下界校验，类别用于书籍协调。
-        val current = listingRepository.findDetail(id) ?: return@transaction UpdateResult.NotFound
+            // 当前明细：已售出数量用于件数下界校验与售出 CAS 的期望值，类别用于书籍协调。
+            val current = listingRepository.findDetail(id) ?: return@transaction UpdateResult.NotFound
 
-        // 全字段校验：仅校验提供（非 null）的字段，与发布同规则。
-        val vr = validator.validateUpdate(input.toUpdateValidation(), current.quantitySold, now)
-        if (!vr.isValid) {
-            log.warn("Update listing invalid id={} errors={}", id, vr.errors)
-            return@transaction UpdateResult.ValidationFailed(vr.errors)
-        }
+            // 全字段校验：仅校验提供（非 null）的字段，与发布同规则。
+            val vr = validator.validateUpdate(input.toUpdateValidation(), current.quantitySold, now)
+            if (!vr.isValid) {
+                log.warn("Update listing invalid id={} errors={}", id, vr.errors)
+                return@transaction UpdateResult.ValidationFailed(vr.errors)
+            }
+            // 售出数量范围校验前置到任何写入之前：失败时尚未写入，直接返回不会提交半成品。
+            // 上界取新件数（若本次同时改件数），与发布同规则。
+            input.quantitySold?.let { newSold ->
+                val total = input.quantityTotal ?: current.quantityTotal
+                val r = validator.validateQuantitySoldUpdate(current.quantitySold, newSold, total)
+                if (!r.isValid) return@transaction UpdateResult.ValidationFailed(r.errors)
+            }
 
-        // 标量字段（标题/描述/价格/取货地点/过期/类别/件数/联系方式）。
-        if (hasFieldUpdates(input)) listingRepository.updateFields(id, input)
-        // 标签整体替换（差异更新）。
-        input.tags?.let { tagRepository.setTags(id, it) }
-        // 图片整体替换。
-        input.imageKeys?.let { listingRepository.replaceImages(id, it) }
-        // 类别/书籍协调：书籍则写入书籍信息，非书籍则删除。
-        input.category?.let { cat ->
-            if (cat == ListingCategory.BOOK.ordinal) listingRepository.upsertBook(id, input.book)
-            else listingRepository.deleteBook(id)
-        }
+            // 标量字段（标题/描述/价格/取货地点/过期/类别/件数/联系方式）。
+            if (hasFieldUpdates(input)) listingRepository.updateFields(id, input)
+            // 标签整体替换（差异更新）。
+            input.tags?.let { tagRepository.setTags(id, it) }
+            // 图片整体替换。
+            input.imageKeys?.let { listingRepository.replaceImages(id, it) }
+            // 类别/书籍协调：书籍则写入书籍信息，非书籍则删除。
+            input.category?.let { cat ->
+                if (cat == ListingCategory.BOOK.ordinal) listingRepository.upsertBook(id, input.book)
+                else listingRepository.deleteBook(id)
+            }
 
-        // 售出数量单调更新（独立施加并发约束）。注意以新件数（若同时改件数）为上界。
-        input.quantitySold?.let { newSold ->
-            val total = input.quantityTotal ?: current.quantityTotal
-            val r = validator.validateQuantitySoldUpdate(current.quantitySold, newSold, total)
-            if (!r.isValid) return@transaction UpdateResult.ValidationFailed(r.errors)
-            val affected = listingRepository.updateQuantitySold(id, newSold)
-            if (affected == 0) return@transaction UpdateResult.QuantityConflict
+            // 售出数量乐观锁更新：以读到的 current.quantitySold 为 CAS 期望值。须置于 quantityTotal
+            // 写入之后（先增总量再增售出，满足 CHECK 约束）。affected==0 即「读-改-写」并发冲突，
+            // 抛异常回滚整个事务（含上面已写入的字段），避免"报冲突却又提交了部分改动"。
+            input.quantitySold?.let { newSold ->
+                val affected = listingRepository.updateQuantitySold(id, current.quantitySold, newSold)
+                if (affected == 0) throw QuantitySoldConflictException()
+            }
+            log.info("Listing updated id={} requesterId={}", id, requesterId)
+            UpdateResult.Success
         }
-        log.info("Listing updated id={} requesterId={}", id, requesterId)
-        UpdateResult.Success
+    } catch (_: QuantitySoldConflictException) {
+        log.warn("Update listing quantity conflict id={} requesterId={}", id, requesterId)
+        UpdateResult.QuantityConflict
     }
 
     /** 软删除。仅本人或管理员。 */
@@ -223,3 +234,9 @@ class ListingService(
         expiryIsAbsolute = expiryIsAbsolute,
     )
 }
+
+/**
+ * 售出数量 CAS 命中 0 行（并发「读-改-写」冲突）时抛出，用于回滚整个事务并在 [ListingService.update]
+ * 外层映射为 [UpdateResult.QuantityConflict]。仅作控制流之用，不对外暴露。
+ */
+private class QuantitySoldConflictException : RuntimeException()
