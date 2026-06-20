@@ -24,6 +24,7 @@ import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
 import javax.inject.Inject
+import kotlin.enums.enumEntries
 
 /** ListingRepository 实现：构造查询参数、调用 API、映射 DTO → 领域模型。 */
 class ListingRepositoryImpl @Inject constructor(private val api: BitMartApi) : ListingRepository {
@@ -118,16 +119,16 @@ private fun ListingQuery.toParams(): Map<String, String?> = buildMap {
 private fun ListingSummaryDto.toDomain() = ListingSummary(
     id = id,
     ownerId = ownerId,
-    type = enumValueOf<ListingType>(type),
-    category = enumValueOf<ListingCategory>(category),
+    type = enumOrFallback(type, ListingType.SELL),
+    category = enumOrFallback(category, ListingCategory.GENERAL),
     title = title, unitPrice = unitPrice, quantityTotal = quantityTotal, quantitySold = quantitySold,
     firstImageUrl = firstImageUrl, nickname = nickname, tags = tags, createdAt = createdAt, expiresAt = expiresAt,
 )
 
 private fun ListingDetailDto.toDomain() = ListingDetail(
     id = id,
-    type = enumValueOf<ListingType>(type),
-    category = enumValueOf<ListingCategory>(category),
+    type = enumOrFallback(type, ListingType.SELL),
+    category = enumOrFallback(category, ListingCategory.GENERAL),
     userId = userId, nickname = nickname, title = title, description = description,
     unitPrice = unitPrice, quantityTotal = quantityTotal, quantitySold = quantitySold,
     pickupLocation = pickupLocation, contacts = contacts.map { it.toDomain() }, tags = tags,
@@ -138,3 +139,16 @@ private fun ListingDetailDto.toDomain() = ListingDetail(
 private fun ContactDto.toDomain() = Contact(channel = channel, value = value)
 
 private fun BookDto.toDomain() = BookInfo(isbn, title, authors, publisher, edition)
+
+/**
+ * 容错解析后端返回的枚举字符串：未知值（服务端新增类别 / 版本漂移）回退到 [fallback]，
+ * 而非抛 IllegalArgumentException。该 String→enum 转换发生在 DomainResult.map{} 内、
+ * BitMartApi.safe{} 边界之外，一旦抛出会直接崩溃而非降级；回退可让列表页其余条目正常渲染。
+ * 与 ApiResponseMapper 的 ignoreUnknownKeys 一致地“宽容向前兼容”。
+ *
+ * 回退值选取：[ListingCategory.GENERAL] 是天然的兜底类别（书籍专属 UI 不生效即可）；
+ * type 始终由查询上下文决定（list 查询下发 type=SELL/BUY 由后端过滤，未知 type 近乎不可能），
+ * SELL 为主类型，此处唯一诉求是“不崩溃”。
+ */
+private inline fun <reified T : Enum<T>> enumOrFallback(raw: String, fallback: T): T =
+    enumEntries<T>().firstOrNull { it.name == raw } ?: fallback

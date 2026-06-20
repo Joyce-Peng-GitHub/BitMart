@@ -40,7 +40,7 @@
 - **问题**：`enumValueOf<ListingType>(type)` / `enumValueOf<ListingCategory>(category)` 在 `DomainResult.map{}` 内执行，而该 `map` 跑在 `BitMartApi` 的 `safe{}` try-catch **之外**，`DomainResult.map` 自身无异常捕获。
 - **影响**：服务端新增类别或版本漂移返回客户端未知枚举时，抛 `IllegalArgumentException` 直接崩溃，而非降级为 `InvalidResponse`。
 - **修法**：用 `enumValues().firstOrNull { it.name == type } ?: 兜底值`，或将 DTO→domain 映射移入 `safe{}` 边界内。
-- **状态**：⬜ 待修复
+- **状态**：✅ 已修复（`ListingRepositoryImpl` 新增私有 inline reified 助手 `enumOrFallback`，对未知枚举回退到兜底值而非抛异常；`ListingType` 回退 `SELL`、`ListingCategory` 回退 `GENERAL`，与 `ignoreUnknownKeys` 一致地宽容向前兼容，单条未知枚举不再拖垮整页渲染；四处 `enumValueOf` 调用点全部替换。`ListingRepositoryImplTest` 新增 4 例：list 未知 category→GENERAL、list 未知 type→SELL、detail 未知双枚举→兜底、已知非默认枚举 BUY/BOOK 正确映射不被助手破坏）。
 
 ### H4 · 出站 HTTP 客户端未配置超时
 - **位置**：后端 `AppComponents.kt:105-107`；Android `core/di/AppModule.kt:82-92`

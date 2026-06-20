@@ -2,6 +2,7 @@ package cn.edu.bit.bitmart.core.data
 
 import cn.edu.bit.bitmart.core.data.repository.ListingRepositoryImpl
 import cn.edu.bit.bitmart.core.domain.DomainResult
+import cn.edu.bit.bitmart.core.domain.model.ListingCategory
 import cn.edu.bit.bitmart.core.domain.model.ListingType
 import cn.edu.bit.bitmart.core.domain.repository.ListingQuery
 import io.ktor.client.engine.mock.respond
@@ -110,5 +111,78 @@ class ListingRepositoryImplTest {
 
         val items = (repo.myListings(ListingQuery(type = ListingType.SELL)) as DomainResult.Success).data.items
         assertEquals("2026-06-13T08:00:00Z", items.first().expiresAt)
+    }
+
+    // H3: enumValueOf{} 跑在 DomainResult.map{} 内、safe{} 边界外，未知枚举值会直接崩溃。
+    // 容错解析须回退到默认值而非抛异常，使列表/详情页仍能正常渲染。
+
+    @Test
+    fun `list maps unknown category to GENERAL fallback without crashing`() = runTest {
+        val body = """
+            {"items":[{"id":9,"ownerId":1,"type":"SELL","category":"ELECTRONICS","title":"未知类别","unitPrice":null,
+              "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z",
+              "expiresAt":"2026-07-02T00:00:00Z"}],"nextCursor":null}
+        """.trimIndent()
+        val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
+        val repo = ListingRepositoryImpl(api)
+
+        val result = repo.list(ListingQuery(type = ListingType.SELL))
+
+        assertTrue(result is DomainResult.Success)
+        val page = (result as DomainResult.Success).data
+        assertEquals(ListingCategory.GENERAL, page.items.first().category)
+    }
+
+    @Test
+    fun `list maps unknown type to SELL fallback without crashing`() = runTest {
+        val body = """
+            {"items":[{"id":10,"ownerId":1,"type":"RENT","category":"GENERAL","title":"未知类型","unitPrice":null,
+              "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z",
+              "expiresAt":"2026-07-02T00:00:00Z"}],"nextCursor":null}
+        """.trimIndent()
+        val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
+        val repo = ListingRepositoryImpl(api)
+
+        val result = repo.list(ListingQuery(type = ListingType.SELL))
+
+        assertTrue(result is DomainResult.Success)
+        val page = (result as DomainResult.Success).data
+        assertEquals(ListingType.SELL, page.items.first().type)
+    }
+
+    @Test
+    fun `detail maps unknown enums to fallback without crashing`() = runTest {
+        val body = """
+            {"id":1,"type":"RENT","category":"ELECTRONICS","userId":2,"title":"t","description":"d",
+             "quantityTotal":1,"quantitySold":0,"expiresAt":"2026-07-02T00:00:00Z",
+             "createdAt":"2026-06-02T00:00:00Z","updatedAt":"2026-06-02T00:00:00Z"}
+        """.trimIndent()
+        val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
+        val repo = ListingRepositoryImpl(api)
+
+        val result = repo.detail(1)
+
+        assertTrue(result is DomainResult.Success)
+        val detail = (result as DomainResult.Success).data
+        assertEquals(ListingType.SELL, detail.type)
+        assertEquals(ListingCategory.GENERAL, detail.category)
+    }
+
+    @Test
+    fun `list maps known non-default enums correctly`() = runTest {
+        val body = """
+            {"items":[{"id":11,"ownerId":1,"type":"BUY","category":"BOOK","title":"求购教材","unitPrice":null,
+              "quantityTotal":1,"quantitySold":0,"tags":[],"createdAt":"2026-06-02T00:00:00Z",
+              "expiresAt":"2026-07-02T00:00:00Z"}],"nextCursor":null}
+        """.trimIndent()
+        val api = TestApiSupport.fixedApi(HttpStatusCode.OK, body)
+        val repo = ListingRepositoryImpl(api)
+
+        val result = repo.list(ListingQuery(type = ListingType.BUY))
+
+        assertTrue(result is DomainResult.Success)
+        val item = (result as DomainResult.Success).data.items.first()
+        assertEquals(ListingType.BUY, item.type)
+        assertEquals(ListingCategory.BOOK, item.category)
     }
 }
