@@ -60,6 +60,7 @@
     <string name="auth_action_register">Register and sign in</string>
     <string name="auth_switch_to_login">Already have an account? Sign in</string>
     <string name="auth_switch_to_register">No account yet? Register</string>
+    <string name="auth_forgot_password">Forgot password?</string>
     <string name="auth_fill_credentials">Please enter your student ID and password</string>
     <string name="auth_fill_register_credentials">Please enter your student ID and the password to set</string>
     <string name="auth_error_invalid_credentials">Incorrect student ID or password</string>

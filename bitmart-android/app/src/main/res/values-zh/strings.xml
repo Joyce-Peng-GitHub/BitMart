@@ -60,6 +60,7 @@
     <string name="auth_action_register">注册并登录</string>
     <string name="auth_switch_to_login">已有账号？去登录</string>
     <string name="auth_switch_to_register">没有账号？去注册</string>
+    <string name="auth_forgot_password">忘记密码？</string>
     <string name="auth_fill_credentials">请填写学号和密码</string>
     <string name="auth_fill_register_credentials">请填写学号和要设置的密码</string>
     <string name="auth_error_invalid_credentials">学号或密码错误</string>

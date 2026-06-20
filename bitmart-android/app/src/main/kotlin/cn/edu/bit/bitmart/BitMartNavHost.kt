@@ -112,6 +112,7 @@ fun BitMartNavHost(
                     navController.popBackStack(Routes.SHELL, inclusive = false)
                 },
                 onBack = { navController.popBackStack() },
+                onForgotPassword = { navController.navigate(Routes.CHANGE_PASSWORD) },
             )
         }
         composable(
@@ -229,10 +230,11 @@ fun BitMartNavHost(
         composable(Routes.CHANGE_PASSWORD) {
             ChangePasswordScreen(
                 onBack = { navController.popBackStack() },
-                // 改密会吊销会话，成功后跳登录页并清掉账号设置/改密页。
                 onPasswordChanged = {
+                    // 改密会吊销会话；成功后跳登录页。popUpTo(SHELL) 同时兼容“账号设置”与“登录页·忘记密码”两个入口，
+                    // 清掉中间页，避免落回失效的设置/改密页或重复的登录页。
                     navController.navigate(Routes.AUTH) {
-                        popUpTo(Routes.ACCOUNT_SETTINGS) { inclusive = true }
+                        popUpTo(Routes.SHELL) { inclusive = false }
                     }
                 },
             )

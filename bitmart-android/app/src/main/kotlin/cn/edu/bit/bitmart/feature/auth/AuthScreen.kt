@@ -41,12 +41,14 @@ import cn.edu.bit.bitmart.core.ui.PasswordField
  * 登录/注册屏。注册模式下额外要求统一身份认证密码（用于 verify）与可选昵称。
  * @param onAuthenticated 登录/注册成功后的导航回调。
  * @param onBack 返回上一页。
+ * @param onForgotPassword 跳转到重置密码（忘记密码）页。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthScreen(
     onAuthenticated: () -> Unit,
     onBack: () -> Unit,
+    onForgotPassword: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -137,6 +139,12 @@ fun AuthScreen(
 
             TextButton(onClick = { registerMode = !registerMode }) {
                 Text(stringResource(if (registerMode) R.string.auth_switch_to_login else R.string.auth_switch_to_register))
+            }
+
+            if (!registerMode) {
+                TextButton(onClick = onForgotPassword) {
+                    Text(stringResource(R.string.auth_forgot_password))
+                }
             }
         }
     }
