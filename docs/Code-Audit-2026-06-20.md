@@ -47,7 +47,7 @@
 - **问题**：后端 `HttpClient(CIO)` 仅装 `ContentNegotiation`，配置中的 `bit101/showapi.requestTimeoutMs`（15s，`ConfigSections.kt:150-166`）未接进 `Bit101Client`/`ShowApiClient`；Android 主 backend 客户端也未装 `HttpTimeout`（仅 LLM 客户端装了）。
 - **影响**：上游卡住时调用协程无限期挂起；`/auth/bit101/verify`、`/books/lookup` 易触达，可造成资源堆积。
 - **修法**：两端均 `install(HttpTimeout){ requestTimeoutMillis = … }` 并把配置值接入。
-- **状态**：⬜ 待修复
+- **状态**：✅ 已修复（后端 `Bit101Client`/`ShowApiClient` 新增 `requestTimeoutMs` 构造参数，对每次出站请求 `timeout{ requestTimeoutMillis = … }`；`AppComponents` 把 `config.bit101/showapi.requestTimeoutMs` 接入两端并在生产共享 `HttpClient(CIO)` 上 `install(HttpTimeout)`；`application.conf` 两处超时 `15000→60000`（60s）。Android `AppModule.provideHttpClient()` 主后端客户端 `install(HttpTimeout){ requestTimeoutMillis = 60_000 }`，LLM 客户端不动。测试：`Bit101ClientTest`/`ShowApiClientTest` 各新增 2 例（按配置设定 `requestTimeoutMillis`、上游停滞→`ServiceError` 不挂起不抛出），`BitmartConfigTest` 断言默认值 60000，Android 新增 `BitMartApiTimeoutTest`（请求超时降级为 `NetworkError`）。`HttpRequestTimeoutException` 系 `IOException`，由两端既有 `catch (e: Exception)` 兜住。后端全量 182 例、Android 全量 252 例通过，独立复审 6 维度全绿。）
 
 ---
 

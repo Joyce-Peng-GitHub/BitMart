@@ -23,6 +23,8 @@ class BitmartConfigTest : FunSpec({
         cfg.session.ttlDays shouldBe 30
         cfg.bit101.baseUrl shouldBe "https://bit101.flwfdd.xyz"
         cfg.showapi.baseUrl shouldBe "https://route.showapi.com"
+        cfg.bit101.requestTimeoutMs shouldBe 60000
+        cfg.showapi.requestTimeoutMs shouldBe 60000
     }
 
     test("expiry.defaultDays 超出 [min,max] 时拒绝加载") {

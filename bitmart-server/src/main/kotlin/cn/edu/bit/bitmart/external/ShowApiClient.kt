@@ -1,6 +1,7 @@
 package cn.edu.bit.bitmart.external
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.HttpResponse
@@ -27,6 +28,7 @@ class ShowApiClient(
     private val httpClient: HttpClient,
     private val baseUrl: String,
     private val appKey: String,
+    private val requestTimeoutMs: Long,
 ) {
     private val log = LoggerFactory.getLogger(ShowApiClient::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -34,6 +36,7 @@ class ShowApiClient(
     suspend fun lookup(isbn: String): IsbnLookupResult {
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/1626-1") {
+                timeout { requestTimeoutMillis = requestTimeoutMs }
                 parameter("appKey", appKey)
                 parameter("isbn", isbn)
             }

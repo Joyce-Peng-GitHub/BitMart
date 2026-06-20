@@ -3,6 +3,7 @@ package cn.edu.bit.bitmart.external
 import cn.edu.bit.bitmart.auth.Bit101PasswordCipher
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory
 class Bit101Client(
     private val httpClient: HttpClient,
     private val baseUrl: String,
+    private val requestTimeoutMs: Long,
 ) {
     private val log = LoggerFactory.getLogger(Bit101Client::class.java)
 
@@ -37,6 +39,7 @@ class Bit101Client(
 
             val encrypted = Bit101PasswordCipher.encrypt(plainPassword, init.salt)
             val verifyResponse: HttpResponse = httpClient.post("$baseUrl/user/webvpn_verify") {
+                timeout { requestTimeoutMillis = requestTimeoutMs }
                 contentType(ContentType.Application.Json)
                 setBody(
                     WebvpnVerifyRequest(
@@ -70,6 +73,7 @@ class Bit101Client(
 
     private suspend fun initSession(studentId: String): WebvpnVerifyInitResponse? {
         val response: HttpResponse = httpClient.post("$baseUrl/user/webvpn_verify_init") {
+            timeout { requestTimeoutMillis = requestTimeoutMs }
             contentType(ContentType.Application.Json)
             setBody(WebvpnVerifyInitRequest(sid = studentId))
         }

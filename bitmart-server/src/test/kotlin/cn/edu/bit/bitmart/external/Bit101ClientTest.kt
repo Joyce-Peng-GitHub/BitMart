@@ -28,7 +28,7 @@ class Bit101ClientTest : FunSpec({
                 else -> respondError(HttpStatusCode.NotFound)
             }
         }
-        val result = Bit101Client(client, base).verify("1120201234", "MySecret123")
+        val result = Bit101Client(client, base, 60_000).verify("1120201234", "MySecret123")
         result shouldBe Bit101VerifyResult.Success
         // 验证调用了两步，且加密密码已发送（请求体不含明文）。
         recorder.requests.size shouldBe 2
@@ -43,14 +43,14 @@ class Bit101ClientTest : FunSpec({
                     respond("""{"token":"","code":"1","msg":"学号或密码错误"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
             }
         }
-        val result = Bit101Client(client, base).verify("1120201234", "wrong")
+        val result = Bit101Client(client, base, 60_000).verify("1120201234", "wrong")
         result.shouldBeInstanceOf<Bit101VerifyResult.InvalidCredentials>()
         result.message shouldContain "学号或密码错误"
     }
 
     test("init 返回 5xx → ServiceError") {
         val client = MockHttpSupport.client { respondError(HttpStatusCode.InternalServerError) }
-        val result = Bit101Client(client, base).verify("1120201234", "pw")
+        val result = Bit101Client(client, base, 60_000).verify("1120201234", "pw")
         result.shouldBeInstanceOf<Bit101VerifyResult.ServiceError>()
     }
 
@@ -60,13 +60,40 @@ class Bit101ClientTest : FunSpec({
                 respond(initBody, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
             else respondError(HttpStatusCode.BadGateway)
         }
-        val result = Bit101Client(client, base).verify("1120201234", "pw")
+        val result = Bit101Client(client, base, 60_000).verify("1120201234", "pw")
         result.shouldBeInstanceOf<Bit101VerifyResult.ServiceError>()
     }
 
     test("网络异常 → ServiceError（不抛出）") {
         val client = MockHttpSupport.client { throw RuntimeException("connection reset") }
-        val result = Bit101Client(client, base).verify("1120201234", "pw")
+        val result = Bit101Client(client, base, 60_000).verify("1120201234", "pw")
+        result.shouldBeInstanceOf<Bit101VerifyResult.ServiceError>()
+    }
+
+    test("verify 两步请求均按配置设置 requestTimeoutMillis") {
+        val recorder = MockHttpSupport.Recorder()
+        val client = MockHttpSupport.client(recorder) { request ->
+            when {
+                request.url.encodedPath.endsWith("/webvpn_verify_init") ->
+                    respond(initBody, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+                else ->
+                    respond("""{"token":"abc","code":"0","msg":"ok"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }
+        Bit101Client(client, base, 4321L).verify("1120201234", "MySecret123")
+        recorder.requests.size shouldBe 2
+        recorder.requests.forEach { req ->
+            req.getCapabilityOrNull(io.ktor.client.plugins.HttpTimeoutCapability)
+                ?.requestTimeoutMillis shouldBe 4321L
+        }
+    }
+
+    test("上游超时 → ServiceError（不挂起、不抛出）") {
+        val client = MockHttpSupport.client { request ->
+            kotlinx.coroutines.delay(2000)
+            respond(initBody, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val result = Bit101Client(client, base, 50L).verify("1120201234", "pw")
         result.shouldBeInstanceOf<Bit101VerifyResult.ServiceError>()
     }
 })

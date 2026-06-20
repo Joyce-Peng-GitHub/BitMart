@@ -3,7 +3,10 @@ package cn.edu.bit.bitmart.external
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 
 class ShowApiClientTest : FunSpec({
 
@@ -37,7 +40,7 @@ class ShowApiClientTest : FunSpec({
 
     test("查询成功 → Found，字段正确映射") {
         val (client, recorder) = MockHttpSupport.jsonClient(body = successBody)
-        val result = ShowApiClient(client, base, appKey).lookup("9787111544937")
+        val result = ShowApiClient(client, base, appKey, 60_000).lookup("9787111544937")
         result.shouldBeInstanceOf<IsbnLookupResult.Found>()
         result.meta.title shouldBe "深入理解计算机系统"
         result.meta.author shouldBe "Randal E. Bryant"
@@ -54,31 +57,31 @@ class ShowApiClientTest : FunSpec({
     test("ret_code 非 0 → NotFound") {
         val body = """{"showapi_res_code":0,"showapi_res_body":{"ret_code":-1,"remark":"not found"}}"""
         val (client, _) = MockHttpSupport.jsonClient(body = body)
-        ShowApiClient(client, base, appKey).lookup("0000000000000") shouldBe IsbnLookupResult.NotFound
+        ShowApiClient(client, base, appKey, 60_000).lookup("0000000000000") shouldBe IsbnLookupResult.NotFound
     }
 
     test("缺少 data → NotFound") {
         val body = """{"showapi_res_code":0,"showapi_res_body":{"ret_code":0,"remark":"ok"}}"""
         val (client, _) = MockHttpSupport.jsonClient(body = body)
-        ShowApiClient(client, base, appKey).lookup("123") shouldBe IsbnLookupResult.NotFound
+        ShowApiClient(client, base, appKey, 60_000).lookup("123") shouldBe IsbnLookupResult.NotFound
     }
 
     test("顶层 showapi_res_code 非 0 → ServiceError") {
         val body = """{"showapi_res_code":-4,"showapi_res_error":"配额不足"}"""
         val (client, _) = MockHttpSupport.jsonClient(body = body)
-        val result = ShowApiClient(client, base, appKey).lookup("123")
+        val result = ShowApiClient(client, base, appKey, 60_000).lookup("123")
         result.shouldBeInstanceOf<IsbnLookupResult.ServiceError>()
     }
 
     test("HTTP 非 200 → ServiceError") {
         val (client, _) = MockHttpSupport.jsonClient(status = HttpStatusCode.ServiceUnavailable, body = "down")
-        val result = ShowApiClient(client, base, appKey).lookup("123")
+        val result = ShowApiClient(client, base, appKey, 60_000).lookup("123")
         result.shouldBeInstanceOf<IsbnLookupResult.ServiceError>()
     }
 
     test("响应非法 JSON → ServiceError（不抛出）") {
         val (client, _) = MockHttpSupport.jsonClient(body = "not json at all")
-        val result = ShowApiClient(client, base, appKey).lookup("123")
+        val result = ShowApiClient(client, base, appKey, 60_000).lookup("123")
         result.shouldBeInstanceOf<IsbnLookupResult.ServiceError>()
     }
 
@@ -87,11 +90,25 @@ class ShowApiClientTest : FunSpec({
             {"showapi_res_code":0,"showapi_res_body":{"ret_code":0,"data":{"title":"只有标题"}}}
         """.trimIndent()
         val (client, _) = MockHttpSupport.jsonClient(body = body)
-        val result = ShowApiClient(client, base, appKey).lookup("9787000000000")
+        val result = ShowApiClient(client, base, appKey, 60_000).lookup("9787000000000")
         result.shouldBeInstanceOf<IsbnLookupResult.Found>()
         result.meta.title shouldBe "只有标题"
         result.meta.author shouldBe null
         // 上游未返回 isbn 时回退到查询参数。
         result.meta.isbn shouldBe "9787000000000"
+    }
+
+    test("GET 请求按配置设置 requestTimeoutMillis") {
+        val (client, recorder) = MockHttpSupport.jsonClient(body = successBody)
+        ShowApiClient(client, base, appKey, 7777L).lookup("9787111544937")
+        recorder.requests.single()
+            .getCapabilityOrNull(io.ktor.client.plugins.HttpTimeoutCapability)
+            ?.requestTimeoutMillis shouldBe 7777L
+    }
+
+    test("上游超时 → ServiceError（不挂起、不抛出）") {
+        val client = MockHttpSupport.client { kotlinx.coroutines.delay(2000); respond(successBody, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json")) }
+        val result = ShowApiClient(client, base, appKey, 50L).lookup("123")
+        result.shouldBeInstanceOf<IsbnLookupResult.ServiceError>()
     }
 })

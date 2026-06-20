@@ -44,6 +44,9 @@ import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "bitmart_prefs")
 
+/** 主后端 API 客户端的整请求超时（毫秒）。上游卡住时避免协程无限挂起（审查项 H4）。 */
+private const val BACKEND_REQUEST_TIMEOUT_MS = 60_000L
+
 /** 提供网络、存储、仓储等单例依赖。 */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -80,6 +83,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideHttpClient(): HttpClient = HttpClient(OkHttp) {
+        install(HttpTimeout) { requestTimeoutMillis = BACKEND_REQUEST_TIMEOUT_MS }
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false })
         }

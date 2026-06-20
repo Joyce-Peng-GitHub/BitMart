@@ -27,6 +27,7 @@ import cn.edu.bit.bitmart.user.UserRepository
 import cn.edu.bit.bitmart.user.UserService
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.serialization.kotlinx.json.json as clientJson
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -51,8 +52,8 @@ class AppComponents(
         parallelism = config.argon2.parallelism,
     )
     val passwordPolicy = PasswordPolicy(config.password)
-    val bit101Client = Bit101Client(bit101HttpClient, config.bit101.baseUrl)
-    val showApiClient = ShowApiClient(showApiHttpClient, config.showapi.baseUrl, config.showapi.appKey)
+    val bit101Client = Bit101Client(bit101HttpClient, config.bit101.baseUrl, config.bit101.requestTimeoutMs)
+    val showApiClient = ShowApiClient(showApiHttpClient, config.showapi.baseUrl, config.showapi.appKey, config.showapi.requestTimeoutMs)
 
     val authService = AuthService(
         database = database,
@@ -104,6 +105,8 @@ class AppComponents(
             val (_, db) = cn.edu.bit.bitmart.db.DatabaseFactory.init(config.database)
             val httpClient = HttpClient(CIO) {
                 install(ClientContentNegotiation) { clientJson() }
+                // 安装 HttpTimeout 以启用各外部客户端的按请求 .timeout{} 配置（H4：防止上游挂起拖垮调用方协程）。
+                install(HttpTimeout)
             }
             return AppComponents(config, db, httpClient)
         }
