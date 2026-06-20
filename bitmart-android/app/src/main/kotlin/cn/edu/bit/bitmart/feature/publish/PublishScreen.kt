@@ -64,7 +64,9 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.Tab
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
@@ -388,6 +390,22 @@ private fun PublishFormColumn(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // 商品类别：一般商品 / 书籍，用标签页切换，置于表单最顶部。切换会更新当前草稿的类别，
+        // 进而决定下方"基本信息"显示的字段与图片识别时告知 LLM 的类别。
+        val selectedCategoryTab = if (state.selectedCategory == ListingCategory.BOOK) 1 else 0
+        PrimaryTabRow(selectedTabIndex = selectedCategoryTab, modifier = Modifier.fillMaxWidth()) {
+            Tab(
+                selected = selectedCategoryTab == 0,
+                onClick = { viewModel.setCategory(ListingCategory.GENERAL) },
+                text = { Text(stringResource(R.string.publish_category_general)) },
+            )
+            Tab(
+                selected = selectedCategoryTab == 1,
+                onClick = { viewModel.setCategory(ListingCategory.BOOK) },
+                text = { Text(stringResource(R.string.publish_category_book)) },
+            )
+        }
+
         // 图片识别：拍照或从相册选图，自动识别其中的商品并分别生成草稿。独立卡片置于最上方。
         // 识别通常耗时数十秒，进行中用转圈替换两个按钮与说明。
         FormSection(stringResource(R.string.publish_section_image_recognition)) {
@@ -431,20 +449,8 @@ private fun PublishFormColumn(
             }
         }
 
-        // 基本信息：类别 + 标题/书籍字段 + 描述。
+        // 基本信息：标题/书籍字段 + 描述（类别已上移到顶部标签页）。
         FormSection(stringResource(R.string.publish_section_basic_info)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    state.selectedCategory == ListingCategory.GENERAL,
-                    { viewModel.setCategory(ListingCategory.GENERAL) },
-                    { Text(stringResource(R.string.publish_category_general)) },
-                )
-                FilterChip(
-                    state.selectedCategory == ListingCategory.BOOK,
-                    { viewModel.setCategory(ListingCategory.BOOK) },
-                    { Text(stringResource(R.string.publish_category_book)) },
-                )
-            }
             if (draft.category == ListingCategory.BOOK) {
                 // 书籍专属字段：ISBN → 标题 → 作者 → 出版社 → 版本。
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

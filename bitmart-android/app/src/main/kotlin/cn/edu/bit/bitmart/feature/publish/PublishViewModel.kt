@@ -508,7 +508,7 @@ class PublishViewModel @Inject constructor(
             val item = parked.draftBatch[index]
             parked.copy(
                 currentDraft = item,
-                selectedCategory = item.category, // 同步类别，使顶部 chips 与字段布局一致。
+                selectedCategory = item.category, // 同步类别，使顶部标签页与字段布局一致。
                 editingIndex = index,
                 error = null,
             )
