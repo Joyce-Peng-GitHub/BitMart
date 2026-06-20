@@ -57,7 +57,7 @@ data class FilterState(
  * @param loadTags 拉取热门标签（挂起），返回 id+name 对。
  * @param showExpiredToggle 是否展示"显示过期项"开关。公开列表不展示（过期项不公开），"我的"列表展示。
  * @param onConfirm 确认时回传新的 [FilterState]。
- * @param onClear 点击清空（重置为各自上下文的默认）。
+ * @param onClear 点击重置（恢复为各自上下文的默认）。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -195,7 +195,7 @@ fun ListingFilterDialog(
                 TextButton(onClick = {
                     onClear()
                     onDismiss()
-                }) { Text(stringResource(R.string.common_clear)) }
+                }) { Text(stringResource(R.string.common_reset)) }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             }
         },

@@ -18,7 +18,6 @@ import javax.inject.Inject
 
 /**
  * LLM 设置页状态。所有字段为可编辑的草稿值，保存时组装为 [LlmConfig] 落盘。
- * @param message 一次性提示（保存/清空成功后展示，UI 消费后清空）。
  */
 data class LlmSettingsUiState(
     val protocol: LlmProtocol = LlmProtocol.OPENAI_COMPATIBLE,
@@ -31,11 +30,11 @@ data class LlmSettingsUiState(
     val generalPrompt: String = "",
     val loaded: Boolean = false,
     val error: UiText? = null,
-    val message: UiText? = null,
 )
 
 /**
- * LLM 设置 ViewModel：加载已保存配置到可编辑状态，保存或清空（架构 §5.4）。
+ * LLM 设置 ViewModel：加载已保存配置到可编辑状态，保存或重置（架构 §5.4）。
+ * 重置仅将表单草稿恢复为默认值，不写盘；需点保存才落盘。
  * 配置（含 API Key）仅存本地，不上传服务器。
  */
 @HiltViewModel
@@ -45,6 +44,9 @@ class LlmSettingsViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(LlmSettingsUiState())
     val state: StateFlow<LlmSettingsUiState> = _state.asStateFlow()
+
+    /** 最近一次落盘配置的快照，用于判断草稿是否存在未保存修改。 */
+    private var savedSnapshot = LlmConfig()
 
     /** 可选协议列表（当前仅 OpenAI Compatible，建模为列表以便未来扩展）。 */
     val protocols: List<LlmProtocol> = LlmProtocol.entries
@@ -64,6 +66,7 @@ class LlmSettingsViewModel @Inject constructor(
                     loaded = true,
                 )
             }
+            savedSnapshot = c
         }
     }
 
@@ -95,31 +98,38 @@ class LlmSettingsViewModel @Inject constructor(
         )
         viewModelScope.launch {
             store.save(config)
-            _state.update { it.copy(error = null, message = UiText.Res(R.string.llm_msg_saved)) }
+            savedSnapshot = config
+            _state.update { it.copy(error = null) }
         }
     }
 
-    /** 清空已保存配置并将表单恢复为默认值。 */
-    fun clear() {
-        viewModelScope.launch {
-            store.clear()
-            val d = LlmConfig()
-            _state.update {
-                it.copy(
-                    protocol = d.protocol,
-                    baseUrl = d.baseUrl,
-                    apiKey = d.apiKey,
-                    model = d.model,
-                    timeoutSeconds = d.timeoutSeconds.toString(),
-                    bookPrompt = d.bookPrompt,
-                    generalPrompt = d.generalPrompt,
-                    error = null,
-                    message = UiText.Res(R.string.llm_msg_cleared),
-                )
-            }
-        }
+    /** 当前草稿是否相对已保存配置存在未保存修改（Base URL/Key/模型按去空白比较，与保存时一致）。 */
+    fun hasUnsavedChanges(): Boolean {
+        val s = _state.value
+        val saved = savedSnapshot
+        return s.protocol != saved.protocol ||
+            s.baseUrl.trim() != saved.baseUrl ||
+            s.apiKey.trim() != saved.apiKey ||
+            s.model.trim() != saved.model ||
+            s.timeoutSeconds.trim() != saved.timeoutSeconds.toString() ||
+            s.bookPrompt != saved.bookPrompt ||
+            s.generalPrompt != saved.generalPrompt
     }
 
-    /** UI 消费一次性提示后调用，避免重复展示。 */
-    fun consumeMessage() = _state.update { it.copy(message = null) }
+    /** 重置表单为默认值（仅改内存草稿，不写盘）。需点保存才会落盘。 */
+    fun reset() {
+        val d = LlmConfig()
+        _state.update {
+            it.copy(
+                protocol = d.protocol,
+                baseUrl = d.baseUrl,
+                apiKey = d.apiKey,
+                model = d.model,
+                timeoutSeconds = d.timeoutSeconds.toString(),
+                bookPrompt = d.bookPrompt,
+                generalPrompt = d.generalPrompt,
+                error = null,
+            )
+        }
+    }
 }

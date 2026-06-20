@@ -12,8 +12,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -40,7 +40,7 @@ class LlmSettingsViewModelTest {
     }
 
     @Test
-    fun `save persists trimmed config and shows message`() = runTest {
+    fun `save persists trimmed config`() = runTest {
         val store = FakeLlmConfigStore()
         val vm = LlmSettingsViewModel(store)
         dispatcher.scheduler.advanceUntilIdle()
@@ -57,7 +57,6 @@ class LlmSettingsViewModelTest {
         assertEquals("sk-key", saved.apiKey)
         assertEquals("gpt-4o", saved.model)
         assertEquals(90, saved.timeoutSeconds)
-        assertEquals(UiText.Res(R.string.llm_msg_saved), vm.state.value.message)
     }
 
     @Test
@@ -122,40 +121,28 @@ class LlmSettingsViewModelTest {
     }
 
     @Test
-    fun `clear wipes store and resets form to defaults`() = runTest {
+    fun `reset restores form to defaults without persisting`() = runTest {
         val store = FakeLlmConfigStore(
-            LlmConfig(baseUrl = "https://api", apiKey = "sk", model = "m"),
+            LlmConfig(baseUrl = "https://api", apiKey = "sk", model = "m", timeoutSeconds = 42),
         )
         val vm = LlmSettingsViewModel(store)
         dispatcher.scheduler.advanceUntilIdle()
 
-        vm.clear()
+        vm.reset()
         dispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(LlmConfig(), store.current())
         val s = vm.state.value
         assertEquals("", s.baseUrl)
         assertEquals("", s.apiKey)
-        // 提示词留空（识别时按当前语言回退到内置默认提示词）。
+        assertEquals("", s.model)
+        assertEquals(LlmConfig.DEFAULT_TIMEOUT_SECONDS.toString(), s.timeoutSeconds)
         assertEquals("", s.bookPrompt)
         assertEquals("", s.generalPrompt)
-        assertEquals(UiText.Res(R.string.llm_msg_cleared), s.message)
-    }
-
-    @Test
-    fun `consumeMessage clears one-shot message`() = runTest {
-        val store = FakeLlmConfigStore()
-        val vm = LlmSettingsViewModel(store)
-        dispatcher.scheduler.advanceUntilIdle()
-
-        vm.onBaseUrl("https://api")
-        vm.onModel("m")
-        vm.save()
-        dispatcher.scheduler.advanceUntilIdle()
-        assertNotNull(vm.state.value.message)
-
-        vm.consumeMessage()
-        assertNull(vm.state.value.message)
+        // 重置仅改内存草稿，不写盘：store 仍保留最初落盘的配置。
+        assertEquals(
+            LlmConfig(baseUrl = "https://api", apiKey = "sk", model = "m", timeoutSeconds = 42),
+            store.current(),
+        )
     }
 
     @Test
@@ -166,5 +153,94 @@ class LlmSettingsViewModelTest {
 
         vm.onTimeout("12a3")
         assertEquals("123", vm.state.value.timeoutSeconds)
+    }
+
+    @Test
+    fun `hasUnsavedChanges is false right after load`() = runTest {
+        val store = FakeLlmConfigStore(
+            LlmConfig(baseUrl = "https://api", apiKey = "sk", model = "m", timeoutSeconds = 42),
+        )
+        val vm = LlmSettingsViewModel(store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun `hasUnsavedChanges becomes true after editing a field`() = runTest {
+        val store = FakeLlmConfigStore(
+            LlmConfig(baseUrl = "https://api", model = "m"),
+        )
+        val vm = LlmSettingsViewModel(store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onBaseUrl("https://changed")
+        assertTrue(vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun `hasUnsavedChanges is false after a successful save`() = runTest {
+        val store = FakeLlmConfigStore()
+        val vm = LlmSettingsViewModel(store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onBaseUrl("https://api"); vm.onModel("m"); vm.onTimeout("60")
+        assertTrue(vm.hasUnsavedChanges())
+
+        vm.save()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun `hasUnsavedChanges ignores insignificant whitespace matching saved`() = runTest {
+        val store = FakeLlmConfigStore(
+            LlmConfig(baseUrl = "https://api", model = "m"),
+        )
+        val vm = LlmSettingsViewModel(store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onBaseUrl("  https://api  ")
+        assertFalse(vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun `hasUnsavedChanges is true after reset when saved config was non-default`() = runTest {
+        val store = FakeLlmConfigStore(
+            LlmConfig(baseUrl = "https://api", apiKey = "sk", model = "m", timeoutSeconds = 42),
+        )
+        val vm = LlmSettingsViewModel(store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.reset()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun `hasUnsavedChanges is false after reset when saved config was already default`() = runTest {
+        val store = FakeLlmConfigStore()
+        val vm = LlmSettingsViewModel(store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.reset()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.hasUnsavedChanges())
+    }
+
+    @Test
+    fun `hasUnsavedChanges becomes true after editing a prompt`() = runTest {
+        val store = FakeLlmConfigStore(
+            LlmConfig(baseUrl = "https://api", model = "m"),
+        )
+        val vm = LlmSettingsViewModel(store)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        // 提示词逐字比较（保存时不去空白），任何改动都算未保存修改。
+        vm.onBookPrompt("custom book prompt")
+        assertTrue(vm.hasUnsavedChanges())
     }
 }

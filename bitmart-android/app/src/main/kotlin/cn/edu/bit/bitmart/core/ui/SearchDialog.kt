@@ -19,8 +19,8 @@ import androidx.compose.ui.text.input.ImeAction
 import cn.edu.bit.bitmart.R
 
 /**
- * 搜索弹窗：单行搜索框 + 清空/取消/确认（与筛选弹窗一致）。
- * 回车（ImeAction.Search）或点击确认即应用搜索；清空即清除搜索词回到全部。
+ * 搜索弹窗：单行搜索框 + 重置/取消/确认（与筛选弹窗一致）。
+ * 回车（ImeAction.Search）或点击确认即应用搜索；重置即清除搜索词回到全部。
  * 买卖列表与"我的"列表共用。
  */
 @Composable
@@ -49,7 +49,7 @@ fun SearchDialog(
         confirmButton = { TextButton(onClick = { onConfirm(query) }) { Text(stringResource(R.string.common_confirm)) } },
         dismissButton = {
             Row {
-                TextButton(onClick = onClear) { Text(stringResource(R.string.common_clear)) }
+                TextButton(onClick = onClear) { Text(stringResource(R.string.common_reset)) }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             }
         },

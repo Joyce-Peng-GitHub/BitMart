@@ -1,5 +1,6 @@
 package cn.edu.bit.bitmart.feature.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -27,8 +29,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,9 +47,10 @@ import cn.edu.bit.bitmart.llm.LlmProtocol
 
 /**
  * LLM 设置页（架构 §5.4 / UI 规范「LLM 设置」）：协议下拉、Base URL、API Key、
- * 模型名、超时阈值、书籍/一般商品识别提示词；可保存或清空。
+ * 模型名、超时阈值、书籍/一般商品识别提示词；可保存或重置。
  *
  * API Key 提示不上传服务器：整份配置仅存本地，BitMart 后端不感知。
+ * 返回时若有未保存修改会弹窗确认。
  * @param onBack 返回上一页。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,18 +61,20 @@ fun LlmSettingsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var apiKeyVisible by remember { mutableStateOf(false) }
-
-    // 一次性提示展示后清空（这里直接消费；如需 Snackbar 可在此接入）。
-    LaunchedEffect(state.message) {
-        if (state.message != null) viewModel.consumeMessage()
+    var showDiscardDialog by remember { mutableStateOf(false) }
+    val attemptBack: () -> Unit = {
+        if (viewModel.hasUnsavedChanges()) showDiscardDialog = true else onBack()
     }
+
+    // 系统返回手势/按键同样走未保存确认。
+    BackHandler { attemptBack() }
 
     Scaffold(
         topBar = {
             androidx.compose.material3.TopAppBar(
                 title = { Text(stringResource(R.string.settings_llm)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = attemptBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
@@ -80,7 +85,6 @@ fun LlmSettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            state.message?.let { Text(it.asString(), color = MaterialTheme.colorScheme.primary) }
             state.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
 
             ProtocolDropdown(
@@ -159,9 +163,27 @@ fun LlmSettingsScreen(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(onClick = viewModel::save, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_save)) }
-                OutlinedButton(onClick = viewModel::clear, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_clear)) }
+                OutlinedButton(onClick = viewModel::reset, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_reset)) }
             }
         }
+    }
+
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = { Text(stringResource(R.string.llm_discard_title)) },
+            text = { Text(stringResource(R.string.llm_discard_message)) },
+            confirmButton = {
+                TextButton(onClick = { showDiscardDialog = false; onBack() }) {
+                    Text(stringResource(R.string.common_discard), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
     }
 }
 

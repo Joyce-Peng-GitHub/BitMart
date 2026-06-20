@@ -40,11 +40,11 @@
     <string name="llm_book_prompt">书籍识别提示词</string>
     <string name="llm_general_prompt">一般商品识别提示词</string>
     <string name="llm_prompt_hint">留空则按当前语言使用默认提示词</string>
-    <string name="llm_msg_saved">已保存</string>
-    <string name="llm_msg_cleared">已清空</string>
     <string name="llm_error_base_url_required">请填写 Base URL</string>
     <string name="llm_error_model_required">请填写模型名称</string>
     <string name="llm_error_timeout_invalid">超时阈值必须为正整数（秒）</string>
+    <string name="llm_discard_title">放弃修改？</string>
+    <string name="llm_discard_message">有未保存的修改，确定放弃并返回吗？</string>
 
     <string name="auth_title_login">登录 BitMart</string>
     <string name="auth_title_register">注册 BitMart</string>
@@ -83,12 +83,13 @@
     <string name="common_anonymous">匿名</string>
     <string name="common_back">返回</string>
     <string name="common_cancel">取消</string>
-    <string name="common_clear">清空</string>
     <string name="common_close">关闭</string>
     <string name="common_confirm">确认</string>
     <string name="common_delete">删除</string>
+    <string name="common_discard">放弃</string>
     <string name="common_edit">编辑</string>
     <string name="common_negotiable">面议</string>
+    <string name="common_reset">重置</string>
     <string name="common_save">保存</string>
     <string name="common_take_photo">拍照</string>
 

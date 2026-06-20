@@ -40,11 +40,11 @@
     <string name="llm_book_prompt">Book recognition prompt</string>
     <string name="llm_general_prompt">General item recognition prompt</string>
     <string name="llm_prompt_hint">Leave blank to use the default for the current language</string>
-    <string name="llm_msg_saved">Saved</string>
-    <string name="llm_msg_cleared">Cleared</string>
     <string name="llm_error_base_url_required">Please enter a Base URL</string>
     <string name="llm_error_model_required">Please enter a model name</string>
     <string name="llm_error_timeout_invalid">Timeout must be a positive integer (seconds)</string>
+    <string name="llm_discard_title">Discard changes?</string>
+    <string name="llm_discard_message">You have unsaved changes. Go back and discard them?</string>
 
     <string name="auth_title_login">Sign in to BitMart</string>
     <string name="auth_title_register">Register for BitMart</string>
@@ -83,12 +83,13 @@
     <string name="common_anonymous">Anonymous</string>
     <string name="common_back">Back</string>
     <string name="common_cancel">Cancel</string>
-    <string name="common_clear">Clear</string>
     <string name="common_close">Close</string>
     <string name="common_confirm">Confirm</string>
     <string name="common_delete">Delete</string>
+    <string name="common_discard">Discard</string>
     <string name="common_edit">Edit</string>
     <string name="common_negotiable">Negotiable</string>
+    <string name="common_reset">Reset</string>
     <string name="common_save">Save</string>
     <string name="common_take_photo">Take photo</string>
 
