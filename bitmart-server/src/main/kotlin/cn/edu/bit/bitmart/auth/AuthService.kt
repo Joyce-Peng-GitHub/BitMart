@@ -35,6 +35,11 @@ class AuthService(
     private val log = LoggerFactory.getLogger(AuthService::class.java)
     private val audit = LoggerFactory.getLogger("bitmart.audit")
 
+    // 占位哈希：启动时以与真实密码完全相同的 argon2 参数对一个随机串哈希一次。
+    // 登录时若学号不存在，用它做一次等价开销的校验，使「用户不存在」与「密码错误」两条失败
+    // 分支耗时一致，抹平据响应时间枚举已注册学号的时序侧信道。任何密码都不会匹配它。
+    private val dummyPasswordHash: String = placeholderHash(passwordHasher)
+
     /** 通过 BIT101 校验学号与统一身份认证密码，成功则签发一次性 verifyTicket。 */
     suspend fun verify(studentId: String, password: String): VerifyResult =
         when (val r = bit101Client.verify(studentId, password)) {
@@ -80,9 +85,9 @@ class AuthService(
         transaction(database) {
             val hash = userRepository.findPasswordHash(studentId)
             val user = userRepository.findByStudentId(studentId)
-            // 即使用户不存在也执行一次哈希校验以降低时序侧信道（用固定假哈希）。
+            // 即使用户不存在也执行一次等价开销的哈希校验以抹平时序侧信道（用启动期生成的占位哈希）。
             val matches = if (hash != null) passwordHasher.verify(hash, password) else {
-                passwordHasher.verify(DUMMY_HASH, password); false
+                passwordHasher.verify(dummyPasswordHash, password); false
             }
             when {
                 hash == null || user == null || !matches -> {
@@ -151,8 +156,11 @@ class AuthService(
     }
 
     companion object {
-        // 用户不存在时校验的占位哈希（任何密码都不会匹配），抹平时序差异。
-        private const val DUMMY_HASH =
-            "\$argon2id\$v=19\$m=1024,t=1,p=1\$YWJjZGVmZ2hpamtsbW5vcA\$Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4MDAwMA"
+        /**
+         * 以传入 [hasher] 的配置参数对一个随机串哈希一次，作为登录时序抹平用的占位哈希。
+         * 关键在于其 argon2 参数与真实密码哈希一致，使「用户不存在」分支的校验开销不再偏快。
+         * 随机明文不保留，任何密码都不会匹配返回值。
+         */
+        internal fun placeholderHash(hasher: PasswordHasher): String = hasher.hash(OpaqueToken.generate())
     }
 }

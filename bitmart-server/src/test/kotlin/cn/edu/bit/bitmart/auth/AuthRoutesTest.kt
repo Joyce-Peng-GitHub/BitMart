@@ -152,6 +152,15 @@ class AuthRoutesTest : FunSpec({
         }
     }
 
+    test("登录：从未注册的学号 → 401（仍走占位哈希校验，不崩溃）") {
+        testApp { client ->
+            client.post("/api/v1/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest(sid(), "Secret123"))
+            }.status shouldBe HttpStatusCode.Unauthorized
+        }
+    }
+
     test("未登录访问受保护端点 → 401") {
         testApp { client ->
             client.delete("/api/v1/auth/session").status shouldBe HttpStatusCode.Unauthorized
