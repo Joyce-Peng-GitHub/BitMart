@@ -59,12 +59,14 @@ class ListingValidator(
             field = "quantitySold",
             code = "QUANTITY_SOLD_NEGATIVE",
             message = "售出数量不能为负",
+            params = mapOf("total" to quantityTotal.toString()),
         )
         errors.check(
             newSold <= quantityTotal,
             field = "quantitySold",
             code = "QUANTITY_SOLD_EXCEEDS_TOTAL",
             message = "售出数量 $newSold 不能超过总量 $quantityTotal",
+            params = mapOf("total" to quantityTotal.toString()),
         )
         return errors.build()
     }
@@ -104,6 +106,7 @@ class ListingValidator(
                 field = "quantityTotal",
                 code = "QUANTITY_TOTAL_BELOW_SOLD",
                 message = "件数不能少于已售出数量 $currentQuantitySold",
+                params = mapOf("sold" to currentQuantitySold.toString(), "max" to MAX_QUANTITY.toString()),
             )
         }
         input.unitPrice?.let { validatePrice(it, errors) }
@@ -119,12 +122,19 @@ class ListingValidator(
     }
 
     private fun validateQuantity(quantityTotal: Int, errors: ValidationErrors) {
-        errors.check(quantityTotal >= 1, "quantityTotal", "QUANTITY_TOTAL_INVALID", "件数必须 >= 1")
+        errors.check(
+            quantityTotal >= 1,
+            field = "quantityTotal",
+            code = "QUANTITY_TOTAL_INVALID",
+            message = "件数必须 >= 1",
+            params = mapOf("max" to MAX_QUANTITY.toString()),
+        )
         errors.check(
             quantityTotal <= MAX_QUANTITY,
             field = "quantityTotal",
             code = "QUANTITY_TOTAL_TOO_LARGE",
             message = "件数不能超过 $MAX_QUANTITY",
+            params = mapOf("max" to MAX_QUANTITY.toString()),
         )
     }
 
@@ -136,6 +146,7 @@ class ListingValidator(
                 field = field,
                 code = "PRICE_NEGATIVE",
                 message = "价格不能为负",
+                params = mapOf("max" to MAX_UNIT_PRICE.toPlainString()),
             )
             // 上界对齐 DB 列 unit_price NUMERIC(10,2)，超出会触发 numeric field overflow，须在入库前拦截。
             errors.check(
@@ -143,6 +154,7 @@ class ListingValidator(
                 field = field,
                 code = "PRICE_TOO_LARGE",
                 message = "价格不能超过 $MAX_UNIT_PRICE",
+                params = mapOf("max" to MAX_UNIT_PRICE.toPlainString()),
             )
         }
     }
@@ -168,6 +180,7 @@ class ListingValidator(
             field = "tags",
             code = "TAGS_TOO_MANY",
             message = "标签数量不能超过 ${tagConfig.maxPerListing} 个",
+            params = mapOf("max" to tagConfig.maxPerListing.toString()),
         )
         tags.forEachIndexed { index, tag ->
             errors.check(
@@ -181,12 +194,18 @@ class ListingValidator(
                 field = "tags[$index]",
                 code = "TAG_TOO_LONG",
                 message = "标签长度不能超过 ${tagConfig.maxNameLength} 个字符",
+                params = mapOf("max" to tagConfig.maxNameLength.toString()),
             )
         }
     }
 
     private fun validateExpiry(expiresAt: Instant, now: Instant, errors: ValidationErrors, absolute: Boolean = false) {
         val latest = now.plus(Duration.ofDays(expiryConfig.maxDays.toLong()))
+        // 数值边界随错误下发，供客户端渲染"区间"型提示（min/max 天数）。
+        val expiryParams = mapOf(
+            "minDays" to expiryConfig.minDays.toString(),
+            "maxDays" to expiryConfig.maxDays.toString(),
+        )
         if (absolute) {
             // 绝对过期日期：仅要求严格晚于此刻（允许"明天"——其零点距今可能不足一天）。
             errors.check(
@@ -194,6 +213,7 @@ class ListingValidator(
                 field = "expiresAt",
                 code = "EXPIRY_TOO_SOON",
                 message = "过期日期必须晚于当前时间",
+                params = expiryParams,
             )
         } else {
             val earliest = now.plus(Duration.ofDays(expiryConfig.minDays.toLong()))
@@ -202,6 +222,7 @@ class ListingValidator(
                 field = "expiresAt",
                 code = "EXPIRY_TOO_SOON",
                 message = "过期时间不得早于 ${expiryConfig.minDays} 天后",
+                params = expiryParams,
             )
         }
         errors.check(
@@ -209,6 +230,7 @@ class ListingValidator(
             field = "expiresAt",
             code = "EXPIRY_TOO_LATE",
             message = "过期时间不得晚于 ${expiryConfig.maxDays} 天后",
+            params = expiryParams,
         )
     }
 }

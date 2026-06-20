@@ -2,6 +2,7 @@ package cn.edu.bit.bitmart.listing
 
 import cn.edu.bit.bitmart.auth.UserPrincipal
 import cn.edu.bit.bitmart.auth.fail
+import cn.edu.bit.bitmart.auth.failValidation
 import cn.edu.bit.bitmart.config.PaginationConfig
 import cn.edu.bit.bitmart.domain.ListingCategory
 import cn.edu.bit.bitmart.domain.ListingCursor
@@ -9,8 +10,6 @@ import cn.edu.bit.bitmart.domain.ListingFilter
 import cn.edu.bit.bitmart.domain.ListingType
 import cn.edu.bit.bitmart.domain.TagNormalizer
 import cn.edu.bit.bitmart.domain.UserRole
-import cn.edu.bit.bitmart.domain.ValidationError
-import cn.edu.bit.bitmart.shared.ApiError
 import cn.edu.bit.bitmart.shared.ErrorCode
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -89,7 +88,7 @@ fun Route.listingRoutes(
                 }
                 when (val r = service.publish(input, now.toInstant())) {
                     is PublishResult.Success -> call.respond(HttpStatusCode.Created, CreatedResponse(r.listingId))
-                    is PublishResult.ValidationFailed -> call.respondValidation(r.errors)
+                    is PublishResult.ValidationFailed -> call.failValidation(r.errors)
                 }
             }
 
@@ -107,7 +106,7 @@ fun Route.listingRoutes(
                     is BatchPublishResult.Success -> call.respond(HttpStatusCode.Created, BatchCreatedResponse(r.listingIds))
                     is BatchPublishResult.ValidationFailed -> {
                         val flat = r.errorsByIndex.flatMap { (i, errs) -> errs.map { it.copy(field = "items[$i].${it.field}") } }
-                        call.respondValidation(flat)
+                        call.failValidation(flat)
                     }
                 }
             }
@@ -126,7 +125,7 @@ fun Route.listingRoutes(
                     is UpdateResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
                     is UpdateResult.Forbidden -> call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "无权修改")
                     is UpdateResult.QuantityConflict -> call.fail(HttpStatusCode.Conflict, ErrorCode.CONFLICT, "售出数量冲突，请刷新后重试")
-                    is UpdateResult.ValidationFailed -> call.respondValidation(r.errors)
+                    is UpdateResult.ValidationFailed -> call.failValidation(r.errors)
                 }
             }
 
@@ -192,10 +191,6 @@ fun Route.listingRoutes(
 }
 
 private fun ApplicationCall.pathId(): Long? = parameters["id"]?.toLongOrNull()
-
-private suspend fun ApplicationCall.respondValidation(errors: List<ValidationError>) {
-    respond(HttpStatusCode.BadRequest, ApiError.of(ErrorCode.VALIDATION_FAILED, errors.joinToString("；") { "${it.field}: ${it.message}" }))
-}
 
 /**
  * 从查询参数构造列表过滤条件；非法返回 null。

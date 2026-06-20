@@ -8,10 +8,13 @@ import cn.edu.bit.bitmart.auth.VerifyRequest
 import cn.edu.bit.bitmart.auth.VerifyResponse
 import cn.edu.bit.bitmart.configureApp
 import cn.edu.bit.bitmart.domain.UserRole
+import cn.edu.bit.bitmart.shared.ApiError
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -148,6 +151,54 @@ class ListingRoutesTest : FunSpec({
             client.post("/api/v1/listings") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody(bad)
             }.status shouldBe HttpStatusCode.BadRequest
+        }
+    }
+
+    test("校验失败：响应体携带结构化 details（含 field + 稳定 code）") {
+        app { client ->
+            val token = client.registerToken()
+            // 同时触发空标题与无联系方式，验证 details 逐条下发可定位。
+            val bad = sellReq(title = "   ").copy(contacts = emptyList())
+            val resp = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody(bad)
+            }
+            resp.status shouldBe HttpStatusCode.BadRequest
+            val details = resp.body<ApiError>().error.details.shouldNotBeNull()
+            details.shouldNotBeEmpty()
+            details.map { it.code } shouldContain "TITLE_BLANK"
+            details.map { it.code } shouldContain "CONTACT_REQUIRED"
+            details.first { it.code == "TITLE_BLANK" }.field shouldBe "title"
+        }
+    }
+
+    test("校验失败：数值越界的 details 携带 params（区间型提示）") {
+        app { client ->
+            val token = client.registerToken()
+            val resp = client.post("/api/v1/listings") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(sellReq(title = "越界商品", quantityTotal = 10000, unitPrice = "100000000"))
+            }
+            resp.status shouldBe HttpStatusCode.BadRequest
+            val details = resp.body<ApiError>().error.details.shouldNotBeNull()
+            details.first { it.code == "QUANTITY_TOTAL_TOO_LARGE" }.params["max"] shouldBe "9999"
+            details.first { it.code == "PRICE_TOO_LARGE" }.params["max"] shouldBe "99999999.99"
+        }
+    }
+
+    test("批量校验失败：details 的 field 以 items[0]. 前缀定位到具体条目") {
+        app { client ->
+            val token = client.registerToken()
+            val good = sellReq(title = "批量合法项")
+            val bad = sellReq(title = "批量非法项").copy(contacts = emptyList())   // items[1] 非法
+            val resp = client.post("/api/v1/listings/batch") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(BatchCreateRequest(listOf(bad, good)))   // bad 置于索引 0
+            }
+            resp.status shouldBe HttpStatusCode.BadRequest
+            val details = resp.body<ApiError>().error.details.shouldNotBeNull()
+            details.shouldNotBeEmpty()
+            val contactErr = details.first { it.code == "CONTACT_REQUIRED" }
+            contactErr.field shouldBe "items[0].contact"
         }
     }
 

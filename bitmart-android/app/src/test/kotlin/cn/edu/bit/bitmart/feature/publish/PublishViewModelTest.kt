@@ -166,25 +166,17 @@ class PublishViewModelTest {
     }
 
     @Test
-    fun `addDraftToBatch distinguishes non-integer from over-limit quantity`() = runTest {
+    fun `addDraftToBatch rejects non-integer or out-of-range quantity with a range message`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore(), FakeLanguagePrefsStore())
         vm.onTitle("台灯"); vm.onContact("x")
 
-        // 非正整数（含 0、负数、非数字）→ "必须为正整数"。
-        for (bad in listOf("0", "-3", "abc", "1.5")) {
+        // 非正整数、超上限、超 Int 的"过大整数"统一为「1~上限」区间提示。
+        for (bad in listOf("0", "-3", "abc", "1.5", "${PublishConfig.MAX_QUANTITY + 1}", "100000000000")) {
             vm.onQuantity(bad)
             vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
-            assertEquals("应判为非正整数: $bad", UiText.Res(R.string.publish_error_quantity_invalid), vm.state.value.error)
-            assertTrue(vm.state.value.draftBatch.isEmpty())
-        }
-
-        // 超过上限（含超出 Int 范围的"过大整数"）→ 明确提示上界，而非"必须为正整数"。
-        for (tooLarge in listOf("${PublishConfig.MAX_QUANTITY + 1}", "100000000000")) {
-            vm.onQuantity(tooLarge)
-            vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
             assertEquals(
-                "应提示上界: $tooLarge",
-                UiText.Res(R.string.publish_error_quantity_too_large, listOf(PublishConfig.MAX_QUANTITY)),
+                "应判为越界数量: $bad",
+                UiText.Res(R.string.publish_error_quantity_range, listOf(PublishConfig.MAX_QUANTITY)),
                 vm.state.value.error,
             )
             assertTrue(vm.state.value.draftBatch.isEmpty())
@@ -198,27 +190,47 @@ class PublishViewModelTest {
     }
 
     @Test
-    fun `addDraftToBatch blocks invalid or too-large price`() = runTest {
+    fun `addDraftToBatch rejects invalid or too-large unit price with a range message`() = runTest {
         val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore(), FakeLanguagePrefsStore())
         vm.onTitle("台灯"); vm.onContact("x")
 
-        // 非法格式被拒绝。
-        vm.onUnitPrice("abc")
-        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(UiText.Res(R.string.publish_error_price_invalid), vm.state.value.error)
-        assertTrue(vm.state.value.draftBatch.isEmpty())
-
-        // 超出 NUMERIC(10,2) 上限被拒绝（入库前拦截）。
-        vm.onUnitPrice("100000000")
-        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(
-            UiText.Res(R.string.publish_error_price_too_large, listOf(PublishConfig.MAX_UNIT_PRICE)),
-            vm.state.value.error,
-        )
-        assertTrue(vm.state.value.draftBatch.isEmpty())
+        // 格式非法、为负、超 NUMERIC(10,2) 上限统一为「0~上限」区间提示。
+        for (bad in listOf("abc", "-1", "100000000")) {
+            vm.onUnitPrice(bad)
+            vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(
+                "应判为越界单价: $bad",
+                UiText.Res(R.string.publish_error_unit_price_range, listOf(PublishConfig.MAX_UNIT_PRICE)),
+                vm.state.value.error,
+            )
+            assertTrue(vm.state.value.draftBatch.isEmpty())
+        }
 
         // 恰好等于上限合法。
         vm.onUnitPrice(PublishConfig.MAX_UNIT_PRICE)
+        vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vm.state.value.draftBatch.size)
+    }
+
+    @Test
+    fun `addDraftToBatch rejects invalid or too-large original price with a range message`() = runTest {
+        val vm = PublishViewModel(FakeRepo(), FakeLlmClient(DomainResult.Success(emptyList())), FakeLlmConfigStore(), FakeContactPrefsStore(), FakeLanguagePrefsStore())
+        vm.onTitle("台灯"); vm.onContact("x")
+
+        // 原价是显式补齐的客户端校验缺口：格式非法、为负、超上限统一为「0~上限」区间提示。
+        for (bad in listOf("abc", "-1", "100000000")) {
+            vm.onOriginalPrice(bad)
+            vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(
+                "应判为越界原价: $bad",
+                UiText.Res(R.string.publish_error_original_price_range, listOf(PublishConfig.MAX_UNIT_PRICE)),
+                vm.state.value.error,
+            )
+            assertTrue(vm.state.value.draftBatch.isEmpty())
+        }
+
+        // 恰好等于上限合法。
+        vm.onOriginalPrice(PublishConfig.MAX_UNIT_PRICE)
         vm.addDraftToBatch(); dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vm.state.value.draftBatch.size)
     }
@@ -331,6 +343,43 @@ class PublishViewModelTest {
 
         // 服务端失败按稳定 error code 映射到本地化文案（不再透传原始服务端消息）。
         assertEquals(UiText.Res(R.string.error_validation_failed), vm.state.value.error)
+        assertFalse(vm.state.value.batchSubmitted)
+    }
+
+    @Test
+    fun `submitBatch server failure with details surfaces only the first labeled problem`() = runTest {
+        // 服务端 400 携带结构化明细：批量字段前缀 items[1]. → 弹窗只展示「第 2 条：原价区间」首个问题。
+        val vm = PublishViewModel(
+            FakeRepo(batchResult = DomainResult.Failure(
+                "VALIDATION_FAILED", "n/a", 400,
+                details = listOf(
+                    cn.edu.bit.bitmart.core.domain.ValidationDetail(
+                        "items[1].originalPrice", "PRICE_TOO_LARGE", mapOf("max" to "99999999.99"),
+                    ),
+                    cn.edu.bit.bitmart.core.domain.ValidationDetail(
+                        "items[0].title", "TITLE_BLANK", emptyMap(),
+                    ),
+                ),
+            )),
+            FakeLlmClient(DomainResult.Success(emptyList())),
+            FakeLlmConfigStore(),
+            FakeContactPrefsStore(),
+            FakeLanguagePrefsStore(),
+        )
+        // 两条均通过客户端校验，才会走到服务端（由服务端返回上面的明细）。
+        vm.onTitle("A"); vm.onContact("y"); vm.addDraftToBatch()
+        vm.onTitle("B"); vm.onContact("y"); vm.addDraftToBatch()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.submitBatch(); dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            UiText.Res(
+                R.string.publish_error_batch_item,
+                listOf(2, UiText.Res(R.string.publish_error_original_price_range, listOf("99999999.99"))),
+            ),
+            vm.state.value.error,
+        )
         assertFalse(vm.state.value.batchSubmitted)
     }
 

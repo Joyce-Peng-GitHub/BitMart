@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import java.math.BigDecimal
 import java.time.Duration
@@ -39,6 +40,9 @@ class ListingValidatorTest : FunSpec({
     )
 
     fun codes(r: ValidationResult) = r.errors.map { it.code }
+
+    /** 取指定错误码的首条 [ValidationError]（无则返回 null），便于断言其 params。 */
+    fun errorOf(r: ValidationResult, code: String) = r.errors.firstOrNull { it.code == code }
 
     test("合法输入通过校验") {
         validator.validateCreate(validInput(), now).isValid.shouldBeTrue()
@@ -248,5 +252,84 @@ class ListingValidatorTest : FunSpec({
         codes(validator.validateUpdate(ListingUpdateInput(tags = (1..9).map { "t$it" }), 0, now)) shouldContain "TAGS_TOO_MANY"
         codes(validator.validateUpdate(ListingUpdateInput(title = "   "), 0, now)) shouldContain "TITLE_BLANK"
         codes(validator.validateUpdate(ListingUpdateInput(contacts = emptyList()), 0, now)) shouldContain "CONTACT_REQUIRED"
+    }
+
+    // —— 结构化 params：数值边界须随错误码下发，供客户端渲染"区间"型提示并定位字段 ——
+    test("params：件数超限携带 max（= MAX_QUANTITY）") {
+        val r = validator.validateCreate(validInput(quantityTotal = 10000), now)
+        val e = errorOf(r, "QUANTITY_TOTAL_TOO_LARGE").shouldNotBeNull()
+        e.params["max"] shouldBe ListingValidator.MAX_QUANTITY.toString()
+    }
+
+    test("params：件数为 0 同样携带 max") {
+        val e = errorOf(validator.validateCreate(validInput(quantityTotal = 0), now), "QUANTITY_TOTAL_INVALID").shouldNotBeNull()
+        e.params["max"] shouldBe ListingValidator.MAX_QUANTITY.toString()
+    }
+
+    test("params：价格超限携带 max（= MAX_UNIT_PRICE 平铺串）") {
+        val e = errorOf(validator.validateCreate(validInput(unitPrice = BigDecimal("100000000")), now), "PRICE_TOO_LARGE").shouldNotBeNull()
+        e.params["max"] shouldBe ListingValidator.MAX_UNIT_PRICE.toPlainString()
+        e.params["max"] shouldBe "99999999.99"
+    }
+
+    test("params：负价格携带 max") {
+        val e = errorOf(validator.validateCreate(validInput(unitPrice = BigDecimal("-1")), now), "PRICE_NEGATIVE").shouldNotBeNull()
+        e.params["max"] shouldBe ListingValidator.MAX_UNIT_PRICE.toPlainString()
+    }
+
+    test("params：负价格错误定位到 originalPrice 字段并携带 max") {
+        val e = errorOf(validator.validateCreate(validInput(originalPrice = BigDecimal("-1")), now), "PRICE_NEGATIVE").shouldNotBeNull()
+        e.field shouldBe "originalPrice"
+        e.params["max"] shouldBe ListingValidator.MAX_UNIT_PRICE.toPlainString()
+    }
+
+    test("params：标签数量超限携带 max（= tagConfig.maxPerListing）") {
+        val e = errorOf(validator.validateCreate(validInput(tagList = (1..9).map { "tag$it" }), now), "TAGS_TOO_MANY").shouldNotBeNull()
+        e.params["max"] shouldBe tags.maxPerListing.toString()
+    }
+
+    test("params：标签过长携带 max（= tagConfig.maxNameLength）") {
+        val e = errorOf(validator.validateCreate(validInput(tagList = listOf("x".repeat(21))), now), "TAG_TOO_LONG").shouldNotBeNull()
+        e.params["max"] shouldBe tags.maxNameLength.toString()
+    }
+
+    test("params：过期过晚携带 minDays/maxDays（非绝对分支）") {
+        val e = errorOf(validator.validateCreate(validInput(expiresAt = now.plus(Duration.ofDays(366))), now), "EXPIRY_TOO_LATE").shouldNotBeNull()
+        e.params["minDays"] shouldBe expiry.minDays.toString()
+        e.params["maxDays"] shouldBe expiry.maxDays.toString()
+    }
+
+    test("params：过期过早携带 minDays/maxDays（非绝对分支）") {
+        val e = errorOf(validator.validateCreate(validInput(expiresAt = now.plus(Duration.ofHours(12))), now), "EXPIRY_TOO_SOON").shouldNotBeNull()
+        e.params["minDays"] shouldBe expiry.minDays.toString()
+        e.params["maxDays"] shouldBe expiry.maxDays.toString()
+    }
+
+    test("params：绝对过期分支同样携带 minDays/maxDays") {
+        val tooSoon = errorOf(validator.validateCreate(validInput(expiresAt = now, expiryIsAbsolute = true), now), "EXPIRY_TOO_SOON").shouldNotBeNull()
+        tooSoon.params["maxDays"] shouldBe expiry.maxDays.toString()
+        val tooLate = errorOf(validator.validateCreate(validInput(expiresAt = now.plus(Duration.ofDays(366)), expiryIsAbsolute = true), now), "EXPIRY_TOO_LATE").shouldNotBeNull()
+        tooLate.params["minDays"] shouldBe expiry.minDays.toString()
+        tooLate.params["maxDays"] shouldBe expiry.maxDays.toString()
+    }
+
+    test("params：件数少于已售出携带 sold 与 max") {
+        val e = errorOf(validator.validateUpdate(ListingUpdateInput(quantityTotal = 2), currentQuantitySold = 3, now = now), "QUANTITY_TOTAL_BELOW_SOLD").shouldNotBeNull()
+        e.params["sold"] shouldBe "3"
+        e.params["max"] shouldBe ListingValidator.MAX_QUANTITY.toString()
+    }
+
+    test("params：售出数量越界携带 total") {
+        val exceeds = errorOf(validator.validateQuantitySoldUpdate(currentSold = 5, newSold = 11, quantityTotal = 10), "QUANTITY_SOLD_EXCEEDS_TOTAL").shouldNotBeNull()
+        exceeds.params["total"] shouldBe "10"
+        val negative = errorOf(validator.validateQuantitySoldUpdate(currentSold = 5, newSold = -1, quantityTotal = 10), "QUANTITY_SOLD_NEGATIVE").shouldNotBeNull()
+        negative.params["total"] shouldBe "10"
+    }
+
+    test("params：纯存在性校验不带 params（TITLE_BLANK / CONTACT_REQUIRED / TAG_BLANK / CONTACT_VALUE_BLANK）") {
+        errorOf(validator.validateCreate(validInput(title = "   "), now), "TITLE_BLANK").shouldNotBeNull().params shouldBe emptyMap()
+        errorOf(validator.validateCreate(validInput(contacts = emptyList()), now), "CONTACT_REQUIRED").shouldNotBeNull().params shouldBe emptyMap()
+        errorOf(validator.validateCreate(validInput(tagList = listOf("  ")), now), "TAG_BLANK").shouldNotBeNull().params shouldBe emptyMap()
+        errorOf(validator.validateCreate(validInput(contacts = listOf(Contact("QQ", "  "))), now), "CONTACT_VALUE_BLANK").shouldNotBeNull().params shouldBe emptyMap()
     }
 })

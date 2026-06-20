@@ -18,6 +18,7 @@ import cn.edu.bit.bitmart.core.domain.repository.ListingRepository
 import cn.edu.bit.bitmart.core.domain.repository.PublishDraft
 import cn.edu.bit.bitmart.core.domain.repository.UpdateDraft
 import cn.edu.bit.bitmart.core.ui.UiText
+import cn.edu.bit.bitmart.core.ui.toFirstProblemUiText
 import cn.edu.bit.bitmart.core.ui.toUiText
 import cn.edu.bit.bitmart.llm.LlmClient
 import cn.edu.bit.bitmart.llm.LlmRecognition
@@ -542,7 +543,8 @@ class PublishViewModel @Inject constructor(
             val drafts = st.draftBatch.map { it.toPublishDraft(st.type) }
             when (val r = listingRepository.publishBatch(drafts)) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, batchSubmitted = true) }
-                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
+                // 服务端校验失败：弹窗只展示首个问题（已按字段定位、批量带条号），便于用户定位。
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toFirstProblemUiText()) }
             }
         }
     }
@@ -553,14 +555,23 @@ class PublishViewModel @Inject constructor(
     private fun validateDraft(draft: DraftItem): UiText? {
         if (draft.title.isBlank()) return UiText.Res(R.string.publish_error_title_required)
         if (draft.contact.isBlank()) return UiText.Res(R.string.publish_error_contact_required)
-        // 件数：用 Long 解析以便把超 Int 的"过大整数"正确归类为超上界。
+        // 件数：用 Long 解析以便把超 Int 的"过大整数"也归入越界；非整数/不足 1/超上限统一为「1~上限」区间提示。
         val qty = draft.quantityTotal.toLongOrNull()
-        if (qty == null || qty < 1) return UiText.Res(R.string.publish_error_quantity_invalid)
-        if (qty > PublishConfig.MAX_QUANTITY) return UiText.Res(R.string.publish_error_quantity_too_large, listOf(PublishConfig.MAX_QUANTITY))
+        if (qty == null || qty < 1 || qty > PublishConfig.MAX_QUANTITY)
+            return UiText.Res(R.string.publish_error_quantity_range, listOf(PublishConfig.MAX_QUANTITY))
+        // 单价（可空）：非空时格式非法/为负/超 NUMERIC(10,2) 上限统一为「0~上限」区间提示。
         val priceRaw = draft.unitPrice.trim()
         if (priceRaw.isNotEmpty()) {
-            val price = priceRaw.toBigDecimalOrNull() ?: return UiText.Res(R.string.publish_error_price_invalid)
-            if (price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal()) return UiText.Res(R.string.publish_error_price_too_large, listOf(PublishConfig.MAX_UNIT_PRICE))
+            val price = priceRaw.toBigDecimalOrNull()
+            if (price == null || price.signum() < 0 || price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal())
+                return UiText.Res(R.string.publish_error_unit_price_range, listOf(PublishConfig.MAX_UNIT_PRICE))
+        }
+        // 原价（可空）：与单价同口径校验，提前拦截避免无谓的 400 往返。
+        val origPriceRaw = draft.originalPrice.trim()
+        if (origPriceRaw.isNotEmpty()) {
+            val price = origPriceRaw.toBigDecimalOrNull()
+            if (price == null || price.signum() < 0 || price > PublishConfig.MAX_UNIT_PRICE.toBigDecimal())
+                return UiText.Res(R.string.publish_error_original_price_range, listOf(PublishConfig.MAX_UNIT_PRICE))
         }
         when (draft.expiryMode) {
             ExpiryMode.DAYS -> {
@@ -622,7 +633,8 @@ class PublishViewModel @Inject constructor(
             _state.update { it.copy(loading = true, error = null) }
             when (val r = listingRepository.update(id, draft.toUpdateDraft())) {
                 is DomainResult.Success -> _state.update { it.copy(loading = false, saved = true) }
-                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toUiText()) }
+                // 服务端校验失败：弹窗只展示首个问题（已按字段定位），便于用户定位。
+                is DomainResult.Error -> _state.update { it.copy(loading = false, error = r.toFirstProblemUiText()) }
             }
         }
     }
