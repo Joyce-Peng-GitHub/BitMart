@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
@@ -13,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import cn.edu.bit.bitmart.feature.about.AboutScreen
+import cn.edu.bit.bitmart.feature.auth.AppAuthViewModel
 import cn.edu.bit.bitmart.feature.auth.AuthScreen
 import cn.edu.bit.bitmart.feature.bookscan.BookScanScreen
 import cn.edu.bit.bitmart.core.domain.model.ListingType
@@ -30,6 +32,9 @@ import cn.edu.bit.bitmart.feature.settings.SettingsScreen
 object Routes {
     const val SHELL = "shell"
     const val AUTH = "auth"
+    const val AUTH_PUBLISH_ARG = "publishType"
+    /** AUTH 路由模式：带可选 publishType 参数。用于 composable 注册与登录后续接的 popUpTo。 */
+    const val AUTH_ROUTE = "$AUTH?$AUTH_PUBLISH_ARG={$AUTH_PUBLISH_ARG}"
     const val PUBLISH = "publish"
     const val PUBLISH_ARG = "type"
     const val BOOK_SCAN = "book_scan"
@@ -52,6 +57,11 @@ object Routes {
     fun edit(id: Long) = "$EDIT/$id"
     fun publish(type: ListingType) = "$PUBLISH/${type.name}"
     fun myListings(buy: Boolean) = "$MY_LISTINGS/$buy"
+    /** 携带“待发布意图”的登录路由：登录/注册成功后续接进对应类型的发布页。 */
+    fun authForPublish(type: ListingType) = "$AUTH?$AUTH_PUBLISH_ARG=${type.name}"
+    /** 发布入口的未登录拦截决策：已登录直达发布页，未登录先跳登录页并携带类型以便续接。 */
+    fun publishDestination(loggedIn: Boolean, type: ListingType) =
+        if (loggedIn) publish(type) else authForPublish(type)
 }
 
 /**
@@ -63,7 +73,9 @@ private const val NAV_TAG = "BitMartNav"
 @Composable
 fun BitMartNavHost(
     navController: NavHostController = rememberNavController(),
+    authViewModel: AppAuthViewModel = hiltViewModel(),
 ) {
+    val loggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle()
     DisposableEffect(navController) {
         val listener = NavController.OnDestinationChangedListener { _, destination, arguments ->
             Log.d(NAV_TAG, "navigate -> ${destination.route} args=$arguments")
@@ -84,8 +96,8 @@ fun BitMartNavHost(
                     navController.navigate(Routes.detail(id))
                 },
                 onPublishClick = { type ->
-                    Log.i(NAV_TAG, "click: publish type=$type")
-                    navController.navigate(Routes.publish(type))
+                    Log.i(NAV_TAG, "click: publish type=$type loggedIn=$loggedIn")
+                    navController.navigate(Routes.publishDestination(loggedIn, type))
                 },
                 onEditClick = { id ->
                     Log.i(NAV_TAG, "click: edit listing id=$id")
@@ -105,11 +117,29 @@ fun BitMartNavHost(
                 onListingChangeConsumed = { entry.savedStateHandle[Routes.LISTING_CHANGED_KEY] = false },
             )
         }
-        composable(Routes.AUTH) {
+        composable(
+            route = Routes.AUTH_ROUTE,
+            arguments = listOf(
+                navArgument(Routes.AUTH_PUBLISH_ARG) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
+            // 携带“待发布意图”时：登录/注册成功后用发布页替换登录页（popUpTo 登录页 inclusive），返回栈干净。
+            val pendingPublishType = entry.arguments?.getString(Routes.AUTH_PUBLISH_ARG)
+                ?.let { runCatching { ListingType.valueOf(it) }.getOrNull() }
             AuthScreen(
                 onAuthenticated = {
-                    Log.i(NAV_TAG, "auth: login success")
-                    navController.popBackStack(Routes.SHELL, inclusive = false)
+                    Log.i(NAV_TAG, "auth: login success pendingPublish=$pendingPublishType")
+                    if (pendingPublishType != null) {
+                        navController.navigate(Routes.publish(pendingPublishType)) {
+                            popUpTo(Routes.AUTH_ROUTE) { inclusive = true }
+                        }
+                    } else {
+                        navController.popBackStack(Routes.SHELL, inclusive = false)
+                    }
                 },
                 onBack = { navController.popBackStack() },
                 onForgotPassword = { navController.navigate(Routes.CHANGE_PASSWORD) },
@@ -257,7 +287,8 @@ fun BitMartNavHost(
                 onItemClick = { id -> navController.navigate(Routes.detail(id)) },
                 onEditClick = { id -> navController.navigate(Routes.edit(id)) },
                 onPublishClick = {
-                    navController.navigate(Routes.publish(if (buy) ListingType.BUY else ListingType.SELL))
+                    val type = if (buy) ListingType.BUY else ListingType.SELL
+                    navController.navigate(Routes.publishDestination(loggedIn, type))
                 },
                 onBack = { navController.popBackStack() },
                 refreshSignal = changed,
