@@ -26,7 +26,8 @@ android {
         }
         release {
             isMinifyEnabled = false
-            buildConfigField("String", "API_BASE_URL", "\"https://bitmart.example\"")
+            // 结课本地演示环境：配合 adb reverse tcp:8080 tcp:8080 访问电脑服务端。
+            buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:8080\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
