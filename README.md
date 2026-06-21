@@ -30,11 +30,61 @@ CREATE DATABASE bitmart OWNER bitmart;
 
 ##### 配置环境变量
 
-一共有以下环境变量可供配置，也可以修改配置文件。
+一共有以下环境变量可供配置，也可以修改 `application.conf` 配置文件。可以用环境变量覆盖配置中使用 `${?ENV}` 声明的项；未列出的配置项需要直接修改配置文件。
 
+常用部署变量如下：
 
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `PORT` | `8080` | 服务端监听端口 |
+| `BITMART_DB_URL` | `jdbc:postgresql://localhost:5432/bitmart` | PostgreSQL JDBC 地址 |
+| `BITMART_DB_USER` | `bitmart` | 数据库用户名 |
+| `BITMART_DB_PASSWORD` | `bitmart` | 数据库密码 |
+| `BITMART_DB_POOL_SIZE` | `10` | HikariCP 最大连接数 |
+| `BITMART_STORAGE_ROOT` | `./storage` | 上传图片等 Blob 文件的本地保存目录 |
+| `BITMART_BIT101_BASE_URL` | `https://bit101.flwfdd.xyz` | BIT 101 API 地址 |
+| `BITMART_SHOWAPI_BASE_URL` | `https://route.showapi.com` | ShowAPI 网关地址 |
+| `BITMART_SHOWAPI_APP_KEY` | 空 | ShowAPI ISBN 查询密钥 |
 
-其中 **`BITMART_SHOWAPI_APP_KEY` 不配置时 ISBN 查询将无法使用，但登录、发布、列表等核心功能不受影响。**
+> [!CAUTION]
+>
+> `BITMART_SHOWAPI_APP_KEY` 未配置时将无法使用 ISBN 查询，但注册登录、发布编辑、列表、通知等核心功能不受影响。
+
+以下变量通常不需要修改，主要用于调整业务规则和定时任务：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `BITMART_SESSION_TTL_DAYS` | `30` | 登录会话有效期，单位为天 |
+| `BITMART_VERIFY_TICKET_TTL_MINUTES` | `15` | BIT101 验证票有效期，单位为分钟 |
+| `BITMART_PASSWORD_MIN_LENGTH` | `8` | BitMart 账号密码最小长度 |
+| `BITMART_PASSWORD_MIN_CHAR_CLASSES` | `2` | 密码至少包含的字符类别数 |
+| `BITMART_EXPIRY_MIN_DAYS` | `1` | 发布项最短有效期，单位为天 |
+| `BITMART_EXPIRY_MAX_DAYS` | `365` | 发布项最长有效期，单位为天 |
+| `BITMART_EXPIRY_DEFAULT_DAYS` | `30` | 发布项默认有效期，单位为天 |
+| `BITMART_TAG_MAX_PER_LISTING` | `8` | 单条发布最多标签数 |
+| `BITMART_UPLOAD_MAX_FILE_BYTES` | `5242880` | 单个上传图片最大字节数，默认 5 MiB |
+| `BITMART_EXPIRY_WARN_WINDOW_HOURS` | `24` | 临期提醒扫描窗口，单位为小时 |
+| `BITMART_EXPIRY_WARN_INTERVAL_MINUTES` | `60` | 临期提醒任务执行间隔，单位为分钟 |
+
+Windows PowerShell 示例：
+
+```powershell
+$env:BITMART_DB_URL = "jdbc:postgresql://localhost:5432/bitmart"
+$env:BITMART_DB_USER = "bitmart"
+$env:BITMART_DB_PASSWORD = "bitmart"
+$env:BITMART_SHOWAPI_APP_KEY = "你的 ShowAPI appKey"
+.\bin\bitmart-server.bat
+```
+
+Linux/MacOS 示例：
+
+```bash
+export BITMART_DB_URL='jdbc:postgresql://localhost:5432/bitmart'
+export BITMART_DB_USER='bitmart'
+export BITMART_DB_PASSWORD='bitmart'
+export BITMART_SHOWAPI_APP_KEY='你的 ShowAPI appKey'
+./bin/bitmart-server
+```
 
 ##### 启动服务端
 
