@@ -35,7 +35,7 @@ class Bit101Client(
     suspend fun verify(studentId: String, plainPassword: String): Bit101VerifyResult {
         return try {
             val init = initSession(studentId)
-                ?: return Bit101VerifyResult.ServiceError("BIT101 初始化失败")
+                ?: return Bit101VerifyResult.ServiceError("BIT101 init failed")
 
             val encrypted = Bit101PasswordCipher.encrypt(plainPassword, init.salt)
             val verifyResponse: HttpResponse = httpClient.post("$baseUrl/user/webvpn_verify") {
@@ -54,8 +54,8 @@ class Bit101Client(
             }
 
             if (verifyResponse.status != HttpStatusCode.OK) {
-                log.warn("BIT101 verify 返回非 200: {}", verifyResponse.status)
-                return Bit101VerifyResult.ServiceError("BIT101 校验服务异常: ${verifyResponse.status}")
+                log.warn("BIT101 verify returned non-200: {}", verifyResponse.status)
+                return Bit101VerifyResult.ServiceError("BIT101 verify service error: ${verifyResponse.status}")
             }
 
             val body: WebvpnVerifyResponse = verifyResponse.body()
@@ -63,11 +63,11 @@ class Bit101Client(
                 Bit101VerifyResult.Success
             } else {
                 // HTTP 200 但无 token：视为凭据无效（学号或密码错误）。
-                Bit101VerifyResult.InvalidCredentials(body.msg.ifBlank { "学号或密码错误" })
+                Bit101VerifyResult.InvalidCredentials(body.msg.ifBlank { "Incorrect student ID or password" })
             }
         } catch (e: Exception) {
-            log.warn("BIT101 校验异常: {}", e.message)
-            Bit101VerifyResult.ServiceError("BIT101 校验异常: ${e.message}")
+            log.warn("BIT101 verify exception: {}", e.message)
+            Bit101VerifyResult.ServiceError("BIT101 verify exception: ${e.message}")
         }
     }
 

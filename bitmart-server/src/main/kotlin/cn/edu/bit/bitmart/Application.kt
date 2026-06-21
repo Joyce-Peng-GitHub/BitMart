@@ -84,14 +84,14 @@ fun Application.configureApp(components: AppComponents) {
         exception<ContentTransformationException> { call, cause ->
             call.respond(
                 HttpStatusCode.BadRequest,
-                ApiError.of(ErrorCode.VALIDATION_FAILED, "请求体格式错误: ${cause.message}"),
+                ApiError.of(ErrorCode.VALIDATION_FAILED, "Malformed request body: ${cause.message}"),
             )
         }
         exception<Throwable> { call, cause ->
-            log.error("未处理异常", cause)
+            log.error("Unhandled exception", cause)
             call.respond(
                 HttpStatusCode.InternalServerError,
-                ApiError.of(ErrorCode.INTERNAL_ERROR, "服务器内部错误"),
+                ApiError.of(ErrorCode.INTERNAL_ERROR, "Internal server error"),
             )
         }
     }

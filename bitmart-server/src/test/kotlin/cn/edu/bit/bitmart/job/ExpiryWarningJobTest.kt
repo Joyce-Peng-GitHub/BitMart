@@ -76,7 +76,7 @@ class ExpiryWarningJobTest : FunSpec({
 
         val warns = expiryWarnsFor(components, uid)
         warns.size shouldBe 1
-        warns[0][Notifications.title] shouldBe "商品即将到期"
+        warns[0][Notifications.title] shouldBe "item expiring soon"
         warns[0][Notifications.body] shouldContain "高数教材"
         // JSONB 存储会规范化键序与空白，故解析后按字段断言而非子串匹配。
         val payload = Json.parseToJsonElement(warns[0][Notifications.payload]!!).jsonObject
@@ -94,10 +94,10 @@ class ExpiryWarningJobTest : FunSpec({
 
         val warns = expiryWarnsFor(components, uid)
         warns.size shouldBe 1
-        // 中文兜底仍在写，且非空。
+        // 英文兜底仍在写，且非空。
         warns[0][Notifications.title].isNotBlank() shouldBe true
         warns[0][Notifications.body].isNotBlank() shouldBe true
-        warns[0][Notifications.title] shouldBe "商品即将到期"
+        warns[0][Notifications.title] shouldBe "item expiring soon"
 
         val payload = Json.parseToJsonElement(warns[0][Notifications.payload]!!).jsonObject
         payload.getValue("templateKey").jsonPrimitive.content shouldBe "EXPIRY_WARNING"
@@ -170,7 +170,7 @@ class ExpiryWarningJobTest : FunSpec({
 
         val warns = expiryWarnsFor(components, uid)
         warns.size shouldBe 1
-        warns[0][Notifications.title] shouldBe "求购即将到期"
+        warns[0][Notifications.title] shouldBe "want-to-buy expiring soon"
         warns[0][Notifications.body] shouldContain "求二手自行车"
     }
 })

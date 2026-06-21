@@ -47,7 +47,7 @@ fun Route.meRoutes(userService: UserService, paginationDefault: Int, paginationM
             get {
                 val principal = call.principal<UserPrincipal>()!!
                 val user = userService.profile(principal.userId)
-                    ?: return@get call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "用户不存在")
+                    ?: return@get call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "User not found")
                 call.respond(UserDto.from(user))
             }
 
@@ -55,7 +55,7 @@ fun Route.meRoutes(userService: UserService, paginationDefault: Int, paginationM
                 val principal = call.principal<UserPrincipal>()!!
                 val req = call.receive<UpdateProfileRequest>()
                 val user = userService.updateNickname(principal.userId, req.nickname)
-                    ?: return@patch call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "用户不存在")
+                    ?: return@patch call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "User not found")
                 call.respond(UserDto.from(user))
             }
 
@@ -78,10 +78,10 @@ fun Route.meRoutes(userService: UserService, paginationDefault: Int, paginationM
             post("/notifications/{id}/read") {
                 val principal = call.principal<UserPrincipal>()!!
                 val id = call.parameters["id"]?.toLongOrNull()
-                    ?: return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "id 非法")
+                    ?: return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "Invalid id")
                 val ok = userService.markNotificationRead(principal.userId, id)
                 if (ok) call.respond(HttpStatusCode.OK, mapOf("status" to "ok"))
-                else call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "通知不存在或不可标记")
+                else call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "Notification not found or not markable")
             }
         }
     }

@@ -20,7 +20,7 @@ data class DatabaseConfig(
             password = c.string("password"),
             maxPoolSize = c.int("maxPoolSize"),
         ).also {
-            require(it.maxPoolSize >= 1) { "database.maxPoolSize 必须 >= 1" }
+            require(it.maxPoolSize >= 1) { "database.maxPoolSize must be >= 1" }
         }
     }
 }
@@ -28,14 +28,14 @@ data class DatabaseConfig(
 data class SessionConfig(val ttlDays: Long) {
     companion object {
         fun from(c: ApplicationConfig) = SessionConfig(ttlDays = c.long("ttlDays"))
-            .also { require(it.ttlDays >= 1) { "session.ttlDays 必须 >= 1" } }
+            .also { require(it.ttlDays >= 1) { "session.ttlDays must be >= 1" } }
     }
 }
 
 data class VerifyTicketConfig(val ttlMinutes: Long) {
     companion object {
         fun from(c: ApplicationConfig) = VerifyTicketConfig(ttlMinutes = c.long("ttlMinutes"))
-            .also { require(it.ttlMinutes >= 1) { "verifyTicket.ttlMinutes 必须 >= 1" } }
+            .also { require(it.ttlMinutes >= 1) { "verifyTicket.ttlMinutes must be >= 1" } }
     }
 }
 
@@ -45,8 +45,8 @@ data class PasswordPolicyConfig(val minLength: Int, val minCharClasses: Int) {
             minLength = c.int("minLength"),
             minCharClasses = c.int("minCharClasses"),
         ).also {
-            require(it.minLength >= 1) { "password.minLength 必须 >= 1" }
-            require(it.minCharClasses in 1..4) { "password.minCharClasses 必须在 1..4" }
+            require(it.minLength >= 1) { "password.minLength must be >= 1" }
+            require(it.minCharClasses in 1..4) { "password.minCharClasses must be in 1..4" }
         }
     }
 }
@@ -58,9 +58,9 @@ data class Argon2Config(val memoryKb: Int, val iterations: Int, val parallelism:
             iterations = c.int("iterations"),
             parallelism = c.int("parallelism"),
         ).also {
-            require(it.memoryKb >= 1024) { "argon2.memoryKb 过小（建议 >= 1024）" }
-            require(it.iterations >= 1) { "argon2.iterations 必须 >= 1" }
-            require(it.parallelism >= 1) { "argon2.parallelism 必须 >= 1" }
+            require(it.memoryKb >= 1024) { "argon2.memoryKb too small (recommended >= 1024)" }
+            require(it.iterations >= 1) { "argon2.iterations must be >= 1" }
+            require(it.parallelism >= 1) { "argon2.parallelism must be >= 1" }
         }
     }
 }
@@ -72,10 +72,10 @@ data class ExpiryConfig(val minDays: Int, val maxDays: Int, val defaultDays: Int
             maxDays = c.int("maxDays"),
             defaultDays = c.int("defaultDays"),
         ).also {
-            require(it.minDays >= 1) { "expiry.minDays 必须 >= 1" }
-            require(it.maxDays >= it.minDays) { "expiry.maxDays 必须 >= minDays" }
+            require(it.minDays >= 1) { "expiry.minDays must be >= 1" }
+            require(it.maxDays >= it.minDays) { "expiry.maxDays must be >= minDays" }
             require(it.defaultDays in it.minDays..it.maxDays) {
-                "expiry.defaultDays 必须落在 [minDays, maxDays] 内"
+                "expiry.defaultDays must be within [minDays, maxDays]"
             }
         }
     }
@@ -87,8 +87,8 @@ data class TagConfig(val maxPerListing: Int, val maxNameLength: Int) {
             maxPerListing = c.int("maxPerListing"),
             maxNameLength = c.int("maxNameLength"),
         ).also {
-            require(it.maxPerListing >= 1) { "tag.maxPerListing 必须 >= 1" }
-            require(it.maxNameLength >= 1) { "tag.maxNameLength 必须 >= 1" }
+            require(it.maxPerListing >= 1) { "tag.maxPerListing must be >= 1" }
+            require(it.maxNameLength >= 1) { "tag.maxNameLength must be >= 1" }
         }
     }
 }
@@ -99,9 +99,9 @@ data class PaginationConfig(val defaultPageSize: Int, val maxPageSize: Int) {
             defaultPageSize = c.int("defaultPageSize"),
             maxPageSize = c.int("maxPageSize"),
         ).also {
-            require(it.defaultPageSize >= 1) { "pagination.defaultPageSize 必须 >= 1" }
+            require(it.defaultPageSize >= 1) { "pagination.defaultPageSize must be >= 1" }
             require(it.maxPageSize >= it.defaultPageSize) {
-                "pagination.maxPageSize 必须 >= defaultPageSize"
+                "pagination.maxPageSize must be >= defaultPageSize"
             }
         }
     }
@@ -118,9 +118,9 @@ data class UploadConfig(
             maxFilesPerListing = c.int("maxFilesPerListing"),
             allowedMimeTypes = c.stringList("allowedMimeTypes"),
         ).also {
-            require(it.maxFileBytes >= 1) { "upload.maxFileBytes 必须 >= 1" }
-            require(it.maxFilesPerListing >= 1) { "upload.maxFilesPerListing 必须 >= 1" }
-            require(it.allowedMimeTypes.isNotEmpty()) { "upload.allowedMimeTypes 不能为空" }
+            require(it.maxFileBytes >= 1) { "upload.maxFileBytes must be >= 1" }
+            require(it.maxFilesPerListing >= 1) { "upload.maxFilesPerListing must be >= 1" }
+            require(it.allowedMimeTypes.isNotEmpty()) { "upload.allowedMimeTypes must not be empty" }
         }
     }
 }
@@ -132,8 +132,8 @@ data class NotificationConfig(val expiryWarnWindowHours: Long, val expiryWarnInt
             expiryWarnWindowHours = c.long("expiryWarnWindowHours"),
             expiryWarnIntervalMinutes = c.long("expiryWarnIntervalMinutes"),
         ).also {
-            require(it.expiryWarnWindowHours >= 1) { "notification.expiryWarnWindowHours 必须 >= 1" }
-            require(it.expiryWarnIntervalMinutes >= 1) { "notification.expiryWarnIntervalMinutes 必须 >= 1" }
+            require(it.expiryWarnWindowHours >= 1) { "notification.expiryWarnWindowHours must be >= 1" }
+            require(it.expiryWarnIntervalMinutes >= 1) { "notification.expiryWarnIntervalMinutes must be >= 1" }
         }
     }
 }
@@ -152,7 +152,7 @@ data class Bit101Config(val baseUrl: String, val requestTimeoutMs: Long) {
         fun from(c: ApplicationConfig) = Bit101Config(
             baseUrl = c.string("baseUrl"),
             requestTimeoutMs = c.long("requestTimeoutMs"),
-        ).also { require(it.requestTimeoutMs >= 1) { "bit101.requestTimeoutMs 必须 >= 1" } }
+        ).also { require(it.requestTimeoutMs >= 1) { "bit101.requestTimeoutMs must be >= 1" } }
     }
 }
 
@@ -162,6 +162,6 @@ data class ShowApiConfig(val baseUrl: String, val appKey: String, val requestTim
             baseUrl = c.string("baseUrl"),
             appKey = c.string("appKey"),
             requestTimeoutMs = c.long("requestTimeoutMs"),
-        ).also { require(it.requestTimeoutMs >= 1) { "showapi.requestTimeoutMs 必须 >= 1" } }
+        ).also { require(it.requestTimeoutMs >= 1) { "showapi.requestTimeoutMs must be >= 1" } }
     }
 }

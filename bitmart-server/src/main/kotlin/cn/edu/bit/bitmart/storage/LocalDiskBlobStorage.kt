@@ -46,7 +46,7 @@ class LocalDiskBlobStorage(
     /** 解析并校验 key 落在 root 内，防止路径穿越（../）。 */
     private fun resolveSafely(key: String): Path {
         val resolved = root.resolve(key).normalize()
-        require(resolved.startsWith(root)) { "非法存储键: $key" }
+        require(resolved.startsWith(root)) { "Illegal storage key: $key" }
         return resolved
     }
 }

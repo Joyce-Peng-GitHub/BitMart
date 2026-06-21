@@ -38,7 +38,7 @@ fun Route.authRoutes(authService: AuthService) {
             when (val r = authService.verify(req.studentId, req.password)) {
                 is VerifyResult.Success -> call.respond(VerifyResponse(r.verifyTicket))
                 is VerifyResult.InvalidCredentials ->
-                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "学号或统一身份认证密码错误")
+                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "Incorrect student ID or unified-auth password")
                 is VerifyResult.ServiceUnavailable ->
                     call.fail(HttpStatusCode.BadGateway, ErrorCode.EXTERNAL_SERVICE_ERROR, r.message)
             }
@@ -51,9 +51,9 @@ fun Route.authRoutes(authService: AuthService) {
             )) {
                 is RegisterResult.Success -> call.respond(AuthResponse(r.token, UserDto.from(r.user)))
                 is RegisterResult.InvalidTicket ->
-                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "验证票无效或已过期，请重新验证身份")
+                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "Verify ticket invalid or expired; please re-verify")
                 is RegisterResult.StudentAlreadyRegistered ->
-                    call.fail(HttpStatusCode.Conflict, ErrorCode.CONFLICT, "该学号已注册")
+                    call.fail(HttpStatusCode.Conflict, ErrorCode.CONFLICT, "This student ID is already registered")
                 is RegisterResult.PasswordPolicyViolation ->
                     call.failValidation(r.errors)
             }
@@ -64,9 +64,9 @@ fun Route.authRoutes(authService: AuthService) {
             when (val r = authService.login(req.studentId, req.password, call.request.userAgent())) {
                 is LoginResult.Success -> call.respond(AuthResponse(r.token, UserDto.from(r.user)))
                 is LoginResult.InvalidCredentials ->
-                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "学号或密码错误")
+                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "Incorrect student ID or password")
                 is LoginResult.Banned ->
-                    call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "账号已被封禁")
+                    call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "Account is banned")
             }
         }
 
@@ -75,9 +75,9 @@ fun Route.authRoutes(authService: AuthService) {
             when (val r = authService.resetPassword(req.verifyTicket, req.studentId, req.newPassword)) {
                 is ResetPasswordResult.Success -> call.respond(HttpStatusCode.OK, mapOf("status" to "ok"))
                 is ResetPasswordResult.InvalidTicket ->
-                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "验证票无效或已过期")
+                    call.fail(HttpStatusCode.Unauthorized, ErrorCode.UNAUTHORIZED, "Verify ticket invalid or expired")
                 is ResetPasswordResult.UserNotFound ->
-                    call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "该学号尚未注册")
+                    call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "This student ID is not registered")
                 is ResetPasswordResult.PasswordPolicyViolation ->
                     call.failValidation(r.errors)
             }
@@ -113,6 +113,6 @@ internal suspend fun ApplicationCall.failValidation(errors: List<ValidationError
     val details = errors.map { ApiError.ErrorDetail(it.field, it.code, it.params) }
     respond(
         HttpStatusCode.BadRequest,
-        ApiError.of(ErrorCode.VALIDATION_FAILED, errors.joinToString("；") { it.message }, details),
+        ApiError.of(ErrorCode.VALIDATION_FAILED, errors.joinToString("; ") { it.message }, details),
     )
 }

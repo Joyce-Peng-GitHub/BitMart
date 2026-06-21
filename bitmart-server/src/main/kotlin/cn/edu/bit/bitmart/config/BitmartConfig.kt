@@ -42,7 +42,7 @@ data class BitmartConfig(
             )
         } catch (e: com.typesafe.config.ConfigException) {
             // 将底层 HOCON 解析/缺失错误统一为本项目的 ConfigException，便于调用方一致处理。
-            throw ConfigException("配置加载失败: ${e.message}")
+            throw ConfigException("Config load failed: ${e.message}")
         }
     }
 }

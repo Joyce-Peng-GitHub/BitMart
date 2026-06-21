@@ -26,17 +26,17 @@ fun Route.uploadRoutes(uploadService: UploadService) {
     authenticate(AUTH_BEARER) {
         post("/uploads/images") {
             val bytes = call.readFirstFilePart()
-                ?: return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "未找到上传文件")
+                ?: return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "No uploaded file found")
 
             when (val r = uploadService.uploadImage(bytes)) {
                 is UploadResult.Success ->
                     call.respond(HttpStatusCode.Created, UploadResponse(r.blobKey, r.url, r.contentType))
                 is UploadResult.TooLarge ->
-                    call.fail(HttpStatusCode.PayloadTooLarge, ErrorCode.VALIDATION_FAILED, "文件超过大小上限")
+                    call.fail(HttpStatusCode.PayloadTooLarge, ErrorCode.VALIDATION_FAILED, "File exceeds size limit")
                 is UploadResult.UnsupportedType ->
-                    call.fail(HttpStatusCode.UnsupportedMediaType, ErrorCode.VALIDATION_FAILED, "仅支持 JPEG/PNG/WebP 图片")
+                    call.fail(HttpStatusCode.UnsupportedMediaType, ErrorCode.VALIDATION_FAILED, "Only JPEG/PNG/WebP images are supported")
                 is UploadResult.Empty ->
-                    call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "空文件")
+                    call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "Empty file")
             }
         }
     }

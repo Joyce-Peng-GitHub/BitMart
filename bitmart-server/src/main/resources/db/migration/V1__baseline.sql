@@ -26,7 +26,7 @@ BEGIN
                 ADD MAPPING FOR n, v, a, i, e, l, j, t WITH simple;
         END IF;
     EXCEPTION WHEN OTHERS THEN
-        RAISE NOTICE 'zhparser 不可用，全文搜索降级为 simple 配置: %', SQLERRM;
+        RAISE NOTICE 'zhparser unavailable, full-text search degraded to simple config: %', SQLERRM;
     END;
 END
 $$;

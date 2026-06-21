@@ -69,15 +69,15 @@ class ListingRequestMapper(private val expiryConfig: ExpiryConfig) {
 
     private fun parsePrice(raw: String?): BigDecimal? {
         if (raw.isNullOrBlank()) return null
-        return raw.toBigDecimalOrNull() ?: throw RequestMappingException("价格格式非法: $raw")
+        return raw.toBigDecimalOrNull() ?: throw RequestMappingException("Invalid price format: $raw")
     }
 
     private fun parseExpiresAt(raw: String): OffsetDateTime =
         runCatching { OffsetDateTime.parse(raw) }.getOrElse {
-            throw RequestMappingException("过期时间格式非法: $raw")
+            throw RequestMappingException("Invalid expiry time format: $raw")
         }
 
     private inline fun <reified T : Enum<T>> parseEnum(raw: String, field: String): T =
         enumValues<T>().firstOrNull { it.name.equals(raw, ignoreCase = true) }
-            ?: throw RequestMappingException("$field 取值非法: $raw")
+            ?: throw RequestMappingException("Invalid value for $field: $raw")
 }

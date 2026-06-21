@@ -63,14 +63,14 @@ class ListingValidator(
             newSold >= 0,
             field = "quantitySold",
             code = "QUANTITY_SOLD_NEGATIVE",
-            message = "售出数量不能为负",
+            message = "Sold quantity cannot be negative",
             params = mapOf("total" to quantityTotal.toString()),
         )
         errors.check(
             newSold <= quantityTotal,
             field = "quantitySold",
             code = "QUANTITY_SOLD_EXCEEDS_TOTAL",
-            message = "售出数量 $newSold 不能超过总量 $quantityTotal",
+            message = "Sold quantity $newSold cannot exceed total $quantityTotal",
             params = mapOf("total" to quantityTotal.toString()),
         )
         return errors.build()
@@ -111,7 +111,7 @@ class ListingValidator(
                 q >= currentQuantitySold,
                 field = "quantityTotal",
                 code = "QUANTITY_TOTAL_BELOW_SOLD",
-                message = "件数不能少于已售出数量 $currentQuantitySold",
+                message = "Quantity cannot be less than sold count $currentQuantitySold",
                 params = mapOf("sold" to currentQuantitySold.toString(), "max" to MAX_QUANTITY.toString()),
             )
         }
@@ -124,12 +124,12 @@ class ListingValidator(
     }
 
     private fun validateTitle(title: String, errors: ValidationErrors) {
-        errors.check(title.isNotBlank(), "title", "TITLE_BLANK", "标题不能为空")
+        errors.check(title.isNotBlank(), "title", "TITLE_BLANK", "Title cannot be empty")
         errors.check(
             title.length <= MAX_TITLE_LENGTH,
             field = "title",
             code = "TITLE_TOO_LONG",
-            message = "标题长度不能超过 $MAX_TITLE_LENGTH 个字符",
+            message = "Title cannot exceed $MAX_TITLE_LENGTH characters",
             params = mapOf("max" to MAX_TITLE_LENGTH.toString()),
         )
     }
@@ -139,7 +139,7 @@ class ListingValidator(
             description.length <= MAX_DESCRIPTION_LENGTH,
             field = "description",
             code = "DESCRIPTION_TOO_LONG",
-            message = "描述长度不能超过 $MAX_DESCRIPTION_LENGTH 个字符",
+            message = "Description cannot exceed $MAX_DESCRIPTION_LENGTH characters",
             params = mapOf("max" to MAX_DESCRIPTION_LENGTH.toString()),
         )
     }
@@ -149,14 +149,14 @@ class ListingValidator(
             quantityTotal >= 1,
             field = "quantityTotal",
             code = "QUANTITY_TOTAL_INVALID",
-            message = "件数必须 >= 1",
+            message = "Quantity must be >= 1",
             params = mapOf("max" to MAX_QUANTITY.toString()),
         )
         errors.check(
             quantityTotal <= MAX_QUANTITY,
             field = "quantityTotal",
             code = "QUANTITY_TOTAL_TOO_LARGE",
-            message = "件数不能超过 $MAX_QUANTITY",
+            message = "Quantity cannot exceed $MAX_QUANTITY",
             params = mapOf("max" to MAX_QUANTITY.toString()),
         )
     }
@@ -168,7 +168,7 @@ class ListingValidator(
                 price.signum() >= 0,
                 field = field,
                 code = "PRICE_NEGATIVE",
-                message = "价格不能为负",
+                message = "Price cannot be negative",
                 params = mapOf("max" to MAX_UNIT_PRICE.toPlainString()),
             )
             // 上界对齐 DB 列 unit_price NUMERIC(10,2)，超出会触发 numeric field overflow，须在入库前拦截。
@@ -176,7 +176,7 @@ class ListingValidator(
                 price <= MAX_UNIT_PRICE,
                 field = field,
                 code = "PRICE_TOO_LARGE",
-                message = "价格不能超过 $MAX_UNIT_PRICE",
+                message = "Price cannot exceed $MAX_UNIT_PRICE",
                 params = mapOf("max" to MAX_UNIT_PRICE.toPlainString()),
             )
         }
@@ -184,7 +184,7 @@ class ListingValidator(
 
     private fun validateContacts(contacts: List<Contact>, errors: ValidationErrors) {
         if (contacts.isEmpty()) {
-            errors.add("contact", "CONTACT_REQUIRED", "至少需要一种联系方式")
+            errors.add("contact", "CONTACT_REQUIRED", "At least one contact method is required")
             return
         }
         contacts.forEachIndexed { index, contact ->
@@ -192,7 +192,7 @@ class ListingValidator(
                 contact.value.isNotBlank(),
                 field = "contact[$index].value",
                 code = "CONTACT_VALUE_BLANK",
-                message = "联系方式内容不能为空",
+                message = "Contact value cannot be empty",
             )
         }
     }
@@ -202,7 +202,7 @@ class ListingValidator(
             tags.size <= tagConfig.maxPerListing,
             field = "tags",
             code = "TAGS_TOO_MANY",
-            message = "标签数量不能超过 ${tagConfig.maxPerListing} 个",
+            message = "Cannot have more than ${tagConfig.maxPerListing} tags",
             params = mapOf("max" to tagConfig.maxPerListing.toString()),
         )
         tags.forEachIndexed { index, tag ->
@@ -210,13 +210,13 @@ class ListingValidator(
                 tag.isNotBlank(),
                 field = "tags[$index]",
                 code = "TAG_BLANK",
-                message = "标签不能为空",
+                message = "Tag cannot be empty",
             )
             errors.check(
                 tag.length <= tagConfig.maxNameLength,
                 field = "tags[$index]",
                 code = "TAG_TOO_LONG",
-                message = "标签长度不能超过 ${tagConfig.maxNameLength} 个字符",
+                message = "Tag cannot exceed ${tagConfig.maxNameLength} characters",
                 params = mapOf("max" to tagConfig.maxNameLength.toString()),
             )
         }
@@ -235,7 +235,7 @@ class ListingValidator(
                 expiresAt.isAfter(now),
                 field = "expiresAt",
                 code = "EXPIRY_TOO_SOON",
-                message = "过期日期必须晚于当前时间",
+                message = "Expiry date must be later than now",
                 params = expiryParams,
             )
         } else {
@@ -244,7 +244,7 @@ class ListingValidator(
                 !expiresAt.isBefore(earliest),
                 field = "expiresAt",
                 code = "EXPIRY_TOO_SOON",
-                message = "过期时间不得早于 ${expiryConfig.minDays} 天后",
+                message = "Expiry must be at least ${expiryConfig.minDays} days from now",
                 params = expiryParams,
             )
         }
@@ -252,7 +252,7 @@ class ListingValidator(
             !expiresAt.isAfter(latest),
             field = "expiresAt",
             code = "EXPIRY_TOO_LATE",
-            message = "过期时间不得晚于 ${expiryConfig.maxDays} 天后",
+            message = "Expiry must be at most ${expiryConfig.maxDays} days from now",
             params = expiryParams,
         )
     }

@@ -41,7 +41,7 @@ fun Route.listingRoutes(
         // 列表（公开）。过期项不公开展示：无论客户端传何值，公开列表强制不含已过期项。
         get {
             val parsed = call.parseListingFilter(pagination)
-                ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "查询参数非法")
+                ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "Invalid query parameters")
             val filter = parsed.copy(includeExpired = false)
             val items = service.list(filter)
             val next = if (items.size >= filter.limit) {
@@ -58,7 +58,7 @@ fun Route.listingRoutes(
             get("/{id}") {
                 val principal = call.principal<UserPrincipal>()!!
                 val id = call.pathId() ?: return@get call.fail(
-                    HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "id 非法",
+                    HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "Invalid id",
                 )
                 when (val r = service.detail(id)) {
                     is DetailResult.Found -> {
@@ -66,12 +66,12 @@ fun Route.listingRoutes(
                         val isOwner = d.userId == principal.userId || principal.role == UserRole.ADMIN
                         val expired = !d.expiresAt.isAfter(OffsetDateTime.now())
                         if (expired && !isOwner) {
-                            call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
+                            call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "Listing not found")
                         } else {
                             call.respond(ListingDetailDto.from(d))
                         }
                     }
-                    is DetailResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
+                    is DetailResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "Listing not found")
                 }
             }
 
@@ -84,7 +84,7 @@ fun Route.listingRoutes(
                 val input = try {
                     mapper.toCreateInput(req, principal.userId, now)
                 } catch (e: RequestMappingException) {
-                    return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, e.message ?: "请求非法")
+                    return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, e.message ?: "Invalid request")
                 }
                 when (val r = service.publish(input, now.toInstant())) {
                     is PublishResult.Success -> call.respond(HttpStatusCode.Created, CreatedResponse(r.listingId))
@@ -100,7 +100,7 @@ fun Route.listingRoutes(
                 val inputs = try {
                     req.items.map { mapper.toCreateInput(it, principal.userId, now) }
                 } catch (e: RequestMappingException) {
-                    return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, e.message ?: "请求非法")
+                    return@post call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, e.message ?: "Invalid request")
                 }
                 when (val r = service.publishBatch(inputs, now.toInstant())) {
                     is BatchPublishResult.Success -> call.respond(HttpStatusCode.Created, BatchCreatedResponse(r.listingIds))
@@ -115,16 +115,16 @@ fun Route.listingRoutes(
             patch("/{id}") {
                 val principal = call.principal<UserPrincipal>()!!
                 val id = call.pathId() ?: return@patch call.fail(
-                    HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "id 非法",
+                    HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "Invalid id",
                 )
                 val req = call.receive<UpdateListingRequest>()
                 val now = OffsetDateTime.now()
                 val input = mapper.toUpdateInput(req, now)
                 when (val r = service.update(id, principal.userId, principal.role, input, now.toInstant())) {
                     is UpdateResult.Success -> call.respond(HttpStatusCode.OK, mapOf("status" to "ok"))
-                    is UpdateResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
-                    is UpdateResult.Forbidden -> call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "无权修改")
-                    is UpdateResult.QuantityConflict -> call.fail(HttpStatusCode.Conflict, ErrorCode.CONFLICT, "售出数量冲突，请刷新后重试")
+                    is UpdateResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "Listing not found")
+                    is UpdateResult.Forbidden -> call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "Not authorized to modify")
+                    is UpdateResult.QuantityConflict -> call.fail(HttpStatusCode.Conflict, ErrorCode.CONFLICT, "Sold-quantity conflict; please refresh and retry")
                     is UpdateResult.ValidationFailed -> call.failValidation(r.errors)
                 }
             }
@@ -133,12 +133,12 @@ fun Route.listingRoutes(
             delete("/{id}") {
                 val principal = call.principal<UserPrincipal>()!!
                 val id = call.pathId() ?: return@delete call.fail(
-                    HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "id 非法",
+                    HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "Invalid id",
                 )
                 when (val r = service.delete(id, principal.userId, principal.role)) {
                     is UpdateResult.Success -> call.respond(HttpStatusCode.OK, mapOf("status" to "ok"))
-                    is UpdateResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该条目")
-                    is UpdateResult.Forbidden -> call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "无权删除")
+                    is UpdateResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "Listing not found")
+                    is UpdateResult.Forbidden -> call.fail(HttpStatusCode.Forbidden, ErrorCode.FORBIDDEN, "Not authorized to delete")
                     else -> call.respond(HttpStatusCode.OK, mapOf("status" to "ok"))
                 }
             }
@@ -155,7 +155,7 @@ fun Route.listingRoutes(
                 defaultType = null,
                 defaultIncludeSold = true,
                 defaultIncludeExpired = true,
-            ) ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "查询参数非法")
+            ) ?: return@get call.fail(HttpStatusCode.BadRequest, ErrorCode.VALIDATION_FAILED, "Invalid query parameters")
             val items = service.myListings(principal.userId, filter)
             val next = if (items.size >= filter.limit) {
                 items.lastOrNull()?.let { "${it.createdAt}|${it.id}" }
@@ -183,7 +183,7 @@ fun Route.listingRoutes(
                         format = r.meta.format, img = r.meta.img, summary = r.meta.summary,
                     ),
                 )
-                is BookLookupResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "未找到该 ISBN 的书籍信息")
+                is BookLookupResult.NotFound -> call.fail(HttpStatusCode.NotFound, ErrorCode.NOT_FOUND, "No book found for this ISBN")
                 is BookLookupResult.ServiceError -> call.fail(HttpStatusCode.BadGateway, ErrorCode.EXTERNAL_SERVICE_ERROR, r.message)
             }
         }

@@ -7,21 +7,21 @@ internal object ConfigReader {
 
     fun ApplicationConfig.string(key: String): String =
         propertyOrNull(key)?.getString()
-            ?: throw ConfigException("缺少配置项: $key")
+            ?: throw ConfigException("Missing config key: $key")
 
     fun ApplicationConfig.int(key: String): Int {
         val raw = string(key)
-        return raw.toIntOrNull() ?: throw ConfigException("配置项 $key 不是整数: $raw")
+        return raw.toIntOrNull() ?: throw ConfigException("Config key $key is not an integer: $raw")
     }
 
     fun ApplicationConfig.long(key: String): Long {
         val raw = string(key)
-        return raw.toLongOrNull() ?: throw ConfigException("配置项 $key 不是整数: $raw")
+        return raw.toLongOrNull() ?: throw ConfigException("Config key $key is not an integer: $raw")
     }
 
     fun ApplicationConfig.stringList(key: String): List<String> =
         propertyOrNull(key)?.getList()
-            ?: throw ConfigException("缺少配置项(列表): $key")
+            ?: throw ConfigException("Missing config key (list): $key")
 
     /** 校验断言：条件不成立时抛出配置异常。 */
     fun require(condition: Boolean, message: () -> String) {

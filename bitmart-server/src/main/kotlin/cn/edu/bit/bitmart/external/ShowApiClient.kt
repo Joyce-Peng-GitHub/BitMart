@@ -41,12 +41,12 @@ class ShowApiClient(
                 parameter("isbn", isbn)
             }
             if (response.status != HttpStatusCode.OK) {
-                return IsbnLookupResult.ServiceError("ShowAPI 返回 ${response.status}")
+                return IsbnLookupResult.ServiceError("ShowAPI returned ${response.status}")
             }
             parseBody(isbn, response.bodyAsText())
         } catch (e: Exception) {
-            log.warn("ShowAPI 查询异常 isbn={}: {}", isbn, e.message)
-            IsbnLookupResult.ServiceError("ShowAPI 查询异常: ${e.message}")
+            log.warn("ShowAPI lookup exception isbn={}: {}", isbn, e.message)
+            IsbnLookupResult.ServiceError("ShowAPI lookup exception: ${e.message}")
         }
     }
 
@@ -55,12 +55,12 @@ class ShowApiClient(
 
         val resCode = root["showapi_res_code"]?.jsonPrimitive?.intOrNull
         if (resCode != 0) {
-            val err = root["showapi_res_error"]?.jsonPrimitive?.contentOrNull ?: "未知网关错误"
-            return IsbnLookupResult.ServiceError("ShowAPI 网关错误(code=$resCode): $err")
+            val err = root["showapi_res_error"]?.jsonPrimitive?.contentOrNull ?: "Unknown gateway error"
+            return IsbnLookupResult.ServiceError("ShowAPI gateway error(code=$resCode): $err")
         }
 
         val body = root["showapi_res_body"]?.jsonObject
-            ?: return IsbnLookupResult.ServiceError("ShowAPI 响应缺少 showapi_res_body")
+            ?: return IsbnLookupResult.ServiceError("ShowAPI response missing showapi_res_body")
 
         val retCode = body["ret_code"]?.jsonPrimitive?.intOrNull
         if (retCode != 0) {

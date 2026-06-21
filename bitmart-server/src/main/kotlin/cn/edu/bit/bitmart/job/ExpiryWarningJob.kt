@@ -54,8 +54,8 @@ class ExpiryWarningJob(
         scope.launch {
             while (isActive) {
                 runCatching { runOnce() }
-                    .onSuccess { created -> if (created > 0) log.info("过期提醒：新建 {} 条通知", created) }
-                    .onFailure { log.error("过期提醒任务执行失败，等待下一周期重试", it) }
+                    .onSuccess { created -> if (created > 0) log.info("Expiry warning: created {} notifications", created) }
+                    .onFailure { log.error("Expiry warning job failed, will retry next cycle", it) }
                 delay(interval.toMillis())
             }
         }
@@ -66,10 +66,10 @@ class ExpiryWarningJob(
         val due = findDue(now)
         val warnHours = warnWindow.toHours().toInt()
         due.forEach { l ->
-            val kind = if (l.type == 0) "商品" else "求购"
+            val kind = if (l.type == 0) "item" else "want-to-buy"
             // listingType: Listings.type 与 domain.ListingType ordinal 对齐（0=SELL/商品，1=BUY/求购）。
             val listingType = ListingType.entries[l.type].name
-            // 结构化 payload 供客户端本地化渲染；title/body 仍写中文兜底（向后兼容）。
+            // 结构化 payload 供客户端本地化渲染；title/body 写英文兜底（向后兼容）。
             // 去重键 listingId/expiresAt 必须保留（findDue 的 NOT EXISTS 依赖它们）。
             val payload = buildJsonObject {
                 put("listingId", l.id)
@@ -82,8 +82,8 @@ class ExpiryWarningJob(
             notificationRepository.create(
                 userId = l.userId,
                 category = NotificationCategory.EXPIRY_WARN,
-                title = "${kind}即将到期",
-                body = "你发布的$kind「${l.title}」将于 $warnHours 小时内到期，如需继续展示可前往“我的发布”延期。",
+                title = "$kind expiring soon",
+                body = "Your $kind \"${l.title}\" will expire within $warnHours hours. Go to \"My posts\" to extend it.",
                 payload = payload.toString(),
             )
         }

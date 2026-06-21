@@ -14,14 +14,14 @@ class PasswordPolicy(private val config: PasswordPolicyConfig) {
             password.length >= config.minLength,
             field = "password",
             code = "PASSWORD_TOO_SHORT",
-            message = "密码长度至少 ${config.minLength} 位",
+            message = "Password must be at least ${config.minLength} characters",
             params = mapOf("minLength" to config.minLength.toString()),
         )
         errors.check(
             charClassCount(password) >= config.minCharClasses,
             field = "password",
             code = "PASSWORD_TOO_SIMPLE",
-            message = "密码须包含至少 ${config.minCharClasses} 类字符（小写、大写、数字、符号）",
+            message = "Password must include at least ${config.minCharClasses} character classes (lower, upper, digit, symbol)",
             params = mapOf("minCharClasses" to config.minCharClasses.toString()),
         )
         return errors.build()
