@@ -11,8 +11,6 @@ argon2 = "2.12"
 caffeine = "3.2.4"
 logback = "1.5.34"
 kotest = "6.1.11"
-mockk = "1.14.11"
-testcontainers = "1.21.4"
 embeddedPostgres = "2.2.2"
 embeddedPostgresBinaries = "18.4.0"
 
@@ -26,8 +24,6 @@ ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages" }
 ktor-server-auth = { module = "io.ktor:ktor-server-auth" }
 ktor-server-call-id = { module = "io.ktor:ktor-server-call-id" }
 ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging" }
-ktor-server-cors = { module = "io.ktor:ktor-server-cors" }
-ktor-server-sse = { module = "io.ktor:ktor-server-sse" }
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json" }
 
@@ -35,7 +31,6 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 ktor-client-core = { module = "io.ktor:ktor-client-core" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation" }
-ktor-client-logging = { module = "io.ktor:ktor-client-logging" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock" }
 
 # Serialization & coroutines.
@@ -63,9 +58,6 @@ logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "lo
 # Testing.
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
-mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
-testcontainers-core = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 
 # 本地/无 Docker 环境用的内嵌 PostgreSQL（zonky），运行真实 PG 进程。
 embedded-postgres = { module = "io.zonky.test:embedded-postgres", version.ref = "embeddedPostgres" }

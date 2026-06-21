@@ -28,15 +28,12 @@ dependencies {
     implementation(libs.ktor.server.auth)
     implementation(libs.ktor.server.call.id)
     implementation(libs.ktor.server.call.logging)
-    implementation(libs.ktor.server.cors)
-    implementation(libs.ktor.server.sse)
     implementation(libs.ktor.serialization.kotlinx.json)
 
     // Ktor client for outbound calls to BIT101 / ShowAPI.
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.client.logging)
 
     // Serialization & coroutines.
     implementation(libs.kotlinx.serialization.json)
@@ -63,11 +60,8 @@ dependencies {
     // Testing.
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
-    testImplementation(libs.mockk)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.mock)
-    testImplementation(libs.testcontainers.core)
-    testImplementation(libs.testcontainers.postgresql)
 
     // 本地/无 Docker 环境运行真实 PostgreSQL 进行集成测试。
     testImplementation(libs.embedded.postgres)
