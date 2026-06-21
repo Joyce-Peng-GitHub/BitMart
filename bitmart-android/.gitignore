@@ -8,3 +8,10 @@ local.properties
 .cxx/
 captures/
 gradle/gradle-daemon-jvm.properties
+
+# Local release signing materials and generated distributables.
+*.jks
+*.keystore
+*.p12
+*.idsig
+artifacts/
