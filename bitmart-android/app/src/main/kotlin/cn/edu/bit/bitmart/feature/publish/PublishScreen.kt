@@ -89,6 +89,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
@@ -565,7 +568,7 @@ private fun PublishFormColumn(
                     }
                 }
             }
-            OutlinedTextField(draft.contact, viewModel::onContact, label = { Text(stringResource(R.string.publish_field_contact)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(draft.contact, viewModel::onContact, label = { RequiredLabel(stringResource(R.string.publish_field_contact)) }, modifier = Modifier.fillMaxWidth())
             Text(
                 stringResource(R.string.publish_contact_privacy_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -773,6 +776,17 @@ private fun FormSection(
     }
 }
 
+/** 必填字段标签：文案后接红色星号，用 error 配色标识必填。 */
+@Composable
+private fun RequiredLabel(text: String) {
+    Text(
+        buildAnnotatedString {
+            append(text)
+            withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) { append(" *") }
+        },
+    )
+}
+
 /**
  * 标题输入框：随输入展示「当前长度/上限」计数（超限时 isError 置位，计数随 Material3 自动转红）。
  * 不硬性截断输入，与价格字段一致——允许越限输入并在提交时再校验。书籍/一般商品两处共用，避免分叉。
@@ -786,7 +800,7 @@ private fun TitleField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(stringResource(R.string.publish_field_title)) },
+        label = { RequiredLabel(stringResource(R.string.publish_field_title)) },
         isError = value.length > PublishConfig.MAX_TITLE_LENGTH,
         supportingText = { Text(stringResource(R.string.publish_field_counter, value.length, PublishConfig.MAX_TITLE_LENGTH)) },
         modifier = modifier,
