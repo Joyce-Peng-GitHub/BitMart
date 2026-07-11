@@ -412,20 +412,20 @@ ShowAPI 不可用或查询无结果时不写入缓存，注册、登录、普通
 
 ### 索引设计
 
-| 索引 | 类型 | 服务查询 |
-| --- | --- | --- |
-| `app_user_active_student_id_uk(student_id) WHERE deleted_at IS NULL` | 部分唯一 B-tree | 活跃学号查重、登录、允许注销后重注册 |
-| `session_user_idx(user_id) WHERE NOT revoked` | 部分 B-tree | 按用户查找/撤销未撤销会话；不排除已过期行 |
-| `notification_user_cursor_idx(user_id, created_at DESC)` | B-tree | 个人通知游标分页 |
-| `notification_announce_idx(created_at DESC) WHERE user_id IS NULL` | 部分 B-tree | 公告时间线 |
-| `push_token_user_idx(user_id)` | B-tree | 用户推送设备查询（预留） |
-| `listing_active_idx(type, category, expires_at) WHERE deleted_at IS NULL` | 部分 B-tree | 活跃出售/求购与品类、到期过滤 |
-| `listing_user_idx(user_id) WHERE deleted_at IS NULL` | 部分 B-tree | 我的发布 |
-| `listing_created_idx(created_at DESC, id DESC) WHERE deleted_at IS NULL` | 部分 B-tree | 时间倒序 keyset 分页 |
-| `listing_tsv_idx(search_tsv)` | GIN | 全文检索 |
-| `listing_title_trgm_idx(title)` | GIN trgm | 标题模糊匹配 |
-| `listing_desc_trgm_idx(description)` | GIN trgm | 描述模糊匹配 |
-| `listing_tag_tag_idx(tag_id)` | B-tree | 按标签反查发布 |
+| 索引 | 服务查询 |
+| --- | --- |
+| `app_user_active_student_id_uk(student_id) WHERE deleted_at IS NULL` | 活跃学号查重、登录、允许注销后重注册 |
+| `session_user_idx(user_id) WHERE NOT revoked` | 按用户查找/撤销未撤销会话；不排除已过期行 |
+| `notification_user_cursor_idx(user_id, created_at DESC)` | 个人通知游标分页 |
+| `notification_announce_idx(created_at DESC) WHERE user_id IS NULL` | 公告时间线 |
+| `push_token_user_idx(user_id)` | 用户推送设备查询（预留） |
+| `listing_active_idx(type, category, expires_at) WHERE deleted_at IS NULL` | 活跃出售/求购与品类、到期过滤 |
+| `listing_user_idx(user_id) WHERE deleted_at IS NULL` | 我的发布 |
+| `listing_created_idx(created_at DESC, id DESC) WHERE deleted_at IS NULL` | 时间倒序 keyset 分页 |
+| `listing_tsv_idx(search_tsv)` | 全文检索 |
+| `listing_title_trgm_idx(title)` | 标题模糊匹配 |
+| `listing_desc_trgm_idx(description)` | 描述模糊匹配 |
+| `listing_tag_tag_idx(tag_id)` | 按标签反查发布 |
 
 主键和唯一约束还会自动产生相应的唯一索引。
 
