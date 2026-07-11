@@ -258,7 +258,7 @@ erDiagram
 | 字段 | 类型 | 空值/默认 | 约束与说明 |
 | --- | --- | --- | --- |
 | `id` | `BIGINT IDENTITY` | 非空 | 主键 |
-| `listing_id` | `BIGINT` | 非空 | 外键 → `listing.id`，物理删除时级联 |
+| `listing_id` | `BIGINT` | 非空 | 外键级联删除 |
 | `blob_key` | `TEXT` | 非空 | Blob 存储中的文件键 |
 | `ord` | `SMALLINT` | 非空 | 图片显示顺序 |
 | `width` | `INT` | 可空 | 图片宽度 |
@@ -282,7 +282,7 @@ Android 客户端单条发布最多选择 9 张图片，并在上传前将最长
 
 | 字段 | 类型 | 空值/默认 | 约束与说明 |
 | --- | --- | --- | --- |
-| `listing_id` | `BIGINT` | 非空 | 主键组成部分；外键 → `listing.id`，物理删除时级联 |
+| `listing_id` | `BIGINT` | 非空 | 主键组成部分；外键级联删除 |
 | `tag_id` | `BIGINT` | 非空 | 主键组成部分；外键 → `tag.id` |
 
 复合主键 `(listing_id, tag_id)` 防止重复关联，`listing_tag_tag_idx(tag_id)` 支持按标签反查发布。`usage_count` 当前不随解除关联递减，其语义是历史使用热度，不是当前有效引用数。
@@ -307,7 +307,7 @@ ShowAPI 不可用或查询无结果时不写入缓存，注册、登录、普通
 
 | 字段 | 类型 | 空值/默认 | 约束与说明 |
 | --- | --- | --- | --- |
-| `listing_id` | `BIGINT` | 非空 | 主键；外键 → `listing.id`，物理删除时级联 |
+| `listing_id` | `BIGINT` | 非空 | 主键；外键级联删除 |
 | `isbn` | `VARCHAR(20)` | 可空 | ISBN |
 | `title` | `TEXT` | 可空 | 书名快照 |
 | `authors` | `TEXT` | 可空 | 作者快照 |
