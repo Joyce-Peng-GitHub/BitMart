@@ -142,7 +142,7 @@ erDiagram
 
 - `APP_USER(` <u>`id`</u> `, student_id[UK-条件], password_hash, nickname, role, status, created_at, deleted_at)`
 - `SESSION(` <u>`token_hash`</u> `, user_id[FK], created_at, last_used_at, expires_at, user_agent, revoked)`
-- `NOTIFICATION(` <u>`id`</u> `, user_id[FK,可空], category, title, body, payload, read_at, created_at)`
+- `NOTIFICATION(` <u>`id`</u> `, user_id[FK], category, title, body, payload, read_at, created_at)`
 - `PUSH_TOKEN(` <u>`id`</u> `, user_id[FK], token, platform, created_at, updated_at, UNIQUE(user_id, token))`
 - `LISTING(` <u>`id`</u> `, type, category, user_id[FK], title, description, unit_price, original_price, quantity_total, quantity_sold, pickup_location, contact, expires_at, created_at, updated_at, deleted_at, search_tsv, source)`
 - `LISTING_IMAGE(` <u>`id`</u> `, listing_id[FK], blob_key, ord, width, height, UNIQUE(listing_id, ord))`
